@@ -21,10 +21,12 @@ if (!me?.is_moderator || !admin) return new Response('Pagina non trovata', { sta
 const decided = Astro.getActionResult(actions.moderation.decide);
 const undone = Astro.getActionResult(actions.moderation.undo);
 const asked = Astro.getActionResult(actions.moderation.askAgent);
+const appealed = Astro.getActionResult(actions.moderation.decideAppeal);
+if (appealed?.data) return Astro.redirect(`/moderazione?fatto=contestazione-${appealed.data.decision}#contestazioni`, 303);
 if (decided?.data) return Astro.redirect(`/moderazione?fatto=${decided.data.decision}`, 303);
 if (undone?.data) return Astro.redirect('/moderazione?fatto=annulla#registro', 303);
 if (asked?.data) return Astro.redirect(`/moderazione?fatto=agente-${asked.data.action}`, 303);
-const error = [decided, undone, asked].find((r) => r?.error)?.error?.message;
+const error = [decided, undone, asked, appealed].find((r) => r?.error)?.error?.message;
 const done = Astro.url.searchParams.get('fatto');
 const NOTICE: Record<string, string> = {
   nascondi: 'Nascosto: chi ha segnalato e chi ha pubblicato sono stati avvisati.',
@@ -34,6 +36,8 @@ const NOTICE: Record<string, string> = {
   'agente-nascondi': "L'agente ha nascosto il contenuto.",
   'agente-respingi': "L'agente ha respinto le segnalazioni.",
   'agente-passa': "L'agente ha lasciato una proposta: decidi tu.",
+  'contestazione-accogli': 'Contestazione accolta: la decisione è annullata e la persona è stata avvisata.',
+  'contestazione-respingi': 'Contestazione respinta: la persona ha ricevuto la tua risposta.',
 };
 const agentOn = Boolean(claudeKey());
 
@@ -62,6 +66,20 @@ const [{ data: reportData }, { data: logData }] = await Promise.all([
     .limit(40),
 ]);
 const rows = (reportData ?? []) as ReportRow[];
+
+// Contestazioni aperte, con la decisione contestata
+const { data: appealData } = await admin
+  .from('appeals')
+  .select('id, message, created_at, user_id, decision:moderation_actions(id, target, listing_id, action, actor, reason, message, created_at)')
+  .eq('status', 'aperta')
+  .order('created_at');
+const openAppeals = (appealData ?? []) as unknown as Array<{
+  id: string;
+  message: string;
+  created_at: string;
+  user_id: string;
+  decision: { id: string; target: string; listing_id: string | null; action: string; actor: string; reason: string | null; message: string | null; created_at: string } | null;
+}>;
 const log = (logData ?? []) as Array<{
   id: string;
   target: string;
@@ -83,8 +101,8 @@ const groups = new Map<string, ReportRow[]>();
 for (const r of rows) groups.set(r.target, [...(groups.get(r.target) ?? []), r]);
 
 const uniq = (values: Array<string | null | undefined>) => [...new Set(values.filter((v): v is string => Boolean(v)))];
-const listingIds = uniq([...rows.map((r) => r.listing_id), ...log.map((a) => a.listing_id)]);
-const userIds = uniq([...rows.map((r) => r.reported_user_id), ...log.map((a) => a.user_id), ...log.map((a) => a.moderator_id)]);
+const listingIds = uniq([...rows.map((r) => r.listing_id), ...log.map((a) => a.listing_id), ...openAppeals.map((a) => a.decision?.listing_id)]);
+const userIds = uniq([...rows.map((r) => r.reported_user_id), ...log.map((a) => a.user_id), ...log.map((a) => a.moderator_id), ...openAppeals.map((a) => a.user_id)]);
 const convIds = uniq(rows.map((r) => r.conversation_id));
 const [{ data: listings }, { data: questions }, { data: ratings }, { data: people }, { data: messages }, { data: convs }] = await Promise.all([
   admin.from('listings').select('id, title, description, price_chf, status, hidden_at, seller_id').in('id', listingIds),
@@ -308,6 +326,58 @@ const pct = (c: number | null) => (c != null ? `${Math.round(c * 100)}%` : '');
         </ul>
       )
     }
+
+    <section id="contestazioni" aria-labelledby="contestazioni-titolo">
+      <div class="section-h">
+        <h2 id="contestazioni-titolo">Contestazioni</h2>
+        <span class="muted small">Le decide sempre una persona. Accogliere annulla la decisione.</span>
+      </div>
+      {
+        openAppeals.length === 0 ? (
+          <p class="muted">Nessuna contestazione aperta.</p>
+        ) : (
+          <ul class="reports">
+            {openAppeals.map((a) => (
+              <li class="panel">
+                <div class="r-top">
+                  <span class="badge plain">{a.decision?.action === 'sospendi' ? 'Account sospeso' : 'Contenuto nascosto'}</span>
+                  <span class="muted small">
+                    da {nameOf(a.user_id)} · {formatAge(a.created_at)}
+                  </span>
+                </div>
+                {a.decision && (
+                  <a class="title" href={targetLink(a.decision.target, a.decision.listing_id)}>
+                    {a.decision.listing_id ? (L.get(a.decision.listing_id)?.title ?? a.decision.listing_id) : nameOf(a.user_id)}
+                  </a>
+                )}
+                {a.decision && (
+                  <p class="small muted">
+                    Deciso da {a.decision.actor === 'agente' ? "l'agente" : 'una persona'} {formatAge(a.decision.created_at)}
+                    {a.decision.reason && `: ${a.decision.reason}`}
+                  </p>
+                )}
+                <blockquote>«{a.message}»</blockquote>
+                <form class="decide" method="POST" action={actions.moderation.decideAppeal}>
+                  <input type="hidden" name="appealId" value={a.id} />
+                  <label class="fld">
+                    <span class="label">Risposta (obbligatoria se respingi)</span>
+                    <input name="reply" maxlength="1000" placeholder="Perché la decisione resta, oppure un messaggio di scuse" />
+                  </label>
+                  <div class="row">
+                    <button class="btn primary" type="submit" name="decision" value="accogli">
+                      Accogli e annulla
+                    </button>
+                    <button class="btn" type="submit" name="decision" value="respingi">
+                      Respingi
+                    </button>
+                  </div>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </section>
 
     <section id="registro" aria-labelledby="registro-titolo">
       <div class="section-h">

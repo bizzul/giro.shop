@@ -6,6 +6,7 @@ import { estimatePrice } from '../core/price.ts';
 import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
 import { account } from './account.ts';
 import { alerts } from './alerts.ts';
+import { appeals } from './appeals.ts';
 import { messages } from './messages.ts';
 import { moderation } from './moderation.ts';
 import { questions } from './questions.ts';
@@ -16,6 +17,7 @@ import { reports } from './reports.ts';
 export const server = {
   account,
   alerts,
+  appeals,
   messages,
   moderation,
   questions,

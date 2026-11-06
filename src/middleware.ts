@@ -25,6 +25,10 @@ const PUBLIC_PATHS = new Set([
   '/traduci',
   '/cerca-foto',
   '/email-avvisi',
+  '/privacy',
+  '/condizioni',
+  '/robots.txt',
+  '/sitemap.xml',
 ]);
 
 export const onRequest = defineMiddleware(async (context, next) => {

@@ -4,7 +4,7 @@ import { adminClient } from '../lib/admin.ts';
 import { invalidateListingPages } from '../lib/cache.ts';
 import { applyDecision, ModerationError, undoAction } from '../lib/moderation.ts';
 import { moderateWithAgent } from '../lib/moderation-agent.ts';
-import { siteOrigin } from '../lib/notify.ts';
+import { notify, siteOrigin } from '../lib/notify.ts';
 import { requireUser } from './account.ts';
 
 /** Solo chi ha is_moderator nel profilo (lo assegna chi gestisce il database). */
@@ -62,6 +62,50 @@ export const moderation = {
       }
       await invalidateListingPages(context);
       return { actionId };
+    },
+  }),
+
+  /** Decide una contestazione: accolta annulla la decisione, respinta la conferma con una risposta. */
+  decideAppeal: defineAction({
+    accept: 'form',
+    input: z.object({
+      appealId: z.string().uuid(),
+      decision: z.enum(['accogli', 'respingi']),
+      reply: z.string().trim().max(1000).nullish(),
+    }),
+    handler: async ({ appealId, decision, reply }, context) => {
+      const { user, admin } = await requireModerator(context);
+      const { data: appeal } = await admin.from('appeals').select('id, action_id, user_id, status').eq('id', appealId).maybeSingle();
+      if (!appeal || appeal.status !== 'aperta') throw new ActionError({ code: 'NOT_FOUND', message: 'Contestazione non trovata o già decisa.' });
+      if (decision === 'respingi' && !reply) throw new ActionError({ code: 'BAD_REQUEST', message: 'Scrivi una risposta: chi contesta deve sapere perché la decisione resta.' });
+      const origin = siteOrigin(context.url.origin);
+      if (decision === 'accogli') {
+        try {
+          // Annullare avvisa già la persona (contenuto o account di nuovo visibili)
+          await undoAction(admin, appeal.action_id, user.id, origin);
+        } catch (error) {
+          throw asActionError(error);
+        }
+      } else {
+        await notify(
+          [
+            {
+              userId: appeal.user_id,
+              kind: 'contestazione',
+              title: 'Abbiamo riesaminato la decisione: resta valida',
+              body: reply ?? '',
+              url: `/contesta/${appeal.action_id}`,
+            },
+          ],
+          origin,
+        );
+      }
+      await admin
+        .from('appeals')
+        .update({ status: decision === 'accogli' ? 'accolta' : 'respinta', reply: reply || null, decided_at: new Date().toISOString(), decided_by: user.id })
+        .eq('id', appealId);
+      await invalidateListingPages(context);
+      return { appealId, decision };
     },
   }),
 

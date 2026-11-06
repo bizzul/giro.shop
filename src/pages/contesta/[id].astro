@@ -1,0 +1,95 @@
+---
+/** Contestare una decisione di moderazione che ci riguarda: la rivede una persona. */
+import Layout from '../../layouts/Layout.astro';
+import { actions } from 'astro:actions';
+import { formatAge } from '../../core/format.ts';
+
+const id = Astro.params.id ?? '';
+const { user, supabase } = Astro.locals;
+if (!user || !supabase) return Astro.redirect(`/accedi?next=/contesta/${encodeURIComponent(id)}`);
+
+const result = Astro.getActionResult(actions.appeals.create);
+if (result?.data) return Astro.redirect(`/contesta/${id}?fatto=1`, 303);
+const done = Astro.url.searchParams.get('fatto') === '1';
+
+const { data: rows } = await supabase.rpc('my_moderation_actions');
+const decision = ((rows ?? []) as Array<{
+  id: string;
+  target: string;
+  listing_id: string | null;
+  action: string;
+  message: string | null;
+  created_at: string;
+  undone_at: string | null;
+  appeal_status: 'aperta' | 'accolta' | 'respinta' | null;
+  appeal_reply: string | null;
+}>).find((d) => d.id === id);
+// L'annuncio nascosto lo vede ancora chi l'ha pubblicato
+const { data: listing } = decision?.listing_id ? await supabase.from('listings').select('id, title').eq('id', decision.listing_id).maybeSingle() : { data: null };
+const what =
+  decision?.action === 'sospendi'
+    ? 'La sospensione del tuo account'
+    : decision?.target.startsWith('domanda:')
+      ? `Una tua domanda su «${listing?.title ?? 'un annuncio'}» è stata nascosta`
+      : decision?.target.startsWith('valutazione:')
+        ? `Una tua valutazione su «${listing?.title ?? 'un annuncio'}» è stata nascosta`
+        : `Il tuo annuncio «${listing?.title ?? ''}» è stato nascosto`;
+const STATUS = { aperta: 'In esame: ti avvisiamo quando abbiamo deciso.', accolta: 'Accolta: la decisione è stata annullata.', respinta: 'Respinta: la decisione resta.' };
+---
+
+<Layout title="Contesta una decisione · giro.shop">
+  <section class="wrap band appeal">
+    {
+      !decision ? (
+        <div class="panel">
+          <h1>Decisione non trovata.</h1>
+          <p class="muted">Si possono contestare solo le decisioni che ti riguardano.</p>
+          <a class="btn" href="/miei-annunci">I miei annunci</a>
+        </div>
+      ) : (
+        <div class="panel">
+          <span class="label">Decisione di moderazione · {formatAge(decision.created_at)}</span>
+          <h1>{what}</h1>
+          {decision.message && decision.message !== 'moderazione' && <blockquote>{decision.message}</blockquote>}
+
+          {decision.undone_at ? (
+            <p class="notice">Questa decisione è già stata annullata.</p>
+          ) : decision.appeal_status || done ? (
+            <>
+              <p class="notice">{done && !decision.appeal_status ? STATUS.aperta : STATUS[decision.appeal_status ?? 'aperta']}</p>
+              {decision.appeal_reply && (
+                <div class="reply">
+                  <span class="label">Risposta di chi modera</span>
+                  <p>{decision.appeal_reply}</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <form method="POST" action={actions.appeals.create}>
+              <input type="hidden" name="actionId" value={decision.id} />
+              {result?.error && <p class="error" role="alert">{result.error.message}</p>}
+              <label class="fld">
+                <span class="label">Perché pensi sia un errore?</span>
+                <textarea name="message" rows="5" minlength="10" maxlength="1500" required placeholder="Per esempio: l'oggetto è mio, ho lo scontrino; il prezzo è basso perché ha un difetto, scritto nella descrizione." />
+              </label>
+              <p class="small">La contestazione la legge una persona, non l'agente automatico. Ti rispondiamo qui e per email.</p>
+              <button class="btn primary" type="submit">Invia la contestazione</button>
+            </form>
+          )}
+          <a class="small" href="/miei-annunci">Torna ai miei annunci</a>
+        </div>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .appeal { max-width: 640px; }
+  .appeal h1 { font-size: clamp(24px, 3vw, 32px); overflow-wrap: anywhere; }
+  blockquote { margin: 0; padding: 10px 14px; border-left: 2px solid var(--line-strong); background: var(--surface-2); }
+  form { display: grid; gap: 12px; width: 100%; }
+  .fld { display: grid; gap: 8px; }
+  .fld textarea { width: 100%; font: 400 15px/1.5 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 10px 12px; }
+  form .btn { justify-self: start; }
+  .reply { display: grid; gap: 6px; padding: 12px 14px; border-radius: 4px; background: var(--surface-2); }
+</style>

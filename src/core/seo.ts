@@ -1,0 +1,120 @@
+import type { Comune, Listing } from './types.ts';
+import { getCategory } from './categories.ts';
+
+/**
+ * Per i motori di ricerca: dati strutturati schema.org degli annunci, sitemap e robots.txt.
+ */
+
+const CONDITION: Record<Listing['condition'], string> = {
+  nuovo: 'https://schema.org/NewCondition',
+  come_nuovo: 'https://schema.org/UsedCondition',
+  buono: 'https://schema.org/UsedCondition',
+  usato: 'https://schema.org/UsedCondition',
+  da_riparare: 'https://schema.org/DamagedCondition',
+};
+
+const absolute = (origin: string, src: string) => (src.startsWith('http') ? src : `${origin}${src}`);
+
+/** Un annuncio come Product con la sua Offer: prezzo in CHF, stato, disponibilità, luogo di ritiro. */
+export function listingJsonLd(listing: Listing, origin: string, comune?: Comune): Record<string, unknown> {
+  const availability =
+    listing.status === 'venduto'
+      ? 'https://schema.org/SoldOut'
+      : listing.negotiating
+        ? 'https://schema.org/LimitedAvailability'
+        : 'https://schema.org/InStock';
+  const offer: Record<string, unknown> = {
+    '@type': 'Offer',
+    url: `${origin}/annuncio/${listing.id}`,
+    priceCurrency: 'CHF',
+    price: listing.priceChf.toFixed(2),
+    availability,
+    itemCondition: CONDITION[listing.condition],
+    seller: { '@type': 'Person', name: listing.seller.name },
+  };
+  if (comune) {
+    offer.availableAtOrFrom = {
+      '@type': 'Place',
+      address: { '@type': 'PostalAddress', addressLocality: comune.name, postalCode: comune.cap, addressRegion: 'TI', addressCountry: 'CH' },
+    };
+  }
+  if (listing.shipping && listing.shippingChf != null) {
+    offer.shippingDetails = {
+      '@type': 'OfferShippingDetails',
+      shippingRate: { '@type': 'MonetaryAmount', value: listing.shippingChf.toFixed(2), currency: 'CHF' },
+      shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'CH' },
+    };
+  }
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: listing.title,
+    description: listing.description.slice(0, 5000),
+    category: getCategory(listing.category).name,
+    image: (listing.photos ?? []).map((p) => absolute(origin, p.src)),
+    offers: offer,
+  };
+}
+
+/** JSON da mettere dentro <script type="application/ld+json">, senza poter chiudere lo script. */
+export function jsonLdScript(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, '\\u003c');
+}
+
+export interface SitemapEntry {
+  path: string;
+  lastmod?: string;
+  priority?: number;
+}
+
+const xml = (s: string) => s.replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c] ?? c);
+
+export function sitemapXml(origin: string, entries: SitemapEntry[]): string {
+  const urls = entries
+    .map(
+      (e) =>
+        `  <url><loc>${xml(origin + e.path)}</loc>${e.lastmod ? `<lastmod>${e.lastmod.slice(0, 10)}</lastmod>` : ''}${
+          e.priority != null ? `<priority>${e.priority.toFixed(1)}</priority>` : ''
+        }</url>`,
+    )
+    .join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+}
+
+/** Pagine private o di servizio: non servono ai motori di ricerca. */
+export const PRIVATE_PATHS = [
+  '/miei-annunci',
+  '/messaggi',
+  '/avvisi',
+  '/salvati',
+  '/moderazione',
+  '/segnala',
+  '/contesta',
+  '/valuta',
+  '/domande',
+  '/account',
+  '/accedi',
+  '/auth',
+  '/email-avvisi',
+  '/risultati',
+  '/suggerimenti',
+  '/traduci',
+  '/cerca-foto',
+  '/confronta',
+  '/mcp',
+  '/_server-islands',
+  '/_actions',
+];
+
+export function robotsTxt(origin: string): string {
+  return [
+    'User-agent: *',
+    'Allow: /',
+    ...PRIVATE_PATHS.map((p) => `Disallow: ${p}`),
+    // Le ricerche con parametri sono infinite e simili tra loro: basta /cerca
+    'Disallow: /*?',
+    '',
+    `Sitemap: ${origin}/sitemap.xml`,
+    '',
+  ].join('\n');
+}

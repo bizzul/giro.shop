@@ -27,6 +27,10 @@ export function allowedDecisions(kind: TargetKind): Decision[] {
 
 export class ModerationError extends Error {}
 
+/** Il link per contestare: l'id della decisione si conosce solo dopo averla registrata. */
+const APPEAL_URL = '/contesta/__decisione__';
+const CONTEST = 'Se pensi sia un errore, puoi contestare la decisione: la rivede una persona.';
+
 export interface TargetInfo {
   kind: TargetKind;
   id: string;
@@ -121,8 +125,8 @@ export async function applyDecision(input: DecisionInput): Promise<{ actionId: s
         userId: info.userId,
         kind: 'segnalazione',
         title: `«${info.listingTitle}» è stato nascosto`,
-        body: input.message || 'Non rispetta le regole di giro.shop. Se pensi sia un errore, scrivici rispondendo a questa email.',
-        url: `/miei-annunci#a-${info.id}`,
+        body: `${input.message || 'Non rispetta le regole di giro.shop.'} ${CONTEST}`,
+        url: APPEAL_URL,
         listingId,
       });
     }
@@ -135,8 +139,8 @@ export async function applyDecision(input: DecisionInput): Promise<{ actionId: s
       userId: info.userId,
       kind: 'segnalazione',
       title: 'Il tuo account è sospeso',
-      body: input.message || 'Non rispetta le regole di giro.shop: i tuoi annunci non sono visibili e non puoi scrivere. Se pensi sia un errore, rispondi a questa email.',
-      url: '/miei-annunci',
+      body: `${input.message || 'Non rispetta le regole di giro.shop.'} I tuoi annunci non sono visibili e non puoi scrivere. ${CONTEST}`,
+      url: APPEAL_URL,
     });
   } else if (info.kind === 'annuncio') {
     // Respinta: se l'annuncio era nascosto solo per le segnalazioni, torna visibile
@@ -195,6 +199,7 @@ export async function applyDecision(input: DecisionInput): Promise<{ actionId: s
     .single();
   if (logError || !action) throw new ModerationError(`Decisione presa ma non registrata: ${logError?.message}`);
 
+  for (const n of notices) n.url = n.url.replace('__decisione__', action.id as string);
   await notify(notices, input.origin);
   await refreshListings(true);
   return { actionId: action.id as string, info };

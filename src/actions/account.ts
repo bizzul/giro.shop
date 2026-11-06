@@ -9,6 +9,7 @@ import { MIN_PHOTOS, planPhotoOrder } from '../core/photos.ts';
 import { invalidateListingPages } from '../lib/cache.ts';
 import { afterPriceChange, afterPublish, afterSale, afterTextChange } from '../lib/listing-events.ts';
 import { siteOrigin } from '../lib/notify.ts';
+import { adminClient } from '../lib/admin.ts';
 
 /** Spedizione dal form: casella "si spedisce" e costo facoltativo. */
 const shippingFields = {
@@ -88,6 +89,38 @@ export const account = {
       await refreshListings(true);
       await invalidateListingPages(context);
       return { displayName };
+    },
+  }),
+
+  /**
+   * Elimina l'account e tutto ciò che gli appartiene: annunci e foto, conversazioni (anche per l'altra persona),
+   * domande, valutazioni, salvati, ricerche, avvisi, segnalazioni. Il registro di moderazione resta senza il nome.
+   */
+  deleteAccount: defineAction({
+    accept: 'form',
+    input: z.object({ confirm: z.string().trim() }),
+    handler: async ({ confirm }, context) => {
+      const { supabase, user } = requireUser(context);
+      if (confirm.toUpperCase() !== 'ELIMINA') throw new ActionError({ code: 'BAD_REQUEST', message: 'Per confermare scrivi ELIMINA.' });
+      const admin = adminClient();
+      if (!admin) throw new ActionError({ code: 'BAD_REQUEST', message: "Eliminazione non disponibile: manca la configurazione del server." });
+
+      // Le foto, cartella per cartella (una per annuncio)
+      const { data: folders } = await admin.storage.from('foto').list(user.id, { limit: 1000 });
+      const paths: string[] = [];
+      for (const entry of folders ?? []) {
+        const { data: files } = await admin.storage.from('foto').list(`${user.id}/${entry.name}`, { limit: 1000 });
+        if (files?.length) paths.push(...files.map((f) => `${user.id}/${entry.name}/${f.name}`));
+        else paths.push(`${user.id}/${entry.name}`);
+      }
+      if (paths.length) await admin.storage.from('foto').remove(paths);
+
+      await supabase.auth.signOut();
+      const { error } = await admin.auth.admin.deleteUser(user.id);
+      if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Account non eliminato: ${error.message}` });
+      await refreshListings(true);
+      await invalidateListingPages(context);
+      return { ok: true };
     },
   }),
 

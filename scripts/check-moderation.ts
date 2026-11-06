@@ -181,6 +181,26 @@ try {
   const logF = await admin.from('moderation_actions').select('action, confidence').eq('target', tF).single();
   expect("senza decisione dell'agente, decide una persona", 'action' in outF && outF.action === 'passa' && logF.data?.confidence === 0);
   expect('le segnalazioni già esaminate non si reinseriscono come nuove', Boolean((await reporter.client.from('reports').insert({ reporter_id: buyer.id, reported_user_id: reporter.id, reason: 'spam', agent_reviewed_at: new Date().toISOString() })).error));
+
+  // G. Contestazioni: solo chi è coinvolto, una volta, e decide una persona
+  const contested = await listing(`Orologio ${tag}`, 'Orologio da polso, funzionante.');
+  await reporter.client.from('reports').insert({ reporter_id: reporter.id, listing_id: contested, reason: 'falso' });
+  const tG = `annuncio:${contested}`;
+  targets.push(tG);
+  const { actionId: hideG } = await applyDecision({ admin, target: tG, decision: 'nascondi', actor: 'agente', reason: 'Prova', confidence: 0.9, origin: ORIGIN });
+  const mine = await seller.client.rpc('my_moderation_actions');
+  const theirs = await reporter.client.rpc('my_moderation_actions');
+  expect('chi pubblica vede le decisioni che lo riguardano', (mine.data as Array<{ id: string }> | null)?.some((d) => d.id === hideG) === true);
+  expect('gli altri non le vedono', !(theirs.data as Array<{ id: string }> | null)?.some((d) => d.id === hideG));
+  expect('si contesta solo una decisione che ci riguarda', Boolean((await reporter.client.from('appeals').insert({ action_id: hideG, user_id: reporter.id, message: 'Non mi riguarda ma contesto' })).error));
+  expect('una contestazione non nasce già accolta', Boolean((await seller.client.from('appeals').insert({ action_id: hideG, user_id: seller.id, message: 'Lo scrivo io che è accolta', status: 'accolta' })).error));
+  const appeal = await seller.client.from('appeals').insert({ action_id: hideG, user_id: seller.id, message: "L'orologio è mio, ho lo scontrino." }).select('id').single();
+  expect('chi è coinvolto contesta la decisione', !appeal.error, appeal.error?.message);
+  expect('una contestazione per decisione', Boolean((await seller.client.from('appeals').insert({ action_id: hideG, user_id: seller.id, message: 'Seconda contestazione' })).error));
+  expect('le contestazioni degli altri non si leggono', (await reporter.client.from('appeals').select('id').eq('id', appeal.data?.id ?? '')).data?.length === 0);
+  await undoAction(admin, hideG, mod.id, ORIGIN);
+  const notAgain = await seller.client.rpc('can_appeal', { p_action: hideG });
+  expect('una decisione annullata non si contesta più', notAgain.data === false);
 } catch (error) {
   expect('esecuzione', false, (error as Error).stack ?? String(error));
 } finally {

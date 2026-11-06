@@ -12,6 +12,8 @@ if (!user || !supabase) return Astro.redirect('/accedi?next=/miei-annunci');
 
 const signOut = Astro.getActionResult(actions.account.signOut);
 if (signOut && !signOut.error) return Astro.redirect('/');
+const deleted = Astro.getActionResult(actions.account.deleteAccount);
+if (deleted?.data) return Astro.redirect('/accedi?eliminato=1', 303);
 
 const nameResult = Astro.getActionResult(actions.account.updateName);
 const statusResult = Astro.getActionResult(actions.account.setListingStatus);
@@ -27,7 +29,7 @@ const { data: authData } = await supabase.auth.getUser();
 const authUser = authData.user;
 const verifiedPhone = authUser?.phone && authUser.phone_confirmed_at ? `+${authUser.phone}` : null;
 const pendingPhone = phoneStart?.data?.phone ?? (authUser?.new_phone ? `+${authUser.new_phone}` : null);
-const error = [nameResult, statusResult, deleteResult, signOut, emailResult, renewResult].find((r) => r?.error)?.error?.message;
+const error = [nameResult, statusResult, deleteResult, signOut, emailResult, renewResult, deleted].find((r) => r?.error)?.error?.message;
 const notice = renewResult?.data
   ? `Rinnovato: resta online fino ${formatDay(renewResult.data.expires, 'al')}.`
   : emailResult?.data
@@ -43,6 +45,14 @@ const notice = renewResult?.data
       : phoneConfirm?.data
         ? 'Cellulare verificato: lo vedono anche gli acquirenti.'
         : null;
+
+// Decisioni di moderazione che mi riguardano: servono per il link "Contesta la decisione"
+const { data: decisionRows } = await supabase.rpc('my_moderation_actions');
+const decisions = ((decisionRows ?? []) as Array<{ id: string; listing_id: string | null; action: string; undone_at: string | null; appeal_status: string | null }>).filter(
+  (d) => !d.undone_at,
+);
+const suspension = decisions.find((d) => d.action === 'sospendi');
+const hideDecision = (listingId: string) => decisions.find((d) => d.action === 'nascondi' && d.listing_id === listingId);
 
 const { data: profile } = await supabase
   .from('profiles')
@@ -109,7 +119,8 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
           <b>Il tuo account è sospeso.</b>
           <span>
             {profile.suspended_reason && profile.suspended_reason !== 'moderazione' ? `${profile.suspended_reason} ` : ''}I tuoi annunci non sono
-            visibili e non puoi pubblicare né scrivere. Se pensi sia un errore, rispondi all'email che ti abbiamo mandato.
+            visibili e non puoi pubblicare né scrivere.{' '}
+            {suspension ? <a href={`/contesta/${suspension.id}`}>{suspension.appeal_status ? 'Vedi la tua contestazione' : 'Contesta la decisione'}</a> : null}
           </span>
         </div>
       )
@@ -193,6 +204,28 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
       </form>
     </details>
 
+    <section class="panel data-panel" id="dati" aria-labelledby="dati-titolo">
+      <h2 id="dati-titolo">I tuoi dati</h2>
+      <p class="muted small">
+        Puoi scaricare tutto quello che giro.shop tiene su di te, in un file. Come li usiamo è spiegato nell'<a href="/privacy">informativa sulla privacy</a>.
+      </p>
+      <a class="btn" href="/account/dati" download>Scarica i tuoi dati</a>
+      <details class="danger delete-account">
+        <summary>Elimina l'account</summary>
+        <form method="POST" action={actions.account.deleteAccount}>
+          <p class="small">
+            Si cancellano per sempre: account, annunci e foto, conversazioni (spariscono anche per l'altra persona), domande,
+            valutazioni, salvati, ricerche e avvisi. Non si può annullare.
+          </p>
+          <label class="fld">
+            <span class="label">Per confermare scrivi ELIMINA</span>
+            <input name="confirm" autocomplete="off" required pattern="[Ee][Ll][Ii][Mm][Ii][Nn][Aa]" />
+          </label>
+          <button class="btn danger-btn" type="submit">Elimina per sempre</button>
+        </form>
+      </details>
+    </section>
+
     <div class="section-h">
       <h2>I miei annunci</h2>
       <span class="muted small">{listings.length === 1 ? '1 annuncio' : `${listings.length} annunci`}</span>
@@ -232,6 +265,14 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
                   {l.hidden_reason === 'segnalazioni'
                     ? 'Più persone hanno segnalato questo annuncio: non è visibile finché non lo controlliamo.'
                     : `Nascosto da chi modera${l.hidden_reason && l.hidden_reason !== 'moderazione' ? `: ${l.hidden_reason}` : '.'}`}
+                  {hideDecision(l.id) && (
+                    <>
+                      {' '}
+                      <a href={`/contesta/${hideDecision(l.id)!.id}`}>
+                        {hideDecision(l.id)!.appeal_status ? 'Vedi la tua contestazione' : 'Contesta la decisione'}
+                      </a>
+                    </>
+                  )}
                 </p>
               )}
               <div class="row-actions">
@@ -328,6 +369,10 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
   .link-button { background: none; border: 0; padding: 0; color: var(--muted); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
   .name-panel { padding: 16px 20px; }
   .email-panel { gap: 12px; }
+  .data-panel { gap: 12px; }
+  .data-panel h2 { font: 500 16px/1.3 var(--f-body); letter-spacing: 0; }
+  .delete-account form { display: grid; gap: 10px; margin-top: 10px; }
+  .danger-btn { border-color: var(--bad); color: var(--bad); }
   .email-panel h2 { font: 500 16px/1.3 var(--f-body); letter-spacing: 0; }
   .email-form { display: grid; gap: 14px; justify-items: start; }
   .toggle { display: flex; gap: 12px; align-items: flex-start; font-size: 15px; cursor: pointer; }

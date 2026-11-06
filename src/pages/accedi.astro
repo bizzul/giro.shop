@@ -11,6 +11,7 @@ if (Astro.locals.user) return Astro.redirect(next);
 const result = Astro.getActionResult(actions.account.sendMagicLink);
 const emailError = result?.error && isInputError(result.error) ? result.error.fields.email?.[0] : undefined;
 const linkFailed = Astro.url.searchParams.has('errore');
+const deleted = Astro.url.searchParams.has('eliminato');
 ---
 
 <Layout title="Accedi · giro.shop" description="Entra in giro.shop con un link via email, senza password.">
@@ -36,7 +37,11 @@ const linkFailed = Astro.url.searchParams.has('errore');
           <span class="label">Accedi o crea un account</span>
           <h1>Entra con la tua email.</h1>
           <p class="muted">Niente password: ti mandiamo un link. Se è la prima volta, l'account si crea da solo.</p>
+          <p class="small">
+            Entrando accetti le <a href="/condizioni">condizioni d'uso</a>. Come trattiamo i tuoi dati lo spiega l'<a href="/privacy">informativa sulla privacy</a>.
+          </p>
           {linkFailed && <p class="error">Il link non è valido o è scaduto. Chiedine uno nuovo.</p>}
+          {deleted && <p class="notice" role="status">Il tuo account è stato eliminato, con tutti i suoi dati. Grazie di aver usato giro.shop.</p>}
           {result?.error && !emailError && <p class="error">{result.error.message}</p>}
           {!supabaseConfigured() && <p class="error">Supabase non è configurato: manca PUBLIC_SUPABASE_URL nel file .env.</p>}
           <label class="fld">

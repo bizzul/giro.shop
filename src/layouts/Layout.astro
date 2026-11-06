@@ -3,17 +3,33 @@ import '../styles/global.css';
 import UserMenu from '../components/UserMenu.astro';
 import PlacePicker from '../components/PlacePicker.astro';
 import Toasts from '../components/Toasts.astro';
+import { jsonLdScript } from '../core/seo.ts';
+import { siteOrigin } from '../lib/notify.ts';
 
 interface Props {
   title: string;
   description?: string;
+  /** Immagine per le anteprime dei link condivisi (Open Graph). */
+  image?: string;
+  /** Dati strutturati schema.org per i motori di ricerca. */
+  jsonLd?: Record<string, unknown>;
+  /** "product" per le schede annuncio, "website" per il resto. */
+  ogType?: 'website' | 'product';
 }
 
 const {
   title,
   description = 'Compra e vendi in Ticino: annunci da una foto, ricerca a parole tue, connettore per assistenti AI.',
+  image,
+  jsonLd,
+  ogType = 'website',
 } = Astro.props;
 const path = Astro.url.pathname;
+// Indirizzo canonico: senza parametri, sull'indirizzo pubblico del sito
+const origin = siteOrigin(Astro.url.origin);
+const canonical = `${origin}${path}`;
+const ogImage = image ? (image.startsWith('http') ? image : `${origin}${image}`) : undefined;
+const summary = description.length > 200 ? `${description.slice(0, 197)}…` : description;
 const nav = [
   { href: '/cerca', label: 'Cerca' },
   { href: '/connetti', label: 'Assistente AI' },
@@ -26,7 +42,17 @@ const nav = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{title}</title>
-    <meta name="description" content={description} />
+    <meta name="description" content={summary} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:site_name" content="giro.shop" />
+    <meta property="og:locale" content="it_CH" />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={summary} />
+    <meta property="og:url" content={canonical} />
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+    {jsonLd && <script type="application/ld+json" set:html={jsonLdScript(jsonLd)} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -80,7 +106,10 @@ const nav = [
     <Toasts />
     <footer class="foot">
       <div class="wrap">
-        <span>giro.shop · prototipo, annunci di prova · <a href="/sicurezza">Comprare e vendere sicuri</a></span>
+        <span>
+          giro.shop · prototipo, annunci di prova · <a href="/sicurezza">Comprare e vendere sicuri</a> · <a href="/privacy">Privacy</a> ·{' '}
+          <a href="/condizioni">Condizioni d'uso</a>
+        </span>
         <span>Nomi, prezzi e annunci sono inventati per provare ricerca, stime e connettore MCP.</span>
       </div>
     </footer>

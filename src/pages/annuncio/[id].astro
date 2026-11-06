@@ -14,6 +14,8 @@ import { tokenize } from '../../core/text.ts';
 import { LANGUAGES } from '../../core/claude.ts';
 import { claudeKey } from '../../lib/claude.ts';
 import { replyTime, sellerProfile } from '../../lib/sellers.ts';
+import { listingJsonLd } from '../../core/seo.ts';
+import { siteOrigin } from '../../lib/notify.ts';
 import { LISTINGS_TAG } from '../../lib/cache.ts';
 import { getListing, getPhoto, sourceName } from '../../core/store.ts';
 import { getComune } from '../../core/comuni.ts';
@@ -77,7 +79,13 @@ const memberSince = stats ? new Date(stats.memberSince).toLocaleDateString('it-C
 const canTranslate = Boolean(claudeKey());
 ---
 
-<Layout title={`${listing.title} · giro.shop`} description={listing.description}>
+<Layout
+  title={`${listing.title} · giro.shop`}
+  description={listing.description}
+  image={photo?.src}
+  ogType="product"
+  jsonLd={listingJsonLd(listing, siteOrigin(Astro.url.origin), comune)}
+>
   <section class="wrap band">
     <p class="crumbs muted"><a href="/cerca">Annunci</a> · {category.name}</p>
     <div class="detail">

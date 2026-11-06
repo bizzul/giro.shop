@@ -272,7 +272,8 @@ export default function SellForm({ signedIn = false }: Props) {
         <p class="muted small">
           {signedIn
             ? "Dopo la pubblicazione l'annuncio resta online 90 giorni. Lo gestisci da I miei annunci."
-            : 'Per pubblicare serve un account: entri con un link via email, senza password.'}
+            : 'Per pubblicare serve un account: entri con un link via email, senza password.'}{' '}
+          Pubblicando accetti le <a href="/condizioni">condizioni d'uso</a>, comprese le <a href="/condizioni#regole">regole della comunità</a>.
         </p>
       </div>
     );
