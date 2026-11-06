@@ -270,7 +270,8 @@ const labels = ZONES.flatMap((zone) => {
       for (const [text, lat, lon] of labels) {
         const [x, y] = at(lon, lat);
         const bw = ctx.measureText(text).width + 18, bh = 22;
-        const lx = Math.min(x + 12, W - 4 - bw);
+        // A destra del punto se c'è spazio, altrimenti a sinistra
+        const lx = x + 12 + bw <= W - 4 ? x + 12 : x - 12 - bw;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(lx, y - bh / 2, bw, bh, 2);
         else ctx.rect(lx, y - bh / 2, bw, bh);
