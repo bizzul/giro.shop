@@ -1,8 +1,13 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { TOOL_DOCS } from '../mcp/server.ts';
+import { ACCOUNT_TOOL_DOCS } from '../mcp/account-tools.ts';
+import { RESOURCE_PATH, SCOPES } from '../core/oauth.ts';
+import { siteOrigin } from '../lib/notify.ts';
 
-const endpoint = new URL('/mcp', Astro.url).href;
+const origin = siteOrigin(Astro.url.origin);
+const endpoint = `${origin}/mcp`;
+const accountEndpoint = `${origin}${RESOURCE_PATH}`;
 // In sviluppo mostriamo il percorso reale del progetto, utile per la configurazione stdio.
 const projectDir = import.meta.env.DEV ? process.cwd() : '/percorso/del/progetto/piazza';
 const desktopConfig = JSON.stringify(
@@ -32,26 +37,46 @@ const desktopConfig = JSON.stringify(
       <h1>giro dentro il tuo assistente AI.</h1>
       <p class="muted">
         MCP è lo standard aperto con cui gli assistenti AI usano servizi esterni. Collegando giro puoi cercare annunci,
-        stimare prezzi e preparare bozze parlando con il tuo assistente. Nessuno strumento pubblica o contatta qualcuno: in questo
-        prototipo si legge e si preparano bozze.
+        stimare prezzi e preparare bozze parlando con il tuo assistente. Con l'accesso al tuo account può anche salvare ricerche e
+        pubblicare annunci a tuo nome.
       </p>
     </div>
 
+    <div class="grid">
+      <div class="panel block">
+        <h2>Senza account</h2>
+        <pre class="code"><code>{endpoint}</code></pre>
+        <p class="muted">Cerca, stima e prepara bozze. Non serve accedere, non pubblica niente.</p>
+      </div>
+      <div class="panel block">
+        <h2>Con il tuo account</h2>
+        <pre class="code"><code>{accountEndpoint}</code></pre>
+        <p class="muted">
+          Al primo uso l'assistente ti manda su giro.shop: accedi e dici sì. Lo scolleghi quando vuoi da
+          <a href="/miei-annunci#assistenti">I miei annunci</a>.
+        </p>
+      </div>
+    </div>
+
     <div class="panel block">
-      <h2>Indirizzo del server</h2>
-      <pre class="code"><code>{endpoint}</code></pre>
-      <p class="muted">Trasporto Streamable HTTP, senza sessione. Nel prototipo non serve accedere.</p>
+      <h3>Claude (claude.ai e app)</h3>
+      <p class="muted">
+        Impostazioni → Connettori → Aggiungi connettore personalizzato, e incolla uno dei due indirizzi. Con quello dell'account Claude
+        apre la pagina di accesso di giro.shop. Serve un indirizzo pubblico in https: in locale usa Claude Code o MCP Inspector.
+      </p>
     </div>
 
     <div class="grid">
       <div class="panel block">
         <h3>Claude Code</h3>
         <pre class="code"><code>claude mcp add --transport http giro {endpoint}</code></pre>
+        <pre class="code"><code>claude mcp add --transport http giro-account {accountEndpoint}</code></pre>
+        <p class="muted">Per il secondo, <code>/mcp</code> in Claude Code apre l'accesso nel browser.</p>
       </div>
       <div class="panel block">
         <h3>MCP Inspector</h3>
         <pre class="code"><code>npx @modelcontextprotocol/inspector</code></pre>
-        <p class="muted">Poi scegli "Streamable HTTP" e incolla l'indirizzo qui sopra.</p>
+        <p class="muted">Poi scegli "Streamable HTTP" e incolla uno degli indirizzi qui sopra.</p>
       </div>
     </div>
 
@@ -77,6 +102,36 @@ const desktopConfig = JSON.stringify(
         }
       </dl>
     </div>
+
+    <div class="panel block">
+      <h3>Strumenti con il tuo account</h3>
+      <p class="muted">Ognuno chiede un permesso che vedi prima di dire sì:</p>
+      <ul class="scopes">
+        {
+          Object.entries(SCOPES).map(([key, label]) => (
+            <li>
+              <span class="mono">{key}</span>: {label.charAt(0).toLowerCase() + label.slice(1)}
+            </li>
+          ))
+        }
+      </ul>
+      <dl class="tools">
+        {
+          ACCOUNT_TOOL_DOCS.map((t) => (
+            <div>
+              <dt class="mono">{t.name}</dt>
+              <dd>
+                {t.summary} <span class="muted small">({t.scope})</span>
+              </dd>
+            </div>
+          ))
+        }
+      </dl>
+      <p class="muted small">
+        Accesso con OAuth 2.1: registrazione dinamica dei client, PKCE obbligatorio, token di un'ora con rinnovo a rotazione, revoca. Non
+        legge i tuoi messaggi né la tua email.
+      </p>
+    </div>
   </section>
 </Layout>
 
@@ -94,5 +149,6 @@ const desktopConfig = JSON.stringify(
   .tools > div { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; padding-block: 12px; border-bottom: 1px solid var(--line); }
   .tools dt { font-size: 12px; line-height: 1.9; }
   .tools dd { font-size: 15px; }
+  .scopes { display: grid; gap: 6px; list-style: disc; padding-left: 20px; font-size: 15px; }
   @media (max-width: 520px) { .tools > div { grid-template-columns: 1fr; gap: 2px; } }
 </style>

@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { resolveComune, searchComuni } from '../core/comuni.ts';
 import type { Comune } from '../core/types.ts';
 import { toast } from '../lib/toast.ts';
+import '../styles/comune-picker.css';
+
+/** Chi usa il campo da fuori (script di pagina) lo imposta con questo evento sull'input: detail = nome del comune o ''. */
+export const SET_EVENT = 'comune:set';
+/** Quando la persona sceglie un comune dall'elenco (clic o Invio), sull'input: detail = { name }. */
+export const PICK_EVENT = 'comune:pick';
 
 interface Props {
   id: string;
@@ -53,11 +59,24 @@ export default function ComunePicker({ id, name, value, initial = '', onChange, 
     setOpen(false);
     setActive(-1);
     onChange?.(nameValue);
+    if (save) input.current?.dispatchEvent(new CustomEvent(PICK_EVENT, { bubbles: true, detail: { name: nameValue } }));
     if (save && autosave) {
       const form = input.current?.form;
       setTimeout(() => form?.dispatchEvent(new CustomEvent('autosave:request', { detail: { label: 'Comune di ritiro' } })), 0);
     }
   };
+
+  // Impostato da fuori (es. "Usa la mia posizione"): non conta come scelta della persona
+  useEffect(() => {
+    const el = input.current;
+    if (!el) return;
+    const set = (event: Event) => {
+      const wanted = (event as CustomEvent<string>).detail ?? '';
+      choose(resolveComune(wanted) ?? null, false);
+    };
+    el.addEventListener(SET_EVENT, set);
+    return () => el.removeEventListener(SET_EVENT, set);
+  }, []);
 
   // Uscendo dal campo: un comune vero, oppure si torna a quello di prima. Gira prima del salvataggio automatico del modulo.
   useEffect(() => {

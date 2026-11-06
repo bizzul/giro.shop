@@ -5,9 +5,7 @@
  * per trovare il comune più vicino e non viene salvata.
  * Un solo dialogo per pagina (sta nel layout); lo aprono i bottoni con data-place-open.
  */
-import { COMUNI } from '../core/comuni.ts';
-
-const comuni = [...COMUNI].sort((a, b) => a.name.localeCompare(b.name, 'it'));
+import ComunePicker from './ComunePicker.tsx';
 ---
 
 <dialog class="place-dialog" data-place-dialog aria-labelledby="place-title">
@@ -19,15 +17,11 @@ const comuni = [...COMUNI].sort((a, b) => a.name.localeCompare(b.name, 'it'));
       Usa la mia posizione
     </button>
     <p class="place-msg small" data-place-msg aria-live="polite"></p>
-    <label class="fld">
-      <span class="label">Oppure scegli il comune</span>
-      <select data-place-select>
-        <option value="">—</option>
-        {comuni.map((c) => <option value={c.id}>{c.name}</option>)}
-      </select>
-    </label>
+    <div class="fld">
+      <label class="label" for="place-comune">Oppure scrivi il tuo comune</label>
+      <ComunePicker client:idle id="place-comune" />
+    </div>
     <div class="place-actions">
-      <button class="btn primary" type="button" data-place-save>Usa questo comune</button>
       <button class="link-button" type="button" data-place-clear>Non mostrare le distanze</button>
       <button class="link-button" value="close">Chiudi</button>
     </div>
@@ -35,8 +29,9 @@ const comuni = [...COMUNI].sort((a, b) => a.name.localeCompare(b.name, 'it'));
 </dialog>
 
 <script>
-  import { COMUNI, distanceKm, getComune } from '../core/comuni.ts';
+  import { COMUNI, distanceKm, getComune, resolveComune } from '../core/comuni.ts';
   import { formatKm } from '../core/format.ts';
+  import { toast } from '../lib/toast.ts';
 
   const KEY = 'giro:zona';
   const read = () => {
@@ -56,8 +51,15 @@ const comuni = [...COMUNI].sort((a, b) => a.name.localeCompare(b.name, 'it'));
   };
 
   const dialog = document.querySelector<HTMLDialogElement>('[data-place-dialog]');
-  const select = dialog?.querySelector<HTMLSelectElement>('[data-place-select]');
   const msg = dialog?.querySelector<HTMLElement>('[data-place-msg]');
+  // Il campo è un'isola (ComunePicker): si imposta con l'evento "comune:set" e annuncia le scelte con "comune:pick"
+  const field = () => dialog?.querySelector<HTMLInputElement>('#place-comune') ?? null;
+  const setField = (name: string) => {
+    const input = field();
+    if (!input) return;
+    input.value = name;
+    input.dispatchEvent(new CustomEvent('comune:set', { detail: name }));
+  };
 
   /** Distanze sulle schede annuncio e nelle schede della ricerca. */
   function paint() {
@@ -77,47 +79,73 @@ const comuni = [...COMUNI].sort((a, b) => a.name.localeCompare(b.name, 'it'));
     for (const ask of document.querySelectorAll<HTMLElement>('[data-place-ask]')) ask.hidden = Boolean(place);
     // La ricerca dal vivo riceve il comune: serve per "Più vicini a te"
     for (const form of document.querySelectorAll<HTMLFormElement>('form[data-live]')) {
-      let field = form.querySelector<HTMLInputElement>('input[name="da"]');
-      if (!field) {
-        field = document.createElement('input');
-        field.type = 'hidden';
-        field.name = 'da';
-        form.append(field);
+      let input = form.querySelector<HTMLInputElement>('input[name="da"]');
+      if (!input) {
+        input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'da';
+        form.append(input);
       }
-      field.value = place?.id ?? '';
+      input.value = place?.id ?? '';
     }
   }
 
   function changed() {
     paint();
-    const field = document.querySelector<HTMLInputElement>('form[data-live] input[name="da"]');
-    field?.dispatchEvent(new Event('change', { bubbles: true }));
+    const input = document.querySelector<HTMLInputElement>('form[data-live] input[name="da"]');
+    input?.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  /** Niente bottone "Usa questo comune": la scelta vale subito, come negli altri moduli. */
+  function use(name: string, note?: string) {
+    const comune = resolveComune(name);
+    if (!comune) return false;
+    const before = read()?.id;
+    write(comune.id);
+    dialog?.close();
+    if (before !== comune.id) {
+      changed();
+      toast(note ?? `Distanze da ${comune.name}`);
+    }
+    return true;
   }
 
   document.addEventListener('click', (event) => {
-    if (!(event.target as Element).closest('[data-place-open]') || !dialog || !select) return;
-    select.value = read()?.id ?? '';
+    if (!(event.target as Element).closest('[data-place-open]') || !dialog) return;
+    setField(read()?.name ?? '');
     if (msg) msg.textContent = '';
+    dialog.returnValue = '';
     dialog.showModal();
   });
 
-  dialog?.querySelector('[data-place-save]')?.addEventListener('click', () => {
-    if (!select?.value) {
-      if (msg) msg.textContent = 'Scegli un comune o usa la tua posizione.';
-      return;
-    }
-    write(select.value);
-    dialog.close();
-    changed();
+  // Clic o Invio su un comune dell'elenco
+  dialog?.addEventListener('comune:pick', (event) => use((event as CustomEvent<{ name: string }>).detail.name));
+  // Invio con l'elenco chiuso: conferma il comune scritto invece di chiudere il dialogo
+  dialog?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.defaultPrevented || (event.target as Element).id !== 'place-comune') return;
+    event.preventDefault();
+    const typed = field()?.value ?? '';
+    if (!use(typed) && msg) msg.textContent = typed.trim() ? `«${typed.trim()}» non è un comune dell'elenco.` : 'Scrivi il comune o usa la tua posizione.';
   });
+  // Scritto il comune e toccato "Chiudi": vale quel comune (Esc invece annulla)
+  dialog?.addEventListener('close', () => {
+    if (dialog.returnValue !== 'close') return;
+    const typed = field()?.value ?? '';
+    if (typed && resolveComune(typed)?.id !== read()?.id) use(typed);
+  });
+
   dialog?.querySelector('[data-place-clear]')?.addEventListener('click', () => {
+    const had = Boolean(read());
     write(null);
-    dialog.close();
-    changed();
+    dialog.close('clear');
+    if (had) {
+      changed();
+      toast('Distanze nascoste');
+    }
   });
   dialog?.querySelector('[data-place-locate]')?.addEventListener('click', () => {
     if (!navigator.geolocation) {
-      if (msg) msg.textContent = 'Questo browser non dà la posizione: scegli il comune.';
+      if (msg) msg.textContent = 'Questo browser non dà la posizione: scrivi il comune.';
       return;
     }
     if (msg) msg.textContent = 'Cerco la tua posizione…';
@@ -126,11 +154,11 @@ const comuni = [...COMUNI].sort((a, b) => a.name.localeCompare(b.name, 'it'));
         const here = { lat: pos.coords.latitude, lon: pos.coords.longitude } as (typeof COMUNI)[number];
         const nearest = [...COMUNI].sort((a, b) => distanceKm(here, a) - distanceKm(here, b))[0];
         const far = distanceKm(here, nearest) > 40;
-        if (select) select.value = nearest.id;
-        if (msg) msg.textContent = far ? `Sei lontano dal Ticino: il comune più vicino è ${nearest.name}.` : `Sei vicino a ${nearest.name}.`;
+        setField(nearest.name);
+        use(nearest.name, far ? `Sei lontano dal Ticino: distanze da ${nearest.name}, il comune più vicino` : `Distanze da ${nearest.name}, vicino a te`);
       },
       () => {
-        if (msg) msg.textContent = 'Posizione non disponibile: scegli il comune dall\'elenco.';
+        if (msg) msg.textContent = 'Posizione non disponibile: scrivi il comune.';
       },
       { timeout: 10000, maximumAge: 600000 },
     );
@@ -141,13 +169,14 @@ const comuni = [...COMUNI].sort((a, b) => a.name.localeCompare(b.name, 'it'));
 </script>
 
 <style>
-  .place-dialog { border: 0; border-radius: 8px; padding: 0; width: min(420px, calc(100vw - 32px)); background: var(--bg); color: var(--ink); box-shadow: var(--shadow-search); }
+  /* overflow visibile: l'elenco dei comuni esce dal dialogo invece di restare tagliato */
+  .place-dialog { overflow: visible; border: 0; border-radius: 8px; padding: 0; width: min(420px, calc(100vw - 32px)); background: var(--bg); color: var(--ink); box-shadow: var(--shadow-search); }
   .place-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
   .place-form { display: grid; gap: 14px; padding: 24px; }
   .place-form h2 { font: 500 20px/1.3 var(--f-body); letter-spacing: -0.01em; }
   .place-form .btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
   .place-msg:empty { display: none; }
   .fld { display: grid; gap: 8px; }
-  .fld select { font: 400 15px/1.3 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 10px 12px; }
+  .fld > .label { justify-self: start; }
   .place-actions { display: flex; align-items: center; gap: 12px 18px; flex-wrap: wrap; }
 </style>

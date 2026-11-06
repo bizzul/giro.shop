@@ -1,0 +1,36 @@
+/* Comune ricercabile (ComunePicker): caricato dal componente, vale anche fuori dalle pagine di vendita (dialogo "Da dove parti?") */
+.comune-picker { position: relative; }
+.comune-picker input {
+  width: 100%;
+  font: 400 15px/1.5 var(--f-body);
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  padding: 12px 36px 12px 14px;
+}
+.comune-picker input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.cp-toggle { position: absolute; right: 2px; top: 2px; bottom: 2px; width: 34px; border: 0; background: none; padding: 0; display: grid; place-items: center; cursor: pointer; }
+.cp-chevron { width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.6; }
+.cp-toggle:hover .cp-chevron { stroke: var(--ink); }
+.cp-list {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 0;
+  border-radius: 6px;
+  background: var(--surface-2);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-search);
+}
+.cp-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 14px; cursor: pointer; font-size: 15px; }
+.cp-list li[aria-selected='true'], .cp-list li:hover { background: var(--surface); }
+.cp-list li.is-chosen .cp-name { font-weight: 500; }
+.cp-list b { font-weight: 600; }
+.cp-meta { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.cp-list .cp-empty { color: var(--muted); cursor: default; font-size: 14px; }
+.cp-list .cp-empty:hover { background: none; }

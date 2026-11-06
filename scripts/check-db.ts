@@ -189,9 +189,11 @@ try {
   await intruder.client.from('question_votes').delete().eq('question_id', q.data!.id).eq('user_id', intruder.id);
   expect('togliere il voto abbassa il conteggio', (await anon.from('questions').select('helpful').eq('id', q.data!.id)).data?.[0]?.helpful === 0);
 
-  // Email degli avvisi: ognuno spegne le proprie
-  expect('ognuno spegne le proprie email', !denied(await buyer.client.from('profiles').update({ notify_email: false }).eq('id', buyer.id).select('id')));
-  expect('nessuno spegne le email di altri', denied(await intruder.client.from('profiles').update({ notify_email: false }).eq('id', seller.id).select('id')));
+  // Email degli avvisi: ognuno sceglie le proprie
+  expect('ognuno sceglie quando ricevere email', !denied(await buyer.client.from('profiles').update({ email_mode: 'riassunto', email_off: ['prezzo'] }).eq('id', buyer.id).select('id')));
+  expect('nessuno cambia le email di altri', denied(await intruder.client.from('profiles').update({ email_mode: 'mai' }).eq('id', seller.id).select('id')));
+  expect('modo email sconosciuto rifiutato', Boolean((await buyer.client.from('profiles').update({ email_mode: 'ogni-ora' }).eq('id', buyer.id)).error));
+  expect('la data del riassunto la cambia solo il server', Boolean((await buyer.client.from('profiles').update({ digest_sent_at: new Date().toISOString() }).eq('id', buyer.id)).error));
 
   expect('non si vende a chi non ha mai scritto', Boolean((await seller.client.from('listings').update({ status: 'venduto', buyer_id: intruder.id }).eq('id', listingId)).error));
   expect('si vende a chi ha scritto', !(await seller.client.from('listings').update({ status: 'venduto', buyer_id: buyer.id }).eq('id', listingId)).error);

@@ -5,3 +5,8 @@ minimumReleaseAgeExclude:
   - '@astrojs/node@11.1.11'
   - '@astrojs/preact@6.1.2'
   - preact@11.2.0
+
+# Script di installazione non necessari: onnxruntime-node ha già i binari per CPU (lo script aggiunge solo CUDA su Linux)
+allowBuilds:
+  onnxruntime-node: false
+  protobufjs: false

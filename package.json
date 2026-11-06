@@ -16,12 +16,15 @@
     "mcp:smoke": "node scripts/mcp-smoke.ts",
     "db:seed-sql": "node scripts/seed-sql.ts > supabase/seed.sql",
     "test:db": "node scripts/check-db.ts",
-    "test:moderazione": "node scripts/check-moderation.ts"
+    "test:moderazione": "node scripts/check-moderation.ts",
+    "test:oauth": "node scripts/check-oauth.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.5.0",
     "@astrojs/node": "^11.1.11",
     "@astrojs/preact": "^6.1.2",
+    "@huggingface/transformers": "^4.3.2",
     "@modelcontextprotocol/server": "^2.4.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
@@ -33,6 +36,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
     "@modelcontextprotocol/client": "^2.4.0",
+    "@playwright/test": "^1.65.0",
     "@types/node": "^26.6.6",
     "@types/nodemailer": "^8.0.2",
     "sharp": "^0.35.5",

@@ -2,24 +2,40 @@
 /**
  * Spegne le email degli avvisi dal link in fondo a ogni email, senza accedere.
  * Il link è firmato: vale solo per la persona a cui è stato mandato.
+ * Con ?tipo=<gruppo> si può spegnere solo quel tipo di avviso, oppure tutte le email.
  * Aprire il link non cambia niente (i programmi di posta e gli antivirus aprono i link da soli):
- * si spegne con il bottone, oppure con la disiscrizione a un clic del programma di posta (POST).
+ * si spegne con un bottone, oppure con la disiscrizione a un clic del programma di posta (POST),
+ * che spegne quello che il link nomina: il tipo, o tutto.
  */
 import Layout from '../layouts/Layout.astro';
 import { adminClient } from '../lib/admin.ts';
 import { validUnsubscribe } from '../lib/unsubscribe.ts';
+import { groupByKey } from '../core/email-prefs.ts';
 
 const userId = Astro.url.searchParams.get('u') ?? '';
 const token = Astro.url.searchParams.get('t') ?? '';
+const group = groupByKey(Astro.url.searchParams.get('tipo'));
 const valid = Boolean(userId && token && validUnsubscribe(userId, token));
-let done = false;
+let done: 'tipo' | 'tutte' | null = null;
+let failed = false;
+
 if (valid && Astro.request.method === 'POST') {
-  const admin = adminClient();
-  const { error } = (await admin?.from('profiles').update({ notify_email: false }).eq('id', userId)) ?? { error: { message: 'non configurato' } };
-  done = !error;
-  // Disiscrizione automatica del programma di posta: basta la risposta
   const form = await Astro.request.formData().catch(() => null);
-  if (form?.get('List-Unsubscribe') === 'One-Click') return new Response(null, { status: done ? 200 : 500 });
+  const oneClick = form?.get('List-Unsubscribe') === 'One-Click';
+  // Bottone della pagina: "scope" dice cosa; un clic dal programma di posta spegne quello che nomina il link
+  const scope = oneClick ? (group ? 'tipo' : 'tutte') : form?.get('scope') === 'tipo' && group ? 'tipo' : 'tutte';
+  const admin = adminClient();
+  let error: { message: string } | null = admin ? null : { message: 'non configurato' };
+  if (admin && scope === 'tipo' && group) {
+    const { data: profile } = await admin.from('profiles').select('email_off').eq('id', userId).maybeSingle();
+    const off = [...new Set([...((profile?.email_off as string[] | null) ?? []), ...group.kinds])];
+    ({ error } = await admin.from('profiles').update({ email_off: off }).eq('id', userId));
+  } else if (admin) {
+    ({ error } = await admin.from('profiles').update({ email_mode: 'mai' }).eq('id', userId));
+  }
+  failed = Boolean(error);
+  done = failed ? null : scope;
+  if (oneClick) return new Response(null, { status: failed ? 500 : 200 });
 }
 Astro.response.headers.set('Cache-Control', 'private, no-store');
 ---
@@ -31,10 +47,16 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         !valid ? (
           <>
             <h1>Link non valido.</h1>
-            <p class="muted">Puoi spegnere le email degli avvisi anche dal tuo account, in «I miei annunci».</p>
+            <p class="muted">Puoi scegliere quali email ricevere anche dal tuo account, in «I miei annunci».</p>
             <a class="btn" href="/miei-annunci#email">Vai all'account</a>
           </>
-        ) : done ? (
+        ) : done === 'tipo' && group ? (
+          <>
+            <h1>Fatto: niente più email per «{group.label.toLowerCase()}».</h1>
+            <p class="muted">Questi avvisi restano nel sito, sotto la campanella. Le altre email continuano ad arrivare.</p>
+            <a class="btn" href="/miei-annunci#email">Cambia le altre email</a>
+          </>
+        ) : done === 'tutte' ? (
           <>
             <h1>Fatto: niente più email degli avvisi.</h1>
             <p class="muted">Gli avvisi restano nel sito, sotto la campanella. Puoi riaccendere le email quando vuoi dal tuo account.</p>
@@ -43,10 +65,21 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         ) : (
           <>
             <span class="label">Email degli avvisi</span>
-            <h1>Non vuoi più ricevere email?</h1>
-            <p class="muted">Gli avvisi resteranno visibili nel sito, sotto la campanella.</p>
-            <form method="POST">
-              <button class="btn primary" type="submit">Spegni le email</button>
+            <h1>{group ? 'Troppe email?' : 'Non vuoi più ricevere email?'}</h1>
+            <p class="muted">
+              Gli avvisi resteranno visibili nel sito, sotto la campanella. Se preferisci, dal tuo account puoi anche ricevere un solo
+              riassunto al giorno.
+            </p>
+            {failed && <p class="error small">Non è andata: riprova tra poco.</p>}
+            <form method="POST" class="unsub-actions">
+              {group && (
+                <button class="btn primary" type="submit" name="scope" value="tipo">
+                  Spegni solo «{group.label}»
+                </button>
+              )}
+              <button class={group ? 'btn' : 'btn primary'} type="submit" name="scope" value="tutte">
+                Spegni tutte le email
+              </button>
             </form>
           </>
         )
@@ -58,4 +91,5 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
 <style>
   .unsub { max-width: 640px; }
   .unsub h1 { font-size: clamp(24px, 3vw, 32px); }
+  .unsub-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 </style>

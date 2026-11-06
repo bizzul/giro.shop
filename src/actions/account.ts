@@ -4,12 +4,14 @@ import { IMAGE_TYPES, MAX_PHOTOS, MAX_PHOTO_BYTES, type ImageMediaType } from '.
 import { resolveComune } from '../core/comuni.ts';
 import { getListing, photoUrl, refreshListings } from '../core/store.ts';
 import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
+import { EMAIL_GROUPS, EMAIL_MODES, offKindsFromGroups, type EmailMode } from '../core/email-prefs.ts';
 import { normalizeSwissMobile } from '../core/phone.ts';
 import { MIN_PHOTOS, planPhotoOrder } from '../core/photos.ts';
 import { invalidateListingPages } from '../lib/cache.ts';
 import { afterPriceChange, afterPublish, afterSale, afterTextChange } from '../lib/listing-events.ts';
 import { siteOrigin } from '../lib/notify.ts';
 import { adminClient } from '../lib/admin.ts';
+import { disconnect } from '../lib/oauth.ts';
 
 /** Spedizione dal form: casella "si spedisce" e costo facoltativo. */
 const shippingFields = {
@@ -124,16 +126,33 @@ export const account = {
     },
   }),
 
-  /** Email degli avvisi: accese o spente. Gli avvisi nel sito restano sempre. */
+  /**
+   * Email degli avvisi: quando (subito, riassunto della sera, mai) e per cosa (i gruppi accesi).
+   * Gli avvisi nel sito restano sempre.
+   */
   setEmailNotices: defineAction({
     accept: 'form',
-    input: z.object({ on: z.string().nullish() }),
-    handler: async ({ on }, context) => {
+    input: z.object({
+      mode: z.enum(EMAIL_MODES as [EmailMode, ...EmailMode[]]),
+      group: z.array(z.string()).default([]),
+    }),
+    handler: async ({ mode, group }, context) => {
       const { supabase, user } = requireUser(context);
-      const value = Boolean(on);
-      const { error } = await supabase.from('profiles').update({ notify_email: value }).eq('id', user.id);
+      const off = offKindsFromGroups(group);
+      const { error } = await supabase.from('profiles').update({ email_mode: mode, email_off: off }).eq('id', user.id);
       if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Preferenza non salvata: ${error.message}` });
-      return { on: value };
+      return { mode, on: EMAIL_GROUPS.filter((g) => group.includes(g.key)).length };
+    },
+  }),
+
+  /** Scollega un assistente AI (connettore MCP con OAuth): i suoi token smettono subito di valere. */
+  disconnectAssistant: defineAction({
+    accept: 'form',
+    input: z.object({ clientId: z.string().min(1).max(100) }),
+    handler: async ({ clientId }, context) => {
+      const { user } = requireUser(context);
+      await disconnect(user.id, clientId);
+      return { clientId };
     },
   }),
 
@@ -222,7 +241,7 @@ export const account = {
     },
   }),
 
-  /** Segna come venduto, rimette in vendita o archivia un proprio annuncio. */
+  /** Segna come venduto, rimette in vendita, pubblica una bozza o archivia un proprio annuncio. */
   setListingStatus: defineAction({
     accept: 'form',
     input: z.object({
@@ -235,6 +254,12 @@ export const account = {
     handler: async ({ id, status, soldPrice, buyerId }, context) => {
       const { supabase, user } = requireUser(context);
       const before = getListing(id);
+      // Una bozza (es. preparata da un assistente AI collegato) si pubblica solo con almeno una foto
+      const { data: current } = await supabase.from('listings').select('status, listing_photos(count)').eq('id', id).eq('seller_id', user.id).maybeSingle();
+      const wasDraft = current?.status === 'bozza';
+      if (wasDraft && status === 'pubblicato' && ((current?.listing_photos as unknown as Array<{ count: number }>)?.[0]?.count ?? 0) < MIN_PHOTOS) {
+        throw new ActionError({ code: 'BAD_REQUEST', message: "Aggiungi almeno una foto prima di pubblicare: la prima è la copertina dell'annuncio." });
+      }
       const patch: Record<string, unknown> = { status };
       if (status === 'venduto') Object.assign(patch, { sold_price_chf: soldPrice ?? null, buyer_id: buyerId ?? null });
       if (status === 'pubblicato') Object.assign(patch, { sold_at: null, sold_price_chf: null });
@@ -247,6 +272,7 @@ export const account = {
         const { data: buyer } = buyerId ? await supabase.from('profiles').select('display_name').eq('id', buyerId).maybeSingle() : { data: null };
         await afterSale(before, buyerId ?? null, buyer?.display_name ?? null, siteOrigin(context.url.origin));
       }
+      if (wasDraft && status === 'pubblicato') afterPublish(id, siteOrigin(context.url.origin), () => invalidateListingPages(context));
       return { id, status };
     },
   }),

@@ -1,0 +1,59 @@
+import { expect, test } from '@playwright/test';
+
+test.describe('senza account', () => {
+  test('la home mostra gli ultimi annunci', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Ultimi annunci' })).toBeVisible();
+    await expect(page.locator('.cards .lcard').first()).toBeVisible();
+  });
+
+  test('ricerca in linguaggio naturale: filtri capiti e removibili', async ({ page }) => {
+    await page.goto(`/cerca?q=${encodeURIComponent('scrivania in legno sotto i 150 franchi vicino a Lugano')}`);
+    const chips = page.locator('.understood');
+    await expect(chips.getByText('Prezzo', { exact: true })).toBeVisible();
+    await expect(chips.getByText('Zona', { exact: true })).toBeVisible();
+    await expect(page.locator('[data-status]')).toContainText('4 annunci');
+    // Togliere il prezzo allarga la ricerca, senza ricaricare la pagina
+    await page.getByRole('link', { name: /Togli il filtro Prezzo/ }).click();
+    await expect(chips.getByText('Prezzo', { exact: true })).toHaveCount(0);
+    await expect(page.locator('form[data-live] input[name="q"]')).toHaveValue(/scrivania in legno vicino a Lugano/);
+  });
+
+  test('ricerca per significato: «sofà» trova il divano', async ({ page, request }) => {
+    // Il modello locale si carica al primo uso: si aspetta che sia pronto (al massimo un minuto)
+    await expect
+      .poll(async () => (await (await request.get(`/risultati?q=${encodeURIComponent('sofà')}&vista=cerca`)).text()).includes('stesso significato'), { timeout: 60_000, intervals: [2_000] })
+      .toBe(true);
+    await page.goto(`/cerca?q=${encodeURIComponent('sofà')}`);
+    const card = page.locator('.lcard', { hasText: 'Divano 3 posti' });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('stesso significato');
+    await expect(page.locator('[data-status]')).toContainText('nessuno usa proprio queste parole');
+  });
+
+  test('scheda annuncio con prezzo e dati strutturati per Google', async ({ page }) => {
+    await page.goto('/annuncio/l-010');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Divano');
+    const jsonLd = await page.locator('script[type="application/ld+json"]').first().textContent();
+    expect(JSON.parse(jsonLd ?? '{}')['@type']).toBe('Product');
+  });
+
+  test('distanze da te: si scrive il comune e si sceglie', async ({ page }) => {
+    await page.goto(`/cerca?q=${encodeURIComponent('divano')}`);
+    await page.getByRole('button', { name: 'Distanze da te' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Da dove parti?' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('combobox').fill('bellinz');
+    await dialog.getByRole('option', { name: /Bellinzona/ }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Distanze da Bellinzona' })).toBeVisible();
+    await expect(page.locator('.lcard').first()).toContainText('km da te');
+    await expect(page.getByRole('status').filter({ hasText: 'Distanze da Bellinzona' })).toBeVisible();
+  });
+
+  test('le pagine personali portano al login e poi indietro', async ({ page }) => {
+    await page.goto('/miei-annunci');
+    await expect(page).toHaveURL(/\/accedi\?next=(%2F|\/)miei-annunci/);
+    await expect(page.getByRole('button', { name: 'Mandami il link' })).toBeVisible();
+  });
+});

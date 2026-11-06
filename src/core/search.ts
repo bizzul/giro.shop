@@ -38,24 +38,63 @@ export function sortHits(hits: SearchHit[], order: SortOrder = 'pertinenza'): Se
   }
 }
 
+/**
+ * Ricerca per significato: similarità (0–1) tra la frase e ogni annuncio, per id.
+ * La calcola il server con un modello locale (src/lib/semantic.ts); qui si usa e basta.
+ */
+export type Meaning = ReadonlyMap<string, number>;
+
+/** Sotto questa similarità un annuncio non c'entra (tarata su EmbeddingGemma: "sofà" → divano 0.64, parole a caso < 0.50). */
+export const MEANING_MIN = 0.55;
+/** E deve stare vicino al più simile: "sofà" porta il divano, non tutto l'arredamento. */
+export const MEANING_BAND = 0.05;
+
+/** Gli annunci abbastanza vicini per significato. */
+export function meaningMatches(similarities: Meaning): Map<string, number> {
+  let top = 0;
+  for (const s of similarities.values()) top = Math.max(top, s);
+  const floor = Math.max(MEANING_MIN, top - MEANING_BAND);
+  return new Map([...similarities].filter(([, s]) => s >= floor));
+}
+
+/** Filtri che non dicono "che cosa" si cerca: si tolgono prima di cercare per significato. */
+const NOT_MEANING = new Set(['Prezzo', 'Zona', 'Stato', 'Consegna', 'Anno', 'Ruote']);
+
+/**
+ * La parte della frase che dice che cosa si cerca, senza prezzo, luogo, stato, consegna, anno e ruote:
+ * "sofà sotto 300 franchi a Lugano" → "sofà". Vuota se resta solo un filtro.
+ */
+export function meaningText(query: string): string {
+  let text = query.trim();
+  for (let i = 0; i < 8; i++) {
+    const chip = parseQuery(text).chips.find((c) => NOT_MEANING.has(c.key) && c.without != null);
+    if (!chip) break;
+    text = chip.without!.trim();
+  }
+  return /\p{L}{2,}/u.test(text) ? text : '';
+}
+
 export interface SearchOptions {
   /** Quanti risultati restituire (gli altri si contano in total). */
   limit?: number;
   sort?: SortOrder;
   /** Comune di chi cerca: se la frase non nomina un luogo, le distanze ("più vicini") partono da qui. */
   from?: string;
+  /** Similarità per significato (già filtrate con meaningMatches): trovano anche chi usa altre parole. */
+  meaning?: Meaning;
 }
 
 /** Cerca con una frase in linguaggio naturale. */
 export function search(query: string, options: SearchOptions = {}): SearchResult {
   const { filters, chips } = parseQuery(query);
-  const all = sortHits(rankAll(filters, options.from ? getComune(options.from) : undefined), options.sort);
-  return { filters, chips, total: all.length, hits: all.slice(0, options.limit ?? 30) };
+  const all = sortHits(rankAll(filters, options.from ? getComune(options.from) : undefined, options.meaning), options.sort);
+  const byMeaning = all.filter((h) => h.meaning != null).length;
+  return { filters, chips, total: all.length, hits: all.slice(0, options.limit ?? 30), byMeaning };
 }
 
 /** Cerca con filtri già strutturati (usato anche dagli strumenti MCP). */
-export function searchWithFilters(filters: SearchFilters, limit = 30): SearchHit[] {
-  return rankAll(filters).slice(0, limit);
+export function searchWithFilters(filters: SearchFilters, limit = 30, meaning?: Meaning): SearchHit[] {
+  return rankAll(filters, undefined, meaning).slice(0, limit);
 }
 
 /** Tutti gli annunci pubblicati, senza frase: dal più recente, per prezzo o dal più vicino a chi cerca. */
@@ -74,11 +113,11 @@ export function browseListings(order: SortOrder = 'recenti', limit = 24, from?: 
 }
 
 /** Tutti i risultati che corrispondono ai filtri, dal più pertinente. */
-function rankAll(filters: SearchFilters, from?: Comune): SearchHit[] {
+function rankAll(filters: SearchFilters, from?: Comune, meaning?: Meaning): SearchHit[] {
   const now = Date.now();
   const hits: SearchHit[] = [];
   for (const listing of publishedListings()) {
-    const hit = scoreListing(filters, listing, now, from);
+    const hit = scoreListing(filters, listing, now, from, meaning);
     if (hit) hits.push(hit);
   }
   return hits.sort((a, b) => b.score - a.score);
@@ -94,14 +133,23 @@ export function matchesSearch(query: string, listing: Listing): boolean {
   return scoreListing(filters, listing, Date.now()) !== null;
 }
 
-/** Controlla un annuncio contro i filtri: null se non corrisponde, altrimenti punteggio e motivi. */
-function scoreListing(filters: SearchFilters, listing: Listing, now: number, from?: Comune): SearchHit | null {
+/**
+ * Controlla un annuncio contro i filtri: null se non corrisponde, altrimenti punteggio e motivi.
+ * Con `meaning`, un annuncio senza le parole cercate entra lo stesso se è simile per significato
+ * (gli altri filtri valgono comunque) e finisce dopo quelli che le parole le hanno.
+ */
+function scoreListing(filters: SearchFilters, listing: Listing, now: number, from?: Comune, meaning?: Meaning): SearchHit | null {
   const origin = filters.comuneId ? getComune(filters.comuneId) : undefined;
   const comune = getComune(listing.comuneId);
   if (!comune) return null;
   const reasons: string[] = [];
+  const similarity = meaning?.get(listing.id);
+  let viaMeaning = false;
 
-  if (filters.required && !findAlt(listing, filters.required.alts)) return null;
+  if (filters.required && !findAlt(listing, filters.required.alts)) {
+    if (similarity == null) return null;
+    viaMeaning = true;
+  }
   if (filters.maxPrice != null && listing.priceChf > filters.maxPrice) return null;
   if (filters.minPrice != null && listing.priceChf < filters.minPrice) return null;
   if (filters.conditions && !filters.conditions.includes(listing.condition)) return null;
@@ -130,13 +178,25 @@ function scoreListing(filters: SearchFilters, listing: Listing, now: number, fro
   }
 
   let matched = 0;
+  let materialMissed = false;
   for (const g of filters.groups) {
     const word = findAlt(listing, g.alts);
-    if (!word) continue;
+    if (!word) {
+      if (g.kind === 'materiale') materialMissed = true;
+      continue;
+    }
     matched++;
     if (g.kind === 'materiale') reasons.unshift(listing.attributes.materiale ?? word);
   }
-  if (filters.groups.length && matched === 0) return null;
+  // Il significato aiuta a trovare l'oggetto detto con altre parole ("sofà" → divano), non a cambiare i dettagli:
+  // se l'oggetto c'è ma manca il dettaglio chiesto ("poltrona in pelle" → una poltrona in velluto) non vale,
+  // e il materiale chiesto non si sostituisce mai con qualcosa di simile.
+  if (viaMeaning && materialMissed) return null;
+  if (filters.groups.length && matched === 0) {
+    if (similarity == null || materialMissed || (filters.required && !viaMeaning)) return null;
+    viaMeaning = true;
+  }
+  if (viaMeaning) reasons.unshift('stesso significato');
 
   if (filters.maxPrice != null) {
     reasons.push(listing.priceChf <= filters.maxPrice * 0.85 ? 'sotto budget' : 'al limite del budget');
@@ -146,8 +206,10 @@ function scoreListing(filters: SearchFilters, listing: Listing, now: number, fro
   if (filters.shipping) reasons.push('si spedisce');
 
   // Chi cerca "scrivania" vede prima le scrivanie, poi chi la nomina soltanto (lampada da scrivania)
-  const sideMention = filters.required != null && !isMainObject(listing, filters.required.alts);
-  const relevance = (filters.groups.length ? matched / filters.groups.length : 1) - (sideMention ? 0.6 : 0);
+  const sideMention = !viaMeaning && filters.required != null && !isMainObject(listing, filters.required.alts);
+  const relevance = viaMeaning
+    ? 0.3 + (similarity! - MEANING_MIN) // 0.3–0.75: sotto chi ha le parole cercate
+    : (filters.groups.length ? matched / filters.groups.length : 1) - (sideMention ? 0.6 : 0);
   const proximity = origin && distance != null && filters.radiusKm ? 1 - distance / filters.radiusKm : 0;
   const ageDays = (now - new Date(listing.publishedAt).getTime()) / 864e5;
   const freshness = Math.max(0, 1 - ageDays / 14);
@@ -158,7 +220,7 @@ function scoreListing(filters: SearchFilters, listing: Listing, now: number, fro
     (listing.seller.verified ? 3 : 0) +
     (filters.category && listing.category === filters.category ? 5 : 0);
 
-  return { listing, comune, distanceKm: distance, score, reasons, verdict: priceVerdict(listing) };
+  return { listing, comune, distanceKm: distance, score, reasons, verdict: priceVerdict(listing), meaning: viaMeaning ? similarity : undefined };
 }
 
 /** Annunci simili a uno dato, per la scheda annuncio. */

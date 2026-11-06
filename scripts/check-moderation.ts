@@ -15,7 +15,7 @@ process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY = status.PUBLISHABLE_KEY;
 process.env.SUPABASE_SECRET_KEY = status.SECRET_KEY;
 delete process.env.SMTP_HOST; // niente email durante la verifica
 
-const { moderateWithAgent } = await import('../src/lib/moderation-agent.ts');
+const { moderateWithAgent, buildModerationTools } = await import('../src/lib/moderation-agent.ts');
 const { applyDecision, undoAction } = await import('../src/lib/moderation.ts');
 
 const admin = createClient(status.API_URL, status.SECRET_KEY, { auth: { persistSession: false } });
@@ -35,6 +35,12 @@ async function makeUser(name: string): Promise<{ client: SupabaseClient; id: str
 }
 
 type Tool = { name: string; run: (input: Record<string, unknown>) => Promise<unknown> };
+type Block = { type: string; text?: string; source?: { media_type: string; data: string } };
+/** Testo o blocchi (foto): le foto diventano "[foto image/png, N byte]". */
+const describeOutput = (out: unknown) =>
+  typeof out === 'string'
+    ? out
+    : (out as Block[]).map((b) => (b.type === 'image' ? `[foto ${b.source?.media_type}, ${Math.round(((b.source?.data.length ?? 0) * 3) / 4)} byte]` : b.text)).join(' ');
 /** Un "modello" che segue un copione: chiama gli strumenti dell'agente e registra le risposte. */
 function scriptedClient(script: (call: (name: string, input?: Record<string, unknown>) => Promise<string>) => Promise<void>) {
   const transcript: Array<{ name: string; output: string }> = [];
@@ -45,7 +51,7 @@ function scriptedClient(script: (call: (name: string, input?: Record<string, unk
           const tools = new Map(params.tools.map((t) => [t.name, t]));
           const call = async (name: string, input: Record<string, unknown> = {}) => {
             const tool = tools.get(name);
-            const output = tool ? String(await tool.run(input)) : `strumento non disponibile: ${name}`;
+            const output = tool ? describeOutput(await tool.run(input)) : `strumento non disponibile: ${name}`;
             transcript.push({ name, output });
             return output;
           };
@@ -116,6 +122,22 @@ try {
     twice = true;
   }
   expect('una decisione si annulla una volta sola', twice);
+
+  // A2. Le foto: l'agente le vede dal bucket; gli indirizzi esterni non li scarica
+  const photoTools = buildModerationTools({ admin, target: tA, kind: 'annuncio', id: scam, origin: ORIGIN, model: 'copione' }).tools as unknown as Tool[];
+  const look = (id: string) => photoTools.find((t) => t.name === 'guarda_foto')!.run({ id }).then(describeOutput);
+  expect("senza foto l'agente lo sa", (await look(scam)) === "L'annuncio non ha foto.");
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  const photoPath = `${seller.id}/${scam}/prova-${tag}.png`;
+  await admin.storage.from('foto').upload(photoPath, png, { contentType: 'image/png' });
+  await admin.from('listing_photos').insert([
+    { listing_id: scam, storage_path: photoPath, position: 0 },
+    { listing_id: scam, storage_path: 'http://169.254.169.254/latest/meta-data', position: 1 },
+  ]);
+  const seen = await look(scam);
+  expect("l'agente guarda le foto dell'annuncio", seen.includes('[foto image/png') && seen.includes('1 foto su 2'), seen);
+  expect('gli indirizzi esterni nelle foto non si scaricano', seen.includes('1 non si sono potute aprire'), seen);
+  await admin.storage.from('foto').remove([photoPath]);
 
   // C. Poco sicuro: non decide, passa a una persona
   const doubtful = await listing(`Bici usata ${tag}`, 'Bici da città, qualche graffio.');

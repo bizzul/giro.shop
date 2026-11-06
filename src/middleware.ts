@@ -3,6 +3,7 @@ import { configureStore, refreshListings } from './core/store.ts';
 import { createRequestClient, SUPABASE_KEY, SUPABASE_URL } from './lib/supabase.ts';
 import { maybeRunMaintenance } from './lib/maintenance.ts';
 import { invalidateListingPages } from './lib/cache.ts';
+import { crossSiteResponse, isCrossSiteForm } from './lib/origin-check.ts';
 
 configureStore(SUPABASE_URL, SUPABASE_KEY);
 
@@ -11,7 +12,7 @@ configureStore(SUPABASE_URL, SUPABASE_KEY);
  * così nessuna risposta in cache può contenere cookie di un utente. Il menu dell'account
  * si carica a parte come server island.
  */
-const PUBLIC_PREFIXES = ['/annuncio/', '/venditore/', '/foto/', '/_astro/'];
+const PUBLIC_PREFIXES = ['/annuncio/', '/venditore/', '/foto/', '/_astro/', '/.well-known/', '/mcp/'];
 const PUBLIC_PATHS = new Set([
   '/',
   '/cerca',
@@ -19,6 +20,10 @@ const PUBLIC_PATHS = new Set([
   '/suggerimenti',
   '/connetti',
   '/mcp',
+  // OAuth del connettore AI: i client chiamano senza cookie (solo /oauth/authorize legge la sessione)
+  '/oauth/token',
+  '/oauth/register',
+  '/oauth/revoke',
   '/favicon.svg',
   '/sicurezza',
   '/confronta',
@@ -32,6 +37,8 @@ const PUBLIC_PATHS = new Set([
 ]);
 
 export const onRequest = defineMiddleware(async (context, next) => {
+  // Moduli da altri siti: rifiutati, tranne gli endpoint OAuth dei token (vedi lib/origin-check.ts)
+  if (isCrossSiteForm(context.request, context.url)) return crossSiteResponse(context.request);
   await refreshListings();
   // Promemoria di scadenza e annunci scaduti: al massimo ogni 15 minuti, senza far aspettare la richiesta
   maybeRunMaintenance(context.url.origin, () => invalidateListingPages(context));

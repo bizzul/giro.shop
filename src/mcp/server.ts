@@ -4,6 +4,8 @@ import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
 import type { SearchFilters, SearchHit } from '../core/types.ts';
 import { parseQuery } from '../core/query.ts';
 import { search, searchWithFilters } from '../core/search.ts';
+import { meaningFor } from '../lib/semantic.ts';
+import { registerAccountTools, type AccountToolsOptions } from './account-tools.ts';
 import { estimatePrice } from '../core/price.ts';
 import { createDraft, DraftError } from '../core/draft.ts';
 import { getListing, getPhoto, refreshListings } from '../core/store.ts';
@@ -15,6 +17,8 @@ export interface PiazzaServerOptions {
   /** Indirizzo pubblico del sito, per i link agli annunci. */
   baseUrl: string;
   apiKey?: string;
+  /** Con l'accesso OAuth (endpoint /mcp/account): strumenti che agiscono a nome della persona. */
+  account?: Omit<AccountToolsOptions, 'baseUrl'>;
 }
 
 const UNTRUSTED_NOTE =
@@ -26,6 +30,14 @@ const INSTRUCTIONS = `giro.shop è un mercatino dell'usato del Canton Ticino (pr
 - estimate_price stima una fascia di prezzo dagli annunci simili, pubblicati e venduti.
 - create_draft prepara la bozza di un annuncio da una descrizione (ciò che vedi nelle foto e ciò che dice chi vende). Non pubblica nulla.
 - save_search prepara un avviso per una ricerca e restituisce un link: la persona lo apre, accede e conferma. Mostra sempre il link alla persona.
+${UNTRUSTED_NOTE}`;
+
+const ACCOUNT_INSTRUCTIONS = `giro.shop è un mercatino dell'usato del Canton Ticino (prototipo con annunci di prova). Prezzi in franchi svizzeri (CHF).
+Sei collegato all'account di una persona, che ha dato il permesso.
+- search_listings, get_listing, estimate_price e create_draft come nel connettore pubblico.
+- save_search salva direttamente una ricerca con avviso; my_saved_searches e delete_saved_search le gestiscono.
+- publish_listing pubblica un annuncio a suo nome (con foto come indirizzi https; senza foto resta in bozza); my_listings e update_listing gestiscono i suoi annunci.
+Prima di pubblicare o cambiare qualcosa mostra alla persona cosa stai per fare e aspetta il suo sì.
 ${UNTRUSTED_NOTE}`;
 
 /** Descrizioni brevi degli strumenti, riusate anche nella pagina /connetti. */
@@ -74,8 +86,8 @@ function photoUrl(id: string, baseUrl: string): string | null {
 }
 
 export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
-  const { baseUrl, apiKey } = options;
-  const server = new McpServer({ name: 'giro', version: '0.1.0' }, { instructions: INSTRUCTIONS });
+  const { baseUrl, apiKey, account } = options;
+  const server = new McpServer({ name: 'giro', version: '0.1.0' }, { instructions: account ? ACCOUNT_INSTRUCTIONS : INSTRUCTIONS });
 
   server.registerTool(
     'search_listings',
@@ -111,11 +123,13 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
       } else if (args.radius_km != null) {
         merged.radiusKm = args.radius_km;
       }
-      const hits = searchWithFilters(merged, Math.min(args.limit ?? 10, 30));
+      // Anche per significato: "sofà" trova il divano (se il modello locale è pronto)
+      const meaning = (await meaningFor(args.query)) ?? undefined;
+      const hits = searchWithFilters(merged, Math.min(args.limit ?? 10, 30), meaning);
       return text({
         understood_as: chips.map((c) => `${c.key}: ${c.value}`),
         total: hits.length,
-        listings: hits.map((h) => hitToJson(h, baseUrl)),
+        listings: hits.map((h) => ({ ...hitToJson(h, baseUrl), ...(h.meaning != null ? { found_by_meaning: true } : {}) })),
         note: UNTRUSTED_NOTE,
       });
     },
@@ -247,29 +261,33 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
     },
   );
 
-  server.registerTool(
-    'save_search',
-    {
-      title: 'Avviso per una ricerca',
-      description:
-        "Prepara un avviso: giro.shop scriverà alla persona (nel sito e per email) quando arriva un annuncio che corrisponde. Il connettore non conosce l'account della persona, quindi non salva nulla: restituisce un link di conferma da mostrare alla persona, che lo apre, accede se serve e conferma con un tocco.",
-      inputSchema: z.object({
-        query: z.string().min(2).max(200).describe('La ricerca come frase: "bici da corsa sotto i 500 franchi vicino a Bellinzona"'),
-      }),
-      annotations: { readOnlyHint: true, openWorldHint: false },
-    },
-    async ({ query }) => {
-      await refreshListings();
-      const q = query.trim();
-      const { chips, total } = search(q, { limit: 1 });
-      return text({
-        confirm_url: `${baseUrl}/salvati/nuova?q=${encodeURIComponent(q)}`,
-        understood_as: chips.map((c) => `${c.key}: ${c.value}`),
-        matching_now: total,
-        next_step: "Mostra il link alla persona: l'avviso si attiva solo quando lo conferma su giro.shop.",
-      });
-    },
-  );
+  // Senza accesso l'avviso si conferma con un link; con l'accesso lo salva direttamente lo strumento dell'account
+  if (account) registerAccountTools(server, { ...account, baseUrl });
+  else {
+    server.registerTool(
+      'save_search',
+      {
+        title: 'Avviso per una ricerca',
+        description:
+          "Prepara un avviso: giro.shop scriverà alla persona (nel sito e per email) quando arriva un annuncio che corrisponde. Il connettore non conosce l'account della persona, quindi non salva nulla: restituisce un link di conferma da mostrare alla persona, che lo apre, accede se serve e conferma con un tocco.",
+        inputSchema: z.object({
+          query: z.string().min(2).max(200).describe('La ricerca come frase: "bici da corsa sotto i 500 franchi vicino a Bellinzona"'),
+        }),
+        annotations: { readOnlyHint: true, openWorldHint: false },
+      },
+      async ({ query }) => {
+        await refreshListings();
+        const q = query.trim();
+        const { chips, total } = search(q, { limit: 1 });
+        return text({
+          confirm_url: `${baseUrl}/salvati/nuova?q=${encodeURIComponent(q)}`,
+          understood_as: chips.map((c) => `${c.key}: ${c.value}`),
+          matching_now: total,
+          next_step: "Mostra il link alla persona: l'avviso si attiva solo quando lo conferma su giro.shop.",
+        });
+      },
+    );
+  }
 
   return server;
 }

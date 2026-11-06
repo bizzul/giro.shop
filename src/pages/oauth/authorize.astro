@@ -1,0 +1,162 @@
+---
+/**
+ * Consenso OAuth: un assistente AI (Claude o un altro client MCP) chiede di agire a nome della persona.
+ * - client e indirizzo di ritorno sconosciuti: errore qui, mai un redirect verso indirizzi non registrati;
+ * - senza accesso: prima /accedi, poi si torna qui con la stessa richiesta;
+ * - "Consenti" crea un codice monouso legato a PKCE; "Annulla" torna al client con access_denied.
+ * Il POST arriva solo da questa pagina (controllo dell'origine di Astro); la pagina non si apre dentro un iframe.
+ */
+import Layout from '../../layouts/Layout.astro';
+import { RESOURCE_PATH, SCOPES, parseScopes, resourceMatches } from '../../core/oauth.ts';
+import { createCode, getClient } from '../../lib/oauth.ts';
+import { siteOrigin } from '../../lib/notify.ts';
+import { adminClient } from '../../lib/admin.ts';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('X-Frame-Options', 'DENY');
+Astro.response.headers.set('Content-Security-Policy', "frame-ancestors 'none'");
+
+const isPost = Astro.request.method === 'POST';
+const form = isPost ? await Astro.request.formData() : null;
+// I parametri arrivano nell'indirizzo (GET) o, dopo il clic, nei campi nascosti (POST)
+const param = (name: string) => (form ? form.get(name)?.toString() : Astro.url.searchParams.get(name)) ?? '';
+
+const issuer = siteOrigin(Astro.url.origin);
+const resource = `${issuer}${RESOURCE_PATH}`;
+const client = await getClient(param('client_id'));
+const askedRedirect = param('redirect_uri');
+const redirectUri = client
+  ? askedRedirect
+    ? client.redirect_uris.includes(askedRedirect)
+      ? askedRedirect
+      : null
+    : client.redirect_uris.length === 1
+      ? client.redirect_uris[0]
+      : null
+  : null;
+
+/** Errore che si può rimandare al client (l'indirizzo di ritorno è uno dei suoi). */
+const backTo = (params: Record<string, string>) => {
+  const url = new URL(redirectUri!);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  if (param('state')) url.searchParams.set('state', param('state'));
+  url.searchParams.set('iss', issuer);
+  return Astro.redirect(url.href, 303);
+};
+
+let problem: string | null = null;
+if (!client) problem = 'Questo assistente non è registrato, oppure il link è incompleto.';
+else if (!redirectUri) problem = "L'indirizzo di ritorno non è tra quelli registrati da questo assistente.";
+if (!problem) {
+  if (param('response_type') !== 'code') return backTo({ error: 'unsupported_response_type', error_description: 'Solo response_type=code.' });
+  if (!param('code_challenge') || param('code_challenge_method') !== 'S256') {
+    return backTo({ error: 'invalid_request', error_description: 'PKCE obbligatorio: code_challenge con metodo S256.' });
+  }
+  if (!resourceMatches(param('resource'), resource)) return backTo({ error: 'invalid_target', error_description: `La risorsa deve essere ${resource}.` });
+}
+
+const scopes = parseScopes(param('scope'));
+const user = Astro.locals.user;
+
+// Senza accesso: prima si entra, poi si torna qui con la stessa richiesta
+if (!problem && !user) {
+  return Astro.redirect(`/accedi?next=${encodeURIComponent(`${Astro.url.pathname}${Astro.url.search}`)}`, 303);
+}
+
+let suspended = false;
+if (!problem && user) {
+  const { data } = (await adminClient()?.from('profiles').select('suspended_at').eq('id', user.id).maybeSingle()) ?? { data: null };
+  suspended = Boolean(data?.suspended_at);
+}
+
+if (!problem && isPost && user && !suspended) {
+  if (form?.get('decision') !== 'consenti') return backTo({ error: 'access_denied', error_description: 'La persona ha annullato.' });
+  const code = await createCode({
+    clientId: client!.id,
+    userId: user.id,
+    redirectUri: redirectUri!,
+    codeChallenge: param('code_challenge'),
+    scopes,
+    resource,
+  });
+  return backTo({ code });
+}
+
+const returnHost = redirectUri ? (new URL(redirectUri).host || new URL(redirectUri).protocol.replace(':', '')) : '';
+const hidden = ['client_id', 'redirect_uri', 'response_type', 'code_challenge', 'code_challenge_method', 'state', 'scope', 'resource'];
+---
+
+<Layout title="Collega un assistente · giro.shop">
+  <section class="wrap band consent">
+    <div class="panel">
+      {
+        problem ? (
+          <>
+            <span class="label">Collegamento non valido</span>
+            <h1>Non possiamo collegare questo assistente.</h1>
+            <p class="muted">{problem} Torna all'assistente e riprova a collegare giro.shop.</p>
+            <a class="btn" href="/connetti">Come si collega un assistente</a>
+          </>
+        ) : suspended ? (
+          <>
+            <span class="label">Account sospeso</span>
+            <h1>Il tuo account è sospeso.</h1>
+            <p class="muted">Finché è sospeso non puoi collegare assistenti. Trovi i dettagli e la contestazione in «I miei annunci».</p>
+            <a class="btn" href="/miei-annunci">I miei annunci</a>
+          </>
+        ) : (
+          <>
+            <span class="label">Collega un assistente</span>
+            <h1>
+              Collegare <q>{client!.name}</q> al tuo account?
+            </h1>
+            <p class="muted">
+              Potrà agire a tuo nome su giro.shop{user?.email ? <> come <b>{user.email}</b></> : null}, solo per le cose qui sotto. Gli
+              annunci che pubblica sono tuoi a tutti gli effetti: valgono le stesse regole.
+            </p>
+            <div class="can">
+              <h2>Potrà</h2>
+              <ul>
+                {scopes.map((s) => (
+                  <li>{SCOPES[s]}</li>
+                ))}
+              </ul>
+              <h2>Non potrà</h2>
+              <ul>
+                <li>Leggere i tuoi messaggi privati e le offerte</li>
+                <li>Vedere la tua email o il tuo numero di cellulare</li>
+                <li>Eliminare il tuo account</li>
+              </ul>
+            </div>
+            <form method="POST" class="actions">
+              {hidden.map((name) => (
+                <input type="hidden" name={name} value={param(name)} />
+              ))}
+              <button class="btn primary" type="submit" name="decision" value="consenti">
+                Consenti
+              </button>
+              <button class="btn" type="submit" name="decision" value="annulla">
+                Annulla
+              </button>
+            </form>
+            <p class="small muted">
+              Dopo torni a <b>{returnHost}</b>. Puoi scollegarlo quando vuoi da <a href="/miei-annunci#assistenti">I miei annunci</a>: smette
+              subito di funzionare.
+            </p>
+          </>
+        )
+      }
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .consent { max-width: 640px; }
+  .consent .panel { gap: 16px; }
+  .consent h1 { font-size: clamp(24px, 3vw, 32px); }
+  .consent q { quotes: '«' '»'; }
+  .can { display: grid; gap: 8px; }
+  .can h2 { font: 500 15px/1.3 var(--f-body); letter-spacing: 0; margin-top: 4px; }
+  .can ul { display: grid; gap: 6px; list-style: disc; padding-left: 20px; }
+  .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+</style>

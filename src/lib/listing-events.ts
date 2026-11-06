@@ -7,6 +7,7 @@ import { summarizeListing } from '../core/claude.ts';
 import { adminClient } from './admin.ts';
 import { claudeKey } from './claude.ts';
 import { favoritersOf, notify, type Notice } from './notify.ts';
+import { embedListingLater } from './semantic.ts';
 
 /**
  * Cosa succede dopo un cambiamento a un annuncio: avvisi a chi l'aspettava e punti chiave.
@@ -22,11 +23,13 @@ const describe = (l: Listing) => [l.title, formatChf(l.priceChf), getComune(l.co
 export function afterPublish(listingId: string, origin: string, invalidate: Invalidate): void {
   later(notifySavedSearches(listingId, origin), 'avvisi delle ricerche salvate');
   later(writeHighlights(listingId, invalidate), 'punti chiave');
+  embedListingLater(listingId);
 }
 
 /** Testo cambiato: i punti chiave vecchi non valgono più. */
 export function afterTextChange(listingId: string, invalidate: Invalidate): void {
   later(writeHighlights(listingId, invalidate), 'punti chiave');
+  embedListingLater(listingId);
 }
 
 async function notifySavedSearches(listingId: string, origin: string): Promise<void> {

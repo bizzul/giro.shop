@@ -5,6 +5,7 @@
  */
 import type { APIRoute } from 'astro';
 import { photoUrl } from '../../core/store.ts';
+import { connectionsOf } from '../../lib/oauth.ts';
 
 export const GET: APIRoute = async ({ locals, redirect }) => {
   const { user, supabase } = locals;
@@ -12,7 +13,7 @@ export const GET: APIRoute = async ({ locals, redirect }) => {
 
   const [{ data: auth }, { data: profile }, { data: listings }, { data: conversations }] = await Promise.all([
     supabase.auth.getUser(),
-    supabase.from('profiles').select('display_name, created_at, phone_verified_at, notify_email, suspended_at, suspended_reason').eq('id', user.id).maybeSingle(),
+    supabase.from('profiles').select('display_name, created_at, phone_verified_at, email_mode, email_off, suspended_at, suspended_reason').eq('id', user.id).maybeSingle(),
     supabase
       .from('listings')
       .select('id, status, title, description, category_id, condition, price_chf, negotiable, shipping, shipping_chf, comune_id, tags, attributes, created_at, published_at, expires_at, sold_at, sold_price_chf, photos:listing_photos(storage_path, position), history:price_history(price_chf, changed_at)')
@@ -36,6 +37,8 @@ export const GET: APIRoute = async ({ locals, redirect }) => {
       supabase.from('appeals').select('message, status, reply, created_at, decided_at').eq('user_id', user.id),
       supabase.rpc('my_moderation_actions'),
     ]);
+
+  const assistants = await connectionsOf(user.id);
 
   const data = {
     informazioni: 'Tutti i dati che giro.shop tiene sul tuo account, scaricati il ' + new Date().toLocaleString('it-CH') + '. Vedi /privacy.',
@@ -70,6 +73,8 @@ export const GET: APIRoute = async ({ locals, redirect }) => {
     segnalazioni_fatte: reports ?? [],
     decisioni_di_moderazione_su_di_te: decisions ?? [],
     contestazioni: appeals ?? [],
+    // Dei token si tiene solo l'impronta: qui c'è chi è collegato, con quali permessi, da quando
+    assistenti_collegati: assistants.map((a) => ({ nome: a.name, permessi: a.scopes, collegato: a.since, ultimo_uso: a.lastUsed })),
     nel_browser: 'Ricerche recenti, confronto e comune per le distanze stanno solo nel tuo browser (localStorage): non li riceviamo.',
   };
 

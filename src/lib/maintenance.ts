@@ -1,6 +1,11 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { refreshListings } from '../core/store.ts';
+import { digestCutoff, digestDue, emailRoute, type EmailPrefs, type NoticeKind } from '../core/email-prefs.ts';
 import { adminClient } from './admin.ts';
+import { digestMail, sendMail } from './mail.ts';
 import { notify, siteOrigin, type Notice } from './notify.ts';
+import { unsubscribeUrl } from './unsubscribe.ts';
+import { warmUpSemantic } from './semantic.ts';
 import { formatDay } from '../core/format.ts';
 import { claudeKey } from './claude.ts';
 import { moderateWithAgent, pendingTargets } from './moderation-agent.ts';
@@ -10,6 +15,8 @@ import { moderateWithAgent, pendingTargets } from './moderation-agent.ts';
  * agganciati a una richiesta qualsiasi, e non la fanno aspettare.
  * - promemoria a chi vende 3 giorni prima della scadenza
  * - annunci scaduti: stato "scaduto", spariscono dal sito, chi vende li può rinnovare
+ * - il riassunto della sera per chi ha scelto "un riassunto al giorno"
+ * - ricerca per significato: modello pronto e vettori degli annunci nuovi o cambiati
  */
 const EVERY_MS = 15 * 60_000;
 const REMIND_DAYS = 3;
@@ -28,9 +35,12 @@ export function maybeRunMaintenance(origin: string, invalidate: () => Promise<vo
     });
 }
 
-export async function runMaintenance(origin: string, invalidate: () => Promise<void> = async () => {}): Promise<{ reminded: number; expired: number }> {
+export async function runMaintenance(
+  origin: string,
+  invalidate: () => Promise<void> = async () => {},
+): Promise<{ reminded: number; expired: number; digests: number }> {
   const admin = adminClient();
-  if (!admin) return { reminded: 0, expired: 0 };
+  if (!admin) return { reminded: 0, expired: 0, digests: 0 };
   const now = new Date();
   const soon = new Date(now.getTime() + REMIND_DAYS * 864e5);
 
@@ -82,5 +92,49 @@ export async function runMaintenance(origin: string, invalidate: () => Promise<v
       if (!('skipped' in outcome)) await invalidate();
     }
   }
-  return { reminded: reminders.length, expired: expired?.length ?? 0 };
+  const digests = await sendDigests(admin, origin, now);
+  await warmUpSemantic();
+  return { reminded: reminders.length, expired: expired?.length ?? 0, digests };
+}
+
+/**
+ * Riassunto della sera (dalle 18, ora svizzera), uno al giorno per chi l'ha scelto:
+ * gli avvisi non ancora mandati per email e non ancora visti nel sito, senza i tipi spenti.
+ * Chi non ha niente di nuovo non riceve niente.
+ */
+export async function sendDigests(admin: SupabaseClient, origin: string, now = new Date()): Promise<number> {
+  const cutoff = digestCutoff(now);
+  if (now < cutoff) return 0;
+  const { data: people } = await admin
+    .from('profiles')
+    .select('id, email_mode, email_off, digest_sent_at')
+    .eq('email_mode', 'riassunto')
+    .or(`digest_sent_at.is.null,digest_sent_at.lt.${cutoff.toISOString()}`);
+  let sent = 0;
+  for (const person of people ?? []) {
+    if (!digestDue(now, person.digest_sent_at ? new Date(person.digest_sent_at) : null)) continue;
+    // Al massimo gli ultimi due giorni: chi riattiva il riassunto non riceve avvisi vecchi
+    const since = new Date(Math.max(person.digest_sent_at ? new Date(person.digest_sent_at).getTime() : 0, now.getTime() - 2 * 864e5));
+    const { data: pending } = await admin
+      .from('notifications')
+      .select('id, kind, title, body, url')
+      .eq('user_id', person.id)
+      .is('emailed_at', null)
+      .is('read_at', null)
+      .gt('created_at', since.toISOString())
+      .order('created_at', { ascending: true })
+      .limit(30);
+    const prefs = person as unknown as EmailPrefs;
+    const items = (pending ?? []).filter((n) => emailRoute(prefs, n.kind as NoticeKind) === 'riassunto');
+    await admin.from('profiles').update({ digest_sent_at: now.toISOString() }).eq('id', person.id);
+    if (!items.length) continue;
+    const { data: user } = await admin.auth.admin.getUserById(person.id);
+    const to = user.user?.email;
+    if (!to) continue;
+    const ok = await sendMail(digestMail({ to, items, origin, unsubscribe: unsubscribeUrl(origin, person.id) }));
+    if (!ok) continue;
+    sent += 1;
+    await admin.from('notifications').update({ emailed_at: now.toISOString() }).in('id', items.map((i) => i.id));
+  }
+  return sent;
 }

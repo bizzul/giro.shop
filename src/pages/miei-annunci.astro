@@ -4,6 +4,9 @@ import { actions } from 'astro:actions';
 import { photoUrl } from '../core/store.ts';
 import { formatAge, formatChf, formatDay } from '../core/format.ts';
 import { maskSwissMobile } from '../core/phone.ts';
+import { EMAIL_GROUPS, EMAIL_MODES, EMAIL_MODE_LABEL, groupIsOn, type EmailPrefs } from '../core/email-prefs.ts';
+import { SCOPES } from '../core/oauth.ts';
+import { connectionsOf } from '../lib/oauth.ts';
 import '../styles/sell.css';
 
 const user = Astro.locals.user;
@@ -54,9 +57,12 @@ const decisions = ((decisionRows ?? []) as Array<{ id: string; listing_id: strin
 const suspension = decisions.find((d) => d.action === 'sospendi');
 const hideDecision = (listingId: string) => decisions.find((d) => d.action === 'nascondi' && d.listing_id === listingId);
 
+// Assistenti AI collegati con OAuth (connettore MCP con accesso)
+const assistants = await connectionsOf(user.id);
+
 const { data: profile } = await supabase
   .from('profiles')
-  .select('display_name, phone_verified_at, notify_email, is_moderator, suspended_at, suspended_reason')
+  .select('display_name, phone_verified_at, email_mode, email_off, is_moderator, suspended_at, suspended_reason')
   .eq('id', user.id)
   .single();
 const { data: rows } = await supabase
@@ -180,14 +186,34 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
 
     <section class="panel email-panel" id="email" aria-labelledby="email-title">
       <h2 id="email-title">Email degli avvisi</h2>
+      <p class="muted small">Gli avvisi restano sempre nel sito, sotto la campanella. Qui scegli quali ti arrivano anche per email, e quando.</p>
       <form class="email-form" method="POST" action={actions.account.setEmailNotices} autocomplete="off">
-        <label class="toggle">
-          <input type="checkbox" name="on" checked={profile?.notify_email !== false} />
-          <span>
-            Ricevi per email gli avvisi: ricerche salvate, prezzi ridotti, domande, risposte e valutazioni.
-            <span class="muted small">Restano comunque nel sito, sotto la campanella.</span>
-          </span>
-        </label>
+        <fieldset>
+          <legend class="label">Quando</legend>
+          {
+            EMAIL_MODES.map((m) => (
+              <label class="toggle">
+                <input type="radio" name="mode" value={m} checked={(profile?.email_mode ?? 'subito') === m} />
+                <span>
+                  {EMAIL_MODE_LABEL[m]}
+                  {m === 'riassunto' && <span class="muted small">Una sola email con gli avvisi del giorno che non hai ancora visto.</span>}
+                </span>
+              </label>
+            ))
+          }
+        </fieldset>
+        <fieldset class="email-kinds">
+          <legend class="label">Per cosa</legend>
+          {
+            EMAIL_GROUPS.map((g) => (
+              <label class="toggle">
+                <input type="checkbox" name="group" value={g.key} checked={groupIsOn(profile as EmailPrefs | null, g)} />
+                <span>{g.label}</span>
+              </label>
+            ))
+          }
+          <p class="muted small">Le decisioni di moderazione sui tuoi contenuti arrivano sempre subito, tranne con «Mai».</p>
+        </fieldset>
         <noscript><button class="btn" type="submit">Salva</button></noscript>
       </form>
     </section>
@@ -203,6 +229,42 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
         <noscript><button class="btn" type="submit">Salva</button></noscript>
       </form>
     </details>
+
+    <section class="panel assistants-panel" id="assistenti" aria-labelledby="assistenti-titolo">
+      <h2 id="assistenti-titolo">Assistenti AI collegati</h2>
+      {
+        assistants.length === 0 ? (
+          <p class="muted small">
+            Nessuno. Puoi collegare Claude o un altro assistente al tuo account per salvare ricerche e pubblicare annunci parlando:
+            <a href="/connetti">ecco come</a>.
+          </p>
+        ) : (
+          <ul class="assistants">
+            {assistants.map((a) => (
+              <li>
+                <div>
+                  <b>{a.name}</b>
+                  <span class="muted small">
+                    {' '}
+                    · collegato {formatAge(a.since)}
+                    {a.lastUsed ? ` · usato ${formatAge(a.lastUsed)}` : ' · mai usato'}
+                  </span>
+                  <ul class="muted small scopes">
+                    {a.scopes.filter((s): s is keyof typeof SCOPES => s in SCOPES).map((s) => (
+                      <li>{SCOPES[s]}</li>
+                    ))}
+                  </ul>
+                </div>
+                <form method="POST" action={actions.account.disconnectAssistant}>
+                  <input type="hidden" name="clientId" value={a.clientId} />
+                  <button class="btn" type="submit">Scollega</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </section>
 
     <section class="panel data-panel" id="dati" aria-labelledby="dati-titolo">
       <h2 id="dati-titolo">I tuoi dati</h2>
@@ -309,11 +371,13 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
                       <button class="btn" type="submit">Archivia</button>
                     </form>
                   </>
-                ) : l.status === 'scaduto' ? null : (
+                ) : l.status === 'scaduto' ? null : l.status === 'bozza' && l.photos.length === 0 ? (
+                  <a class="btn primary" href={`/miei-annunci/${l.id}#foto`}>Aggiungi una foto per pubblicare</a>
+                ) : (
                   <form method="POST" action={actions.account.setListingStatus}>
                     <input type="hidden" name="id" value={l.id} />
                     <input type="hidden" name="status" value="pubblicato" />
-                    <button class="btn" type="submit">Rimetti in vendita</button>
+                    <button class={l.status === 'bozza' ? 'btn primary' : 'btn'} type="submit">{l.status === 'bozza' ? 'Pubblica' : 'Rimetti in vendita'}</button>
                   </form>
                 )}
                 <details class="danger">
@@ -349,8 +413,12 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
   if (emailForm) {
     autosave(emailForm, {
       save: (form) => actions.account.setEmailNotices(form),
-      message: (_label, data) =>
-        (data as { on: boolean }).on ? 'Email degli avvisi accese' : 'Email degli avvisi spente: restano sotto la campanella',
+      message: (_label, data) => {
+        const { mode, on } = data as { mode: string; on: number };
+        if (mode === 'mai') return 'Email spente: gli avvisi restano sotto la campanella';
+        if (on === 0) return 'Nessun tipo di avviso scelto: non ti arriverà nessuna email';
+        return mode === 'riassunto' ? 'Salvato: un riassunto al giorno, alle 18' : 'Salvato: email subito';
+      },
     });
   }
 </script>
@@ -370,6 +438,11 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
   .name-panel { padding: 16px 20px; }
   .email-panel { gap: 12px; }
   .data-panel { gap: 12px; }
+  .assistants-panel { gap: 12px; }
+  .assistants-panel h2 { font: 500 16px/1.3 var(--f-body); letter-spacing: 0; }
+  .assistants { display: grid; border-top: 1px solid var(--line); }
+  .assistants > li { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-block: 12px; border-bottom: 1px solid var(--line); }
+  .assistants .scopes { list-style: disc; padding-left: 18px; margin-top: 4px; }
   .data-panel h2 { font: 500 16px/1.3 var(--f-body); letter-spacing: 0; }
   .delete-account form { display: grid; gap: 10px; margin-top: 10px; }
   .danger-btn { border-color: var(--bad); color: var(--bad); }
@@ -378,6 +451,10 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
   .toggle { display: flex; gap: 12px; align-items: flex-start; font-size: 15px; cursor: pointer; }
   .toggle input { width: 18px; height: 18px; margin-top: 3px; accent-color: var(--action); flex: none; }
   .toggle .small { display: block; margin-top: 2px; }
+  .email-form fieldset { display: grid; gap: 10px; border: 0; padding: 0; margin: 0; }
+  .email-form legend { margin-bottom: 4px; }
+  /* Con "Mai" i tipi non contano: restano modificabili ma in secondo piano */
+  .email-form:has(input[value='mai']:checked) .email-kinds { opacity: 0.5; }
   .name-panel summary { cursor: pointer; font-size: 14px; }
   .name-form { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-top: 12px; }
   .name-form .fld { flex: 1; min-width: 200px; }

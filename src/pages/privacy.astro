@@ -44,6 +44,12 @@ import Layout from '../layouts/Layout.astro';
         <dd>Sono pubbliche, con il tuo nome. Le valutazioni le lascia solo chi ha concluso una vendita con te.</dd>
         <dt>Salvati, ricerche salvate, avvisi, preferenze</dt>
         <dd>Sono privati e servono a mandarti gli avvisi che hai chiesto.</dd>
+        <dt>Assistenti AI collegati</dt>
+        <dd>
+          Se colleghi Claude o un altro assistente al tuo account, teniamo quale assistente, i permessi che gli hai dato e quando l'ha
+          usato; dei codici di accesso solo un'impronta. Vede e cambia solo ricerche salvate e annunci, mai messaggi, email o cellulare.
+          Lo scolleghi da «I miei annunci».
+        </dd>
         <dt>Segnalazioni e contestazioni</dt>
         <dd>
           Chi viene segnalato non sa chi l'ha segnalato. Per decidere, chi modera vede da quanto è iscritto chi segnala e quante sue
@@ -74,10 +80,14 @@ import Layout from '../layouts/Layout.astro';
         <li>«Scatta e vendi» e «Cerca con una foto»: le foto e il testo che scrivi;</li>
         <li>«In sintesi» e traduzioni: titolo e descrizione dell'annuncio;</li>
         <li>
-          moderazione: il contenuto segnalato, le statistiche dell'account coinvolto (non email né cellulare) e, se è stata segnalata, la
-          conversazione.
+          moderazione: il contenuto segnalato (con le foto, se è un annuncio), le statistiche dell'account coinvolto (non email né
+          cellulare) e, se è stata segnalata, la conversazione.
         </li>
       </ul>
+      <p>
+        La ricerca per significato («sofà» trova anche i divani) usa invece un modello che gira sul nostro server: le frasi che cerchi non
+        vanno a nessun altro.
+      </p>
       <p>
         L'agente di moderazione può nascondere un contenuto da solo solo quando la violazione è evidente; non sospende mai un account.
         Ogni decisione, sua o di una persona, si può contestare dalla notifica che ricevi: la rivede sempre una persona.
@@ -113,7 +123,10 @@ import Layout from '../layouts/Layout.astro';
         <li><b>Vedere e portare via i tuoi dati:</b> in «I miei annunci», «Scarica i tuoi dati» ti dà un file con tutto.</li>
         <li><b>Correggerli:</b> nome, annunci e preferenze si cambiano dal tuo account.</li>
         <li><b>Cancellarli:</b> «Elimina l'account», sempre in «I miei annunci».</li>
-        <li><b>Niente email:</b> dall'account o con il link in fondo a ogni email.</li>
+        <li>
+          <b>Meno email, o nessuna:</b> un riassunto al giorno, solo alcuni tipi di avviso o niente, dall'account o con il link in fondo a
+          ogni email.
+        </li>
         <li><b>Contestare una decisione automatica:</b> dalla notifica, la rivede una persona.</li>
         <li>
           <b>Reclamare:</b> all'Incaricato federale della protezione dei dati e della trasparenza (IFPDT), se pensi che non rispettiamo la

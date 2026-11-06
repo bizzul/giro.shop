@@ -9,6 +9,8 @@ export default defineConfig({
   output: 'server',
   adapter: node({ mode: 'standalone' }),
   integrations: [preact()],
+  // Il controllo dei moduli da altri siti è nel middleware (src/lib/origin-check.ts), con le eccezioni OAuth
+  security: { checkOrigin: false },
   cache: {
     provider: memoryCache(),
   },

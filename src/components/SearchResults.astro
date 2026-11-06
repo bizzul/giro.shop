@@ -3,6 +3,7 @@ import ListingCard from './ListingCard.astro';
 import { browseListings, search, type SortOrder } from '../core/search.ts';
 import { priceVerdict } from '../core/price.ts';
 import { getComune } from '../core/comuni.ts';
+import { meaningFor } from '../lib/semantic.ts';
 
 interface Props {
   q: string;
@@ -21,7 +22,10 @@ const PAGE = 24;
 const { q, mode, sort, n = PAGE, from: fromParam } = Astro.props;
 const from = fromParam && getComune(fromParam) ? fromParam : undefined;
 const limit = Math.min(Math.max(PAGE, n), 240);
-const result = q ? search(q, { sort, limit, from }) : null;
+// Anche per significato ("sofà" → divano), se il modello locale è pronto; altrimenti solo per parole
+const meaning = q ? await meaningFor(q) : null;
+const result = q ? search(q, { sort, limit, from, meaning: meaning ?? undefined }) : null;
+const onlyByMeaning = Boolean(result && result.total > 0 && result.byMeaning === result.total);
 const browse = result ? null : browseListings(sort, mode === 'home' ? 8 : limit, from);
 const total = result?.total ?? browse?.total ?? 0;
 const shown = result?.hits.length ?? browse?.listings.length ?? 0;
@@ -82,7 +86,10 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
   {
     result ? (
       <p class="count">
-        <span data-status>{total === 0 ? 'Nessun annuncio corrisponde.' : <b>{total === 1 ? '1 annuncio' : `${total} annunci`}</b>}</span>
+        <span data-status>
+          {total === 0 ? 'Nessun annuncio corrisponde.' : <b>{total === 1 ? '1 annuncio' : `${total} annunci`}</b>}
+          {onlyByMeaning && <span class="muted"> con lo stesso significato: nessuno usa proprio queste parole</span>}
+        </span>
         {total > 0 && (
           <a class="save-search" href={`/salvati/nuova?q=${encodeURIComponent(q)}`}>
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1 1H3z" /><path d="M6.5 14a1.5 1.5 0 0 0 3 0" /></svg>

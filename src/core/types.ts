@@ -171,6 +171,8 @@ export interface SearchHit {
   score: number;
   reasons: string[];
   verdict?: PriceVerdict;
+  /** Trovato per significato (non contiene le parole cercate): la similarità 0–1. */
+  meaning?: number;
 }
 
 export interface SearchResult {
@@ -179,4 +181,6 @@ export interface SearchResult {
   hits: SearchHit[];
   /** Quanti annunci corrispondono in tutto (hits può esserne solo una parte). */
   total: number;
+  /** Quanti di questi sono stati trovati solo per significato. */
+  byMeaning?: number;
 }
