@@ -6,8 +6,10 @@ interface Props {
   target?: string;
   /** "home" mostra gli ultimi annunci a campo vuoto, "cerca" tutti. */
   mode?: 'home' | 'cerca';
+  /** Frasi d'esempio che si scrivono e si cancellano a turno nel campo vuoto. */
+  suggestions?: string[];
 }
-const { value = '', autofocus = false, target, mode = 'cerca' } = Astro.props;
+const { value = '', autofocus = false, target, mode = 'cerca', suggestions } = Astro.props;
 ---
 
 <form class="search" action="/cerca" method="get" role="search" data-live={target ? '' : undefined} data-target={target} data-mode={mode}>
@@ -22,6 +24,7 @@ const { value = '', autofocus = false, target, mode = 'cerca' } = Astro.props;
     autocomplete="off"
     enterkeyhint="search"
     autofocus={autofocus}
+    data-suggestions={suggestions?.length ? JSON.stringify(suggestions) : undefined}
   />
 </form>
 
@@ -73,19 +76,89 @@ const { value = '', autofocus = false, target, mode = 'cerca' } = Astro.props;
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       clearTimeout(timer);
+      // Campo vuoto con un suggerimento in vista: Invio cerca proprio quello
+      if (!input.value.trim() && input.dataset.current) input.value = input.dataset.current;
       update();
       input.blur();
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+  }
 
-    // Gli esempi riempiono il campo invece di cambiare pagina
-    for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-example]')) {
-      link.addEventListener('click', (event) => {
-        event.preventDefault();
-        input.value = link.dataset.example ?? '';
-        clearTimeout(timer);
-        update();
-      });
+  // Suggerimenti nel campo vuoto: una frase si scrive lettera per lettera, resta un attimo,
+  // si cancella e ne arriva un'altra. Con il campo attivo o pieno si ferma sulla frase intera.
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  for (const input of document.querySelectorAll<HTMLInputElement>('input[data-suggestions]')) {
+    const list: string[] = JSON.parse(input.dataset.suggestions ?? '[]');
+    if (!list.length) continue;
+    let i = Math.floor(Math.random() * list.length);
+    let shown = 0;
+    let phase: 'type' | 'hold' | 'erase' = 'type';
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const show = (text: string) => {
+      input.placeholder = text;
+    };
+    const paused = () => document.activeElement === input || input.value !== '' || document.hidden;
+
+    function step() {
+      const text = list[i];
+      if (paused()) {
+        show(text);
+        input.dataset.current = text;
+        shown = text.length;
+        phase = 'hold';
+        return;
+      }
+      if (phase === 'type') {
+        shown += 1;
+        show(text.slice(0, shown));
+        if (shown >= text.length) {
+          input.dataset.current = text;
+          phase = 'hold';
+          timer = setTimeout(step, 2400);
+        } else {
+          timer = setTimeout(step, 38 + Math.random() * 45);
+        }
+      } else if (phase === 'hold') {
+        phase = 'erase';
+        timer = setTimeout(step, 0);
+      } else {
+        shown -= 1;
+        show(text.slice(0, shown));
+        if (shown <= 0) {
+          delete input.dataset.current;
+          i = (i + 1) % list.length;
+          phase = 'type';
+          timer = setTimeout(step, 450);
+        } else {
+          timer = setTimeout(step, 16);
+        }
+      }
     }
+
+    function start() {
+      clearTimeout(timer);
+      if (still.matches) {
+        show(list[i]);
+        input.dataset.current = list[i];
+        return;
+      }
+      timer = setTimeout(step, phase === 'hold' ? 1200 : 300);
+    }
+
+    show('');
+    shown = 0;
+    start();
+    input.addEventListener('focus', () => {
+      clearTimeout(timer);
+      step();
+    });
+    input.addEventListener('blur', start);
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      if (input.value === '') start();
+    });
+    document.addEventListener('visibilitychange', () => (document.hidden ? clearTimeout(timer) : start()));
+    still.addEventListener('change', start);
   }
 </script>

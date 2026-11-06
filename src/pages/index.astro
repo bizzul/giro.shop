@@ -7,10 +7,16 @@ import { LISTINGS_TAG } from '../lib/cache.ts';
 
 Astro.cache.set({ tags: [LISTINGS_TAG] });
 
-const examples = [
-  'scrivania in legno sotto i 150 franchi vicino a Lugano',
-  'bici per una bimba di 6 anni, ritiro a Bellinzona',
-  "Vespa anni '80 anche da sistemare, massimo 2000",
+// Frasi d'esempio che si scrivono a turno nel campo di ricerca: corte, così stanno anche su mobile
+const suggestions = [
+  'scrivania in legno sotto i 150 franchi',
+  'bici per una bimba di 6 anni a Bellinzona',
+  "Vespa anni '80 anche da sistemare",
+  'sci da 170 cm, zona Airolo',
+  'passeggino trio vicino a Locarno',
+  'iPhone sotto i 400 franchi a Lugano',
+  'poltrona in velluto vicino a Mendrisio',
+  'giacca da sci taglia L',
 ];
 ---
 
@@ -19,10 +25,7 @@ const examples = [
     <TicinoMap />
     <h1>Compra e vendi in Ticino, a parole tue.</h1>
     <p class="muted lede">Annunci da una foto e ricerca a frasi, con l'assistente al tuo fianco.</p>
-    <SearchForm target="risultati" mode="home" />
-    <p class="examples">
-      {examples.map((q) => <a href={`/cerca?q=${encodeURIComponent(q)}`} data-example={q}>{q}</a>)}
-    </p>
+    <SearchForm target="risultati" mode="home" suggestions={suggestions} />
   </section>
 
   <section class="wrap band">
@@ -52,7 +55,6 @@ const examples = [
   .hero-in { position: relative; isolation: isolate; display: grid; justify-items: center; gap: 24px; text-align: center; padding-block: clamp(40px, 8vw, 96px) clamp(32px, 5vw, 48px); }
   .hero-in h1 { max-width: 15ch; }
   .lede { max-width: 540px; text-wrap: balance; }
-  .hero-in .examples { max-width: 680px; }
   .hero-in :global(.search) { width: 100%; max-width: 640px; margin-top: 24px; text-align: left; }
   .duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
   @media (max-width: 760px) { .duo { grid-template-columns: 1fr; } }
