@@ -9,7 +9,19 @@ interface Props {
   /** Frasi d'esempio che si scrivono e si cancellano a turno nel campo vuoto. */
   suggestions?: string[];
 }
-const { value = '', autofocus = false, target, mode = 'cerca', suggestions } = Astro.props;
+
+// Frasi d'esempio: corte, così stanno intere anche su telefono; ognuna trova almeno un annuncio
+const SUGGESTIONS = [
+  'scrivania in legno sotto i 150 franchi',
+  'bici per una bimba di 6 anni a Bellinzona',
+  "Vespa anni '80 anche da sistemare",
+  'sci da 170 cm, zona Airolo',
+  'passeggino trio vicino a Locarno',
+  'iPhone sotto i 400 franchi a Lugano',
+  'poltrona in velluto vicino a Mendrisio',
+  'giacca da sci taglia L',
+];
+const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUGGESTIONS } = Astro.props;
 ---
 
 <form class="search dock" action="/cerca" method="get" role="search" data-live={target ? '' : undefined} data-target={target} data-mode={mode}>
@@ -20,7 +32,7 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions } = A
     name="q"
     type="search"
     value={value}
-    placeholder="Scrivi come parli: bici per una bimba di 6 anni a Bellinzona"
+    placeholder="bici per una bimba di 6 anni a Bellinzona"
     autocomplete="off"
     enterkeyhint="search"
     autofocus={autofocus}
@@ -98,7 +110,9 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions } = A
     const show = (text: string) => {
       input.placeholder = text;
     };
-    const paused = () => document.activeElement === input || input.value !== '' || document.hidden;
+    // Ci si ferma solo se il campo l'ha attivato la persona: l'autofocus di /cerca non conta
+    let touched = false;
+    const paused = () => (touched && document.activeElement === input) || input.value !== '' || document.hidden;
 
     function step() {
       const text = list[i];
@@ -149,11 +163,18 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions } = A
     show('');
     shown = 0;
     start();
-    input.addEventListener('focus', () => {
+    const freeze = () => {
+      touched = true;
       clearTimeout(timer);
       step();
+    };
+    input.addEventListener('focus', freeze);
+    // Con l'autofocus il campo è già attivo: il primo tocco non genera "focus"
+    input.addEventListener('pointerdown', freeze);
+    input.addEventListener('blur', () => {
+      touched = false;
+      start();
     });
-    input.addEventListener('blur', start);
     input.addEventListener('input', () => {
       clearTimeout(timer);
       if (input.value === '') start();

@@ -6,18 +6,6 @@ import TicinoMap from '../components/TicinoMap.astro';
 import { LISTINGS_TAG } from '../lib/cache.ts';
 
 Astro.cache.set({ tags: [LISTINGS_TAG] });
-
-// Frasi d'esempio che si scrivono a turno nel campo di ricerca: corte, così stanno anche su mobile
-const suggestions = [
-  'scrivania in legno sotto i 150 franchi',
-  'bici per una bimba di 6 anni a Bellinzona',
-  "Vespa anni '80 anche da sistemare",
-  'sci da 170 cm, zona Airolo',
-  'passeggino trio vicino a Locarno',
-  'iPhone sotto i 400 franchi a Lugano',
-  'poltrona in velluto vicino a Mendrisio',
-  'giacca da sci taglia L',
-];
 ---
 
 <Layout title="giro.shop · il mercatino del Ticino">
@@ -25,7 +13,7 @@ const suggestions = [
     <TicinoMap />
     <h1>Compra e vendi in Ticino, a parole tue.</h1>
     <p class="muted lede">Annunci da una foto e ricerca a frasi, con l'assistente al tuo fianco.</p>
-    <SearchForm target="risultati" mode="home" suggestions={suggestions} />
+    <SearchForm target="risultati" mode="home" />
   </section>
 
   <section class="wrap band">
