@@ -1,7 +1,7 @@
 import type { Listing, SearchFilters, SearchHit, SearchResult } from './types.ts';
 import { publishedListings } from './store.ts';
 import { parseQuery } from './query.ts';
-import { findAlt } from './match.ts';
+import { findAlt, isMainObject } from './match.ts';
 import { getComune, distanceKm } from './comuni.ts';
 import { priceVerdict } from './price.ts';
 import { CONDITION_LABEL } from './format.ts';
@@ -115,7 +115,9 @@ function rankAll(filters: SearchFilters): SearchHit[] {
     if (filters.conditions) reasons.push(CONDITION_LABEL[listing.condition].toLowerCase());
     if (filters.includeBroken && listing.condition === 'da_riparare') reasons.push('da riparare');
 
-    const relevance = filters.groups.length ? matched / filters.groups.length : 1;
+    // Chi cerca "scrivania" vede prima le scrivanie, poi chi la nomina soltanto (lampada da scrivania)
+    const sideMention = filters.required != null && !isMainObject(listing, filters.required.alts);
+    const relevance = (filters.groups.length ? matched / filters.groups.length : 1) - (sideMention ? 0.6 : 0);
     const proximity = distance != null && filters.radiusKm ? 1 - distance / filters.radiusKm : 0;
     const ageDays = (now - new Date(listing.publishedAt).getTime()) / 864e5;
     const freshness = Math.max(0, 1 - ageDays / 14);
@@ -143,7 +145,8 @@ function rankAll(filters: SearchFilters): SearchHit[] {
 export function similarTo(id: string, title: string, limit = 4): SearchHit[] {
   const { filters } = parseQuery(title);
   const loose: SearchFilters = { raw: title, required: filters.required, category: filters.category, groups: [] };
-  return searchWithFilters(loose, limit + 1)
-    .filter((h) => h.listing.id !== id)
+  const alts = filters.required?.alts;
+  return rankAll(loose)
+    .filter((h) => h.listing.id !== id && (!alts || isMainObject(h.listing, alts)))
     .slice(0, limit);
 }

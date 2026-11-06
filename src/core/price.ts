@@ -1,7 +1,7 @@
 import type { CategoryId, Condition, Listing, PriceEstimate, PriceVerdict } from './types.ts';
 import { allListings } from './store.ts';
 import { parseQuery } from './query.ts';
-import { findAlt } from './match.ts';
+import { findAlt, isMainObject } from './match.ts';
 
 /** Quanto vale un oggetto rispetto allo stesso oggetto in buono stato. */
 const CONDITION_FACTOR: Record<Condition, number> = {
@@ -49,7 +49,8 @@ export function estimatePrice(input: EstimateInput): PriceEstimate | null {
   let basis: PriceEstimate['basis'] = 'simili';
   if (filters.required) {
     const req = filters.required.alts;
-    comps = pool.filter((l) => findAlt(l, req));
+    // Lo stesso oggetto, non uno che lo nomina: niente lampade "da scrivania" per stimare una scrivania
+    comps = pool.filter((l) => findAlt(l, req) && isMainObject(l, req));
   }
   if (comps.length < 3 && category) {
     comps = pool.filter((l) => l.category === category);

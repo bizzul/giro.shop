@@ -113,7 +113,7 @@ const factCount = 3 + attributes.length;
             <a class="estimate" href="#prezzo">
               <span class="ai-mark sm" />
               <span>
-                Annunci simili: <b class="mono">{formatChfRange(estimate.low, estimate.high)}</b>
+                {estimate.basis === 'simili' ? 'Annunci simili' : `Categoria ${category.name}`}: <b class="mono">{formatChfRange(estimate.low, estimate.high)}</b>
                 <span class="muted">
                   {' '}
                   ({estimate.comparables} annunci, {estimate.soldComparables} venduti)
@@ -169,7 +169,9 @@ const factCount = 3 + attributes.length;
                     <b class="mono">{formatChfRange(estimate.low, estimate.high)}</b>
                   </div>
                   <p class="muted">
-                    Confrontiamo gli annunci di oggetti simili, anche quelli già venduti, e li riportiamo alla stessa condizione.
+                    {estimate.basis === 'simili'
+                      ? 'Confrontiamo gli annunci dello stesso oggetto, anche quelli già venduti, e li riportiamo alla stessa condizione.'
+                      : `Ci sono ancora pochi annunci di questo oggetto: la fascia viene da tutta la categoria ${category.name}, quindi è solo indicativa.`}
                   </p>
                   <ul class="comps">
                     {comparables.map(({ l, price }) => (

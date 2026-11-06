@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { search } from '../src/core/search.ts';
 import { estimatePrice, priceVerdict } from '../src/core/price.ts';
 import { getListing } from '../src/core/store.ts';
+import { isMainObject, mainObject } from '../src/core/match.ts';
 import { createDraft, DraftError } from '../src/core/draft.ts';
 
 const ids = (q: string) => search(q).hits.map((h) => h.listing.id).sort();
@@ -93,5 +94,31 @@ describe('ordinamento e conteggio', () => {
   it('ordina per distanza quando la frase nomina un luogo', () => {
     const km = search('scrivania vicino a Lugano', { sort: 'vicini' }).hits.map((h) => h.distanceKm ?? Infinity);
     expect(km).toEqual([...km].sort((a, b) => a - b));
+  });
+});
+
+describe('stesso oggetto, non solo nominato', () => {
+  const fake = (title: string) => ({ ...getListing('l-001')!, id: `x-${title}`, title });
+
+  it('una lampada da scrivania non è una scrivania, gli scarponi da sci non sono sci', () => {
+    expect(isMainObject(fake('Lampada da scrivania in ottone'), ['scrivani'])).toBe(false);
+    expect(isMainObject(fake('Scrivania bianca laccata'), ['scrivani'])).toBe(true);
+    expect(isMainObject(fake('Scarponi da sci Lange'), ['sci'])).toBe(false);
+    expect(isMainObject(fake('Bici da corsa Bianchi'), ['bici'])).toBe(true);
+    // Titolo senza un oggetto riconoscibile: decide il testo
+    expect(isMainObject(fake('Scatoloni da trasloco'), ['scrivani'])).toBe(true);
+  });
+
+  it('stima una bici da corsa solo con altre bici', () => {
+    const est = estimatePrice({ text: 'bici da corsa Bianchi telaio 55' })!;
+    expect(est.basis).toBe('simili');
+    expect(est.comparableIds.every((id) => mainObject(getListing(id)!)?.startsWith('bici'))).toBe(true);
+  });
+
+  it('con pochi sci la stima viene dalla categoria e non dà un verdetto', () => {
+    // Scarponi, casco e giacca da sci non contano più come sci: ne resta uno solo
+    const est = estimatePrice({ text: 'Sci Atomic Redster 170 cm', category: 'sport_inverno', excludeId: 'l-024' })!;
+    expect(est.basis).toBe('categoria');
+    expect(priceVerdict(getListing('l-024')!)).toBeUndefined();
   });
 });

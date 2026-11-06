@@ -1,5 +1,6 @@
 import type { Listing } from './types.ts';
-import { normalize, tokenMatches } from './text.ts';
+import { normalize, tokenize, tokenMatches } from './text.ts';
+import { detectCategory } from './categories.ts';
 
 interface Haystack {
   tokens: string[];
@@ -33,4 +34,34 @@ export function findAlt(listing: Listing, alts: string[]): string | null {
     if (token) return token;
   }
   return null;
+}
+
+const mainCache = new WeakMap<Listing, string | null>();
+
+/** L'oggetto principale di un annuncio, dal titolo: "Lampada da scrivania in ottone" → lampad. */
+export function mainObject(listing: Listing): string | null {
+  let main = mainCache.get(listing);
+  if (main === undefined) {
+    main = detectCategory(tokenize(listing.title))?.keyword ?? null;
+    mainCache.set(listing, main);
+  }
+  return main;
+}
+
+/** "bici da corsa" comincia con "bici"; "scarponi da sci" non comincia con "sci". */
+function startsWithPhrase(phrase: string, start: string): boolean {
+  const a = phrase.split(' ');
+  const b = start.split(' ');
+  return b.length <= a.length && b.every((w, i) => tokenMatches(a[i], w));
+}
+
+/**
+ * Vero se l'annuncio è proprio quell'oggetto e non lo nomina soltanto:
+ * una lampada da scrivania non è una scrivania, gli scarponi da sci non sono sci.
+ * In italiano l'oggetto viene prima ("scarponi da sci"), quindi conta l'inizio.
+ * Se dal titolo non si capisce l'oggetto, basta che il testo lo nomini.
+ */
+export function isMainObject(listing: Listing, alts: string[]): boolean {
+  const main = mainObject(listing);
+  return !main || alts.some((alt) => startsWithPhrase(main, alt) || startsWithPhrase(alt, main));
 }
