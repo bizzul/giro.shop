@@ -22,10 +22,16 @@ if (user && supabase) {
   user ? (
     <>
       <a href="/messaggi" class="nav-messages">
-        Messaggi
+        <svg class="nav-ico" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2.5 3.5h11v7.5h-6.5l-3 2.5v-2.5h-1.5z" />
+        </svg>
+        <span class="nav-text">Messaggi</span>
         {unread > 0 && <span class="nav-count" aria-label={`${unread} non letti`}>{unread}</span>}
       </a>
-      <a href="/miei-annunci">{name ?? 'Il mio account'}</a>
+      <a href="/miei-annunci" class="nav-account">
+        <span class="nav-avatar" aria-hidden="true">{(name ?? '?').trim().charAt(0).toUpperCase()}</span>
+        <span class="nav-text nav-name">{name ?? 'Il mio account'}</span>
+      </a>
     </>
   ) : (
     <a href="/accedi">Accedi</a>

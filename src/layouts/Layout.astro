@@ -50,7 +50,13 @@ const nav = [
           {
             nav.map((item) => (
               <a href={item.href} aria-current={path.startsWith(item.href) ? 'page' : undefined}>
-                {item.label}
+                {item.href === '/cerca' && (
+                  <svg class="nav-ico" viewBox="0 0 16 16" aria-hidden="true">
+                    <circle cx="7" cy="7" r="5" />
+                    <path d="M11 11l3.5 3.5" />
+                  </svg>
+                )}
+                <span class="nav-text">{item.label}</span>
               </a>
             ))
           }
