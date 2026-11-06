@@ -2,6 +2,8 @@
 import Layout from '../../layouts/Layout.astro';
 import CategoryIcon from '../../components/CategoryIcon.astro';
 import ListingCard from '../../components/ListingCard.astro';
+import ContactBox from '../../components/ContactBox.astro';
+import { LISTINGS_TAG } from '../../lib/cache.ts';
 import { getListing, getPhoto, sourceName } from '../../core/store.ts';
 import { getComune } from '../../core/comuni.ts';
 import { getCategory } from '../../core/categories.ts';
@@ -14,6 +16,7 @@ if (!listing) {
   return new Response('Annuncio non trovato', { status: 404 });
 }
 
+Astro.cache.set({ tags: [LISTINGS_TAG] });
 const sold = listing.status === 'venduto';
 const comune = getComune(listing.comuneId);
 const photo = getPhoto(listing.id);
@@ -93,7 +96,8 @@ const attributes = Object.entries(listing.attributes);
         <div class="price-row">
           <span class="price mono">{formatChf(listing.priceChf)}</span>
           {sold && <span class="badge plain">Venduto</span>}
-          {!sold && listing.negotiable && <span class="badge plain">Trattabile</span>}
+          {!sold && listing.negotiating && <span class="badge sun">In trattativa</span>}
+          {!sold && !listing.negotiating && listing.negotiable && <span class="badge plain">Trattabile</span>}
           {!sold && verdict && <span class={`badge ${verdict === 'sopra_mercato' ? 'bad' : 'ok'}`}>{VERDICT_LABEL[verdict]}</span>}
         </div>
 
@@ -129,12 +133,13 @@ const attributes = Object.entries(listing.attributes);
               {listing.seller.verified && <span class="badge ok">Natel verificato</span>}
             </p>
           </div>
-          {!sold && (
-            <div class="contact">
-              <button class="btn primary" type="button" disabled aria-describedby="contact-note">Contatta</button>
-              <span id="contact-note" class="small">Messaggi e offerte arrivano a breve</span>
-            </div>
-          )}
+          {
+            !sold && (
+              <ContactBox server:defer listingId={listing.id} sellerName={listing.seller.name}>
+                <div slot="fallback" class="contact-ghost" aria-hidden="true" />
+              </ContactBox>
+            )
+          }
         </div>
       </div>
     </div>
@@ -177,8 +182,9 @@ const attributes = Object.entries(listing.attributes);
   .facts > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding-block: 12px; border-bottom: 1px solid var(--line); font-size: 15px; }
   .facts dt { font: 500 11px/2 var(--f-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
   .desc { font-size: 16px; line-height: 1.6; max-width: 62ch; }
-  .seller { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px; }
+  .seller { display: grid; gap: 16px; padding: 20px; }
   .name { display: flex; align-items: center; gap: 10px; font-weight: 500; margin-top: 6px; }
+  .contact-ghost { min-height: 52px; }
   .contact { display: grid; gap: 6px; justify-items: end; }
   @media (max-width: 480px) { .contact { justify-items: stretch; width: 100%; } }
 </style>

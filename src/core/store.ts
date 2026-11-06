@@ -98,6 +98,7 @@ export function rowToListing(row: Row): Listing {
     soldPriceChf: row.sold_price_chf != null ? Number(row.sold_price_chf) : undefined,
     seller: { name: row.seller?.display_name ?? 'Utente', verified: Boolean(row.seller?.phone_verified_at) },
     sellerId: row.seller_id ?? undefined,
+    negotiating: row.status === 'in_trattativa',
     photos,
   };
 }

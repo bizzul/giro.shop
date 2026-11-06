@@ -4,6 +4,8 @@ import { IMAGE_TYPES, MAX_PHOTOS, MAX_PHOTO_BYTES, type ImageMediaType } from '.
 import { resolveComune } from '../core/comuni.ts';
 import { refreshListings } from '../core/store.ts';
 import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
+import { normalizeSwissMobile } from '../core/phone.ts';
+import { invalidateListingPages } from '../lib/cache.ts';
 
 /** Client Supabase con la sessione, oppure un errore chiaro. */
 function requireSupabase(context: ActionAPIContext) {
@@ -71,6 +73,7 @@ export const account = {
       const { error } = await supabase.from('profiles').update({ display_name: displayName }).eq('id', user.id);
       if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Non ho salvato il nome: ${error.message}` });
       await refreshListings(true);
+      await invalidateListingPages(context);
       return { displayName };
     },
   }),
@@ -151,6 +154,7 @@ export const account = {
       }
 
       await refreshListings(true);
+      await invalidateListingPages(context);
       return { id: listing.id as string };
     },
   }),
@@ -172,6 +176,7 @@ export const account = {
       if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Non ho aggiornato l'annuncio: ${error.message}` });
       if (!data?.length) throw new ActionError({ code: 'NOT_FOUND', message: 'Annuncio non trovato tra i tuoi.' });
       await refreshListings(true);
+      await invalidateListingPages(context);
       return { id, status };
     },
   }),
@@ -189,7 +194,128 @@ export const account = {
       if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Non ho eliminato l'annuncio: ${error.message}` });
       if (!data?.length) throw new ActionError({ code: 'NOT_FOUND', message: 'Annuncio non trovato tra i tuoi.' });
       await refreshListings(true);
+      await invalidateListingPages(context);
       return { id };
+    },
+  }),
+  /** Passo 1 della verifica del natel: Supabase manda un SMS con un codice a 6 cifre. */
+  startPhoneVerification: defineAction({
+    accept: 'form',
+    input: z.object({ phone: z.string().trim().min(6, 'Scrivi il numero del natel.') }),
+    handler: async ({ phone }, context) => {
+      const { supabase } = requireUser(context);
+      const e164 = normalizeSwissMobile(phone);
+      if (!e164) throw new ActionError({ code: 'BAD_REQUEST', message: 'Serve un natel svizzero (075–079), per esempio 079 123 45 67.' });
+      const { error } = await supabase.auth.updateUser({ phone: e164 });
+      if (error) {
+        const taken = /already|exists|registered/i.test(error.message);
+        throw new ActionError({
+          code: taken ? 'CONFLICT' : 'BAD_REQUEST',
+          message: taken ? 'Questo natel è già collegato a un altro account.' : `Non riesco a mandare l'SMS: ${error.message}`,
+        });
+      }
+      return { phone: e164 };
+    },
+  }),
+
+  /** Passo 2: il codice ricevuto conferma il numero; il profilo diventa "natel verificato". */
+  confirmPhone: defineAction({
+    accept: 'form',
+    input: z.object({
+      phone: z.string().regex(/^\+417[5-9]\d{7}$/),
+      code: z.string().trim().regex(/^\d{6}$/, 'Il codice ha 6 cifre.'),
+    }),
+    handler: async ({ phone, code }, context) => {
+      const { supabase } = requireUser(context);
+      const { error } = await supabase.auth.verifyOtp({ phone, token: code, type: 'phone_change' });
+      if (error) throw new ActionError({ code: 'BAD_REQUEST', message: 'Codice errato o scaduto. Chiedine uno nuovo.' });
+      await refreshListings(true);
+      await invalidateListingPages(context);
+      return { phone };
+    },
+  }),
+
+  /** Modifica un annuncio già pubblicato: testi, prezzo, stato, luogo e foto (toglierne e aggiungerne). */
+  updateListing: defineAction({
+    accept: 'form',
+    input: z.object({
+      id: z.string().min(1),
+      title: z.string().trim().min(3, 'Il titolo è troppo corto.').max(80, 'Il titolo supera gli 80 caratteri.'),
+      description: z.string().trim().max(4000),
+      category: z.enum(CATEGORY_IDS),
+      condition: z.enum(CONDITIONS),
+      price: z.coerce.number().min(0, 'Il prezzo non può essere negativo.').max(1_000_000),
+      negotiable: z.string().nullish(),
+      comune: z.string().trim().min(1, 'Scegli il comune di ritiro.'),
+      tags: z.string().nullish(),
+      removePhotos: z.array(z.string()).optional(),
+      photos: z.array(z.instanceof(File)).optional(),
+    }),
+    handler: async (input, context) => {
+      const { supabase, user } = requireUser(context);
+      const comune = resolveComune(input.comune);
+      if (!comune) throw new ActionError({ code: 'BAD_REQUEST', message: `Non conosco il comune "${input.comune}".` });
+
+      const { data: current, error: readError } = await supabase
+        .from('listings')
+        .select('id, photos:listing_photos(id, storage_path, position)')
+        .eq('id', input.id)
+        .eq('seller_id', user.id)
+        .maybeSingle();
+      if (readError || !current) throw new ActionError({ code: 'NOT_FOUND', message: 'Annuncio non trovato tra i tuoi.' });
+
+      const tags = (input.tags ?? '')
+        .split(',')
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean)
+        .slice(0, 12);
+      const { error } = await supabase
+        .from('listings')
+        .update({
+          title: input.title,
+          description: input.description,
+          category_id: input.category,
+          condition: input.condition,
+          price_chf: input.price,
+          negotiable: Boolean(input.negotiable),
+          comune_id: comune.id,
+          tags,
+        })
+        .eq('id', input.id)
+        .eq('seller_id', user.id);
+      if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Modifiche non salvate: ${error.message}` });
+
+      // Foto da togliere: solo quelle di questo annuncio
+      const photos = (current.photos ?? []) as Array<{ id: number; storage_path: string; position: number }>;
+      const toRemove = photos.filter((p) => input.removePhotos?.includes(p.storage_path));
+      if (toRemove.length) {
+        await supabase.from('listing_photos').delete().in('id', toRemove.map((p) => p.id));
+        const own = toRemove.map((p) => p.storage_path).filter((path) => path.startsWith(`${user.id}/`));
+        if (own.length) await supabase.storage.from('foto').remove(own);
+      }
+
+      // Foto nuove, fino a 5 in tutto
+      const files = (input.photos ?? []).filter((f) => f.size > 0);
+      const kept = photos.length - toRemove.length;
+      if (kept + files.length > MAX_PHOTOS) {
+        throw new ActionError({ code: 'BAD_REQUEST', message: `Al massimo ${MAX_PHOTOS} foto per annuncio: ne hai già ${kept}.` });
+      }
+      let position = Math.max(-1, ...photos.filter((p) => !toRemove.includes(p)).map((p) => p.position)) + 1;
+      for (const file of files) {
+        if (!IMAGE_TYPES.includes(file.type as ImageMediaType) || file.size > MAX_PHOTO_BYTES) {
+          throw new ActionError({ code: 'BAD_REQUEST', message: `"${file.name}" non è un'immagine JPEG, PNG o WebP sotto i 5 MB.` });
+        }
+        const path = `${user.id}/${input.id}/${Date.now()}-${position}.${EXTENSION[file.type as ImageMediaType]}`;
+        const { error: uploadError } = await supabase.storage.from('foto').upload(path, file, { contentType: file.type });
+        if (uploadError) throw new ActionError({ code: 'BAD_REQUEST', message: `Caricamento di "${file.name}" non riuscito: ${uploadError.message}` });
+        const { error: rowError } = await supabase.from('listing_photos').insert({ listing_id: input.id, storage_path: path, position });
+        if (rowError) throw new ActionError({ code: 'BAD_REQUEST', message: `Foto caricata ma non collegata: ${rowError.message}` });
+        position++;
+      }
+
+      await refreshListings(true);
+      await invalidateListingPages(context);
+      return { id: input.id };
     },
   }),
 };

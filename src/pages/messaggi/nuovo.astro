@@ -1,0 +1,22 @@
+---
+/** Riceve il primo messaggio dalla scheda annuncio e porta alla conversazione. */
+import Layout from '../../layouts/Layout.astro';
+import { actions } from 'astro:actions';
+
+if (!Astro.locals.user) return Astro.redirect('/accedi?next=/messaggi');
+const result = Astro.getActionResult(actions.messages.start);
+if (result?.data) return Astro.redirect(`/messaggi/${result.data.conversationId}#fondo`, 303);
+if (!result) return Astro.redirect('/messaggi');
+const back = Astro.request.headers.get('referer') ?? '/cerca';
+---
+
+<Layout title="Messaggio non inviato · Piazza">
+  <section class="wrap band">
+    <div class="panel">
+      <span class="label">Messaggio non inviato</span>
+      <h1>Qualcosa non ha funzionato.</h1>
+      <p class="error" role="alert">{result.error?.message}</p>
+      <a class="btn" href={back}>Torna all'annuncio</a>
+    </div>
+  </section>
+</Layout>

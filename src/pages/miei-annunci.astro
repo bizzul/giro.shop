@@ -3,6 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import { actions } from 'astro:actions';
 import { photoUrl } from '../core/store.ts';
 import { formatAge, formatChf } from '../core/format.ts';
+import { maskSwissMobile } from '../core/phone.ts';
 import '../styles/sell.css';
 
 const user = Astro.locals.user;
@@ -15,6 +16,15 @@ if (signOut && !signOut.error) return Astro.redirect('/');
 const nameResult = Astro.getActionResult(actions.account.updateName);
 const statusResult = Astro.getActionResult(actions.account.setListingStatus);
 const deleteResult = Astro.getActionResult(actions.account.deleteListing);
+const phoneStart = Astro.getActionResult(actions.account.startPhoneVerification);
+const phoneConfirm = Astro.getActionResult(actions.account.confirmPhone);
+const phoneError = phoneStart?.error?.message ?? phoneConfirm?.error?.message;
+
+// Stato del natel: verificato, in attesa del codice, oppure da aggiungere
+const { data: authData } = await supabase.auth.getUser();
+const authUser = authData.user;
+const verifiedPhone = authUser?.phone && authUser.phone_confirmed_at ? `+${authUser.phone}` : null;
+const pendingPhone = phoneStart?.data?.phone ?? (authUser?.new_phone ? `+${authUser.new_phone}` : null);
 const error = [nameResult, statusResult, deleteResult, signOut].find((r) => r?.error)?.error?.message;
 const notice = nameResult?.data
   ? 'Nome salvato.'
@@ -22,7 +32,9 @@ const notice = nameResult?.data
     ? { venduto: 'Segnato come venduto.', pubblicato: 'Di nuovo in vendita.', archiviato: 'Annuncio archiviato.' }[statusResult.data.status]
     : deleteResult?.data
       ? 'Annuncio eliminato.'
-      : null;
+      : phoneConfirm?.data
+        ? 'Natel verificato: lo vedono anche gli acquirenti.'
+        : null;
 
 const { data: profile } = await supabase.from('profiles').select('display_name, phone_verified_at').eq('id', user.id).single();
 const { data: rows } = await supabase
@@ -63,6 +75,56 @@ const STATUS_LABEL: Record<string, string> = {
 
     {notice && <p class="notice" role="status">{notice}</p>}
     {error && <p class="error" role="alert">{error}</p>}
+
+    <section class="panel phone-panel" aria-labelledby="natel-title">
+      <div class="phone-head">
+        <h2 id="natel-title">Natel</h2>
+        {verifiedPhone && !pendingPhone && <span class="badge ok">Verificato · {maskSwissMobile(verifiedPhone)}</span>}
+      </div>
+      {phoneError && <p class="error" role="alert">{phoneError}</p>}
+      {
+        pendingPhone ? (
+          <>
+            <p class="muted">Ti abbiamo mandato un SMS con un codice di 6 cifre al {maskSwissMobile(pendingPhone)}.</p>
+            <form class="phone-form" method="POST" action={actions.account.confirmPhone}>
+              <input type="hidden" name="phone" value={pendingPhone} />
+              <label class="fld">
+                <span class="label">Codice</span>
+                <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required />
+              </label>
+              <button class="btn primary" type="submit">Conferma</button>
+            </form>
+            <form class="inline-link" method="POST" action={actions.account.startPhoneVerification}>
+              <input type="hidden" name="phone" value={pendingPhone} />
+              <button class="link-button" type="submit">Manda un nuovo codice</button>
+            </form>
+          </>
+        ) : verifiedPhone ? (
+          <details>
+            <summary class="small">Cambia numero</summary>
+            <form class="phone-form" method="POST" action={actions.account.startPhoneVerification}>
+              <label class="fld">
+                <span class="label">Nuovo natel</span>
+                <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="079 123 45 67" required />
+              </label>
+              <button class="btn" type="submit">Mandami il codice</button>
+            </form>
+          </details>
+        ) : (
+          <>
+            <p class="muted">Chi compra si fida di più: accanto al tuo nome compare "Natel verificato". Il numero non viene mostrato.</p>
+            <form class="phone-form" method="POST" action={actions.account.startPhoneVerification}>
+              <label class="fld">
+                <span class="label">Il tuo natel</span>
+                <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="079 123 45 67" required />
+              </label>
+              <button class="btn primary" type="submit">Mandami il codice</button>
+            </form>
+          </>
+        )
+      }
+      {import.meta.env.DEV && <p class="small">In locale non parte nessun SMS: usa 079 123 45 67 con il codice 123456.</p>}
+    </section>
 
     <details class="panel name-panel">
       <summary>Cambia il nome visibile agli altri</summary>
@@ -107,7 +169,8 @@ const STATUS_LABEL: Record<string, string> = {
                 </span>
               </div>
               <div class="row-actions">
-                {l.status === 'pubblicato' ? (
+                <a class="btn" href={`/miei-annunci/${l.id}`}>Modifica</a>
+                {l.status === 'pubblicato' || l.status === 'in_trattativa' ? (
                   <>
                     <form class="inline" method="POST" action={actions.account.setListingStatus}>
                       <input type="hidden" name="id" value={l.id} />
@@ -152,6 +215,12 @@ const STATUS_LABEL: Record<string, string> = {
   .mine-head h1 { font-size: clamp(28px, 3.6vw, 40px); }
   .head-actions { display: flex; gap: 12px; flex-wrap: wrap; }
   .notice { background: var(--surface); border-radius: 4px; padding: 10px 12px; font-size: 14px; }
+  .phone-panel { gap: 12px; }
+  .phone-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .phone-head h2 { font-size: 18px; }
+  .phone-form { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; width: 100%; }
+  .phone-form .fld { flex: 1; min-width: 200px; max-width: 320px; }
+  .link-button { background: none; border: 0; padding: 0; color: var(--muted); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
   .name-panel { padding: 16px 20px; }
   .name-panel summary { cursor: pointer; font-size: 14px; }
   .name-form { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-top: 12px; }

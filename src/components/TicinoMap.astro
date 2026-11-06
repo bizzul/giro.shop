@@ -1,0 +1,318 @@
+---
+/**
+ * Cartina del Ticino dietro il titolo della home: curve di livello decorative,
+ * laghi, e un punto pulsante per ogni comune con annunci pubblicati (posizione vera).
+ * Il disegno è su canvas e parte solo nel browser; senza JavaScript non si vede nulla.
+ */
+import { publishedListings } from '../core/store.ts';
+import { getComune } from '../core/comuni.ts';
+import { formatChf } from '../core/format.ts';
+import type { Listing } from '../core/types.ts';
+
+const listings = publishedListings();
+
+// Un punto per comune, grande in base a quanti annunci ci sono.
+const byComune = new Map<string, { lat: number; lon: number; count: number }>();
+for (const l of listings) {
+  const c = getComune(l.comuneId);
+  if (!c) continue;
+  const p = byComune.get(c.id) ?? { lat: c.lat, lon: c.lon, count: 0 };
+  p.count += 1;
+  byComune.set(c.id, p);
+}
+const points = [...byComune.values()].map((p) => [p.lat, p.lon, p.count]);
+
+// Tre etichette, da nord a sud, scelte tra gli annunci più recenti di zone
+// dove c'è spazio libero a destra del titolo.
+const ZONES = [
+  ['airolo', 'faido', 'biasca', 'acquarossa'],
+  ['lugano', 'massagno', 'paradiso', 'viganello', 'savosa', 'canobbio', 'agno'],
+  ['mendrisio', 'chiasso', 'balerna', 'stabio'],
+];
+const STOP = new Set(['da', 'di', 'del', 'della', 'in', 'per', 'con', 'a', 'e']);
+function shortTitle(title: string): string {
+  const words = title.replace(/[,(].*$/, '').split(/\s+/).filter(Boolean);
+  const out = [words[0] ?? ''];
+  let i = 1;
+  while (i < words.length && out.join(' ').length < 8) out.push(words[i++]);
+  while (out.length > 1 && STOP.has(out[out.length - 1].toLowerCase())) out.pop();
+  return out.join(' ');
+}
+const newestFirst = (a: Listing, b: Listing) => b.publishedAt.localeCompare(a.publishedAt);
+const labels = ZONES.flatMap((zone) => {
+  const l = listings.filter((x) => zone.includes(x.comuneId)).sort(newestFirst)[0];
+  const c = l && getComune(l.comuneId);
+  return l && c ? [[`${shortTitle(l.title)} · ${formatChf(l.priceChf)}`, c.lat, c.lon]] : [];
+});
+---
+
+<canvas class="ticino-map" aria-hidden="true" data-points={JSON.stringify(points)} data-labels={JSON.stringify(labels)}></canvas>
+
+<style>
+  .ticino-map {
+    position: absolute;
+    z-index: -1;
+    top: 18px;
+    right: 0;
+    width: 440px;
+    height: 510px;
+    pointer-events: none;
+    --map-topo: #ebebe8;
+    --map-major: #dcdcd8;
+    --map-edge: #c4c4bf;
+    --map-bg: var(--bg);
+    --map-dot: var(--volt);
+    --map-label-bg: var(--surface-2);
+    --map-label-line: var(--line);
+    --map-label-ink: var(--ink);
+  }
+  @media (prefers-color-scheme: dark) {
+    .ticino-map { --map-topo: #1c1c1f; --map-major: #2a2a2e; --map-edge: #46464b; }
+  }
+  /* Schermi medi e piccoli: più piccola, tenue e senza etichette, per non disturbare il titolo */
+  @media (max-width: 1199px) {
+    .ticino-map { width: 340px; height: 400px; top: 24px; opacity: 0.55; }
+  }
+  @media (max-width: 760px) {
+    .ticino-map { width: 220px; height: 260px; top: 4px; opacity: 0.5; }
+  }
+</style>
+
+<script>
+  type Pt = [number, number];
+
+  // Contorno del cantone e dei laghi (lon, lat): approssimato a mano, basta per riconoscere la forma.
+  const TICINO: Pt[] = [
+    [8.387, 46.477], [8.43, 46.505], [8.47, 46.53], [8.53, 46.56], [8.57, 46.565], [8.62, 46.59], [8.68, 46.6],
+    [8.74, 46.62], [8.8, 46.632], [8.86, 46.605], [8.91, 46.612], [8.96, 46.6], [9.02, 46.57], [9.05, 46.52],
+    [9.09, 46.45], [9.06, 46.38], [9.09, 46.32], [9.08, 46.27], [9.1, 46.23], [9.15, 46.2], [9.172, 46.13],
+    [9.12, 46.1], [9.08, 46.06], [9.05, 46.02], [9.03, 45.97], [9.04, 45.92], [9.07, 45.88], [9.05, 45.84],
+    [9.02, 45.818], [8.98, 45.84], [8.94, 45.84], [8.9, 45.87], [8.93, 45.9], [8.88, 45.95], [8.858, 45.967],
+    [8.83, 46.0], [8.82, 46.04], [8.83, 46.085], [8.78, 46.09], [8.73, 46.1], [8.7, 46.1], [8.65, 46.12],
+    [8.61, 46.13], [8.57, 46.16], [8.52, 46.19], [8.47, 46.22], [8.46, 46.27], [8.44, 46.33], [8.45, 46.38],
+    [8.42, 46.43],
+  ];
+  const MAGGIORE: Pt[] = [
+    [8.865, 46.163], [8.83, 46.165], [8.8, 46.162], [8.78, 46.152], [8.755, 46.14], [8.73, 46.125], [8.71, 46.11],
+    [8.705, 46.095], [8.76, 46.095], [8.79, 46.115], [8.83, 46.14], [8.856, 46.152],
+  ];
+  const CERESIO: Pt[] = [
+    [8.895, 45.995], [8.93, 45.99], [8.95, 45.998], [8.98, 46.005], [9.01, 46.004], [9.045, 46.01], [9.04, 45.998],
+    [9.0, 45.993], [8.975, 45.975], [8.985, 45.94], [8.99, 45.905], [8.975, 45.902], [8.96, 45.93], [8.955, 45.955],
+    [8.93, 45.935], [8.915, 45.918], [8.9, 45.93], [8.88, 45.955], [8.86, 45.966], [8.875, 45.975], [8.9, 45.975],
+    [8.92, 45.97], [8.94, 45.975], [8.935, 45.985], [8.91, 45.99],
+  ];
+  const K = Math.cos((46.2 * Math.PI) / 180);
+  const LON0 = 8.36, LON1 = 9.2, LAT0 = 45.8, LAT1 = 46.65;
+  const PW = (LON1 - LON0) * K, PH = LAT1 - LAT0;
+
+  function hash(x: number, y: number): number {
+    let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  const smooth = (t: number) => t * t * (3 - 2 * t);
+  function noise(x: number, y: number): number {
+    const xi = Math.floor(x), yi = Math.floor(y), u = smooth(x - xi), v = smooth(y - yi);
+    const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  function fbm(x: number, y: number): number {
+    let s = 0, amp = 1, f = 1, n = 0;
+    for (let o = 0; o < 4; o++) {
+      s += amp * noise(x * f + o * 17.3, y * f - o * 9.1);
+      n += amp;
+      amp *= 0.5;
+      f *= 2.03;
+    }
+    return s / n;
+  }
+
+  function setup(cv: HTMLCanvasElement) {
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+    const points: [number, number, number][] = JSON.parse(cv.dataset.points ?? '[]');
+    const labels: [string, number, number][] = JSON.parse(cv.dataset.labels ?? '[]');
+    const still = matchMedia('(prefers-reduced-motion: reduce)');
+    const dark = matchMedia('(prefers-color-scheme: dark)');
+    let W = 0, H = 0, dpr = 1, S = 1, ox = 0, oy = 0, withLabels = false;
+    let cache: HTMLCanvasElement | null = null;
+    let colors: Record<string, string> = {};
+    let raf = 0, visible = true;
+
+    const at = (lon: number, lat: number): Pt => [ox + (lon - LON0) * K * S, oy + (LAT1 - lat) * S];
+    const shape = (c: CanvasRenderingContext2D, poly: Pt[]) => {
+      c.beginPath();
+      poly.forEach(([lon, lat], i) => {
+        const [x, y] = at(lon, lat);
+        if (i) c.lineTo(x, y);
+        else c.moveTo(x, y);
+      });
+      c.closePath();
+    };
+
+    function build() {
+      const r = cv.getBoundingClientRect();
+      W = Math.round(r.width);
+      H = Math.round(r.height);
+      if (!W || !H) return;
+      dpr = Math.min(2, devicePixelRatio || 1);
+      cv.width = W * dpr;
+      cv.height = H * dpr;
+      withLabels = W >= 400;
+      S = Math.min((H - 16) / PH, (W - (withLabels ? 100 : 16)) / PW);
+      ox = withLabels ? 20 : (W - PW * S) / 2;
+      oy = (H - PH * S) / 2;
+      const cs = getComputedStyle(cv);
+      for (const k of ['topo', 'major', 'edge', 'bg', 'dot', 'label-bg', 'label-line', 'label-ink']) {
+        colors[k] = cs.getPropertyValue(`--map-${k}`).trim();
+      }
+
+      // Sfondo fisso (curve, laghi, contorno) disegnato una volta sola
+      cache = document.createElement('canvas');
+      cache.width = cv.width;
+      cache.height = cv.height;
+      const c = cache.getContext('2d')!;
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.save();
+      shape(c, TICINO);
+      c.clip();
+      const step = 5, cols = Math.ceil(W / step) + 2, rows = Math.ceil(H / step) + 2, sc = 1 / (95 * (H / 510));
+      const g = new Float32Array(cols * rows);
+      let mn = 9, mx = -9;
+      for (let j = 0; j < rows; j++)
+        for (let i = 0; i < cols; i++) {
+          const v = fbm(i * step * sc + 2.3, j * step * sc + 5.7) + 0.55 * (1 - (j * step) / H);
+          g[j * cols + i] = v;
+          if (v < mn) mn = v;
+          if (v > mx) mx = v;
+        }
+      const seg = (p: Pt, q: Pt) => {
+        c.moveTo(p[0], p[1]);
+        c.lineTo(q[0], q[1]);
+      };
+      const LEVELS = 22;
+      for (let k = 1; k < LEVELS; k++) {
+        const L = mn + ((mx - mn) * k) / LEVELS;
+        c.beginPath();
+        for (let jj = 0; jj < rows - 1; jj++)
+          for (let ii = 0; ii < cols - 1; ii++) {
+            const a = g[jj * cols + ii], b = g[jj * cols + ii + 1], cc = g[(jj + 1) * cols + ii + 1], d = g[(jj + 1) * cols + ii];
+            const idx = (a > L ? 8 : 0) | (b > L ? 4 : 0) | (cc > L ? 2 : 0) | (d > L ? 1 : 0);
+            if (idx === 0 || idx === 15) continue;
+            const x0 = ii * step, y0 = jj * step;
+            const T: Pt = [x0 + (step * (L - a)) / (b - a), y0];
+            const R: Pt = [x0 + step, y0 + (step * (L - b)) / (cc - b)];
+            const B: Pt = [x0 + (step * (L - d)) / (cc - d), y0 + step];
+            const F: Pt = [x0, y0 + (step * (L - a)) / (d - a)];
+            switch (idx) {
+              case 1: case 14: seg(F, B); break;
+              case 2: case 13: seg(B, R); break;
+              case 3: case 12: seg(F, R); break;
+              case 4: case 11: seg(T, R); break;
+              case 5: seg(F, T); seg(B, R); break;
+              case 6: case 9: seg(T, B); break;
+              case 7: case 8: seg(F, T); break;
+              case 10: seg(F, B); seg(T, R); break;
+            }
+          }
+        const major = k % 5 === 0;
+        c.strokeStyle = major ? colors.major : colors.topo;
+        c.lineWidth = major ? 1.3 : 0.8;
+        c.stroke();
+      }
+      c.restore();
+      for (const lake of [MAGGIORE, CERESIO]) {
+        shape(c, lake);
+        c.fillStyle = colors.bg;
+        c.fill();
+        c.strokeStyle = colors.edge;
+        c.lineWidth = 0.8;
+        c.stroke();
+      }
+      shape(c, TICINO);
+      c.strokeStyle = colors.edge;
+      c.lineWidth = 1.2;
+      c.lineJoin = 'round';
+      c.stroke();
+    }
+
+    function frame(t: number) {
+      if (!cache || !ctx) return;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      ctx.drawImage(cache, 0, 0);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const animate = !still.matches;
+      const k = S / 581; // le misure dei punti seguono la scala della cartina
+      points.forEach(([lat, lon, count], i) => {
+        const [x, y] = at(lon, lat);
+        const r = (1.8 + Math.min(count, 6) * 0.5) * Math.max(k, 0.7);
+        if (animate) {
+          const f = (t / 1000 / 3.2 + hash(i, 7)) % 1;
+          ctx.beginPath();
+          ctx.arc(x, y, r + 1 + f * (10 + count * 2) * Math.max(k, 0.7), 0, Math.PI * 2);
+          ctx.strokeStyle = colors.dot;
+          ctx.globalAlpha = (1 - f) * 0.45;
+          ctx.lineWidth = 1.1;
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = colors.dot;
+        ctx.fill();
+      });
+      if (!withLabels) return;
+      ctx.font = '500 10px "Martian Mono", ui-monospace, Menlo, monospace';
+      ctx.textBaseline = 'middle';
+      for (const [text, lat, lon] of labels) {
+        const [x, y] = at(lon, lat);
+        const bw = ctx.measureText(text).width + 18, bh = 22;
+        const lx = Math.min(x + 12, W - 4 - bw);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(lx, y - bh / 2, bw, bh, 2);
+        else ctx.rect(lx, y - bh / 2, bw, bh);
+        ctx.fillStyle = colors['label-bg'];
+        ctx.fill();
+        ctx.strokeStyle = colors['label-line'];
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = colors['label-ink'];
+        ctx.fillText(text, lx + 9, y + 0.5);
+      }
+    }
+
+    function loop(t: number) {
+      frame(t);
+      raf = requestAnimationFrame(loop);
+    }
+    function run() {
+      cancelAnimationFrame(raf);
+      if (still.matches || !visible || document.hidden) frame(0);
+      else raf = requestAnimationFrame(loop);
+    }
+    function rebuild() {
+      build();
+      run();
+    }
+
+    rebuild();
+    document.fonts?.ready.then(() => frame(performance.now()));
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    new ResizeObserver(() => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(rebuild, 120);
+    }).observe(cv);
+    new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      run();
+    }).observe(cv);
+    document.addEventListener('visibilitychange', run);
+    dark.addEventListener('change', rebuild);
+    still.addEventListener('change', run);
+  }
+
+  document.querySelectorAll<HTMLCanvasElement>('canvas.ticino-map').forEach(setup);
+</script>

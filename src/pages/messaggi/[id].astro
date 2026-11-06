@@ -1,0 +1,108 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Thread from '../../components/Thread.astro';
+import { actions } from 'astro:actions';
+import { getConversation } from '../../lib/messages.ts';
+import { formatChf } from '../../core/format.ts';
+
+const { user, supabase } = Astro.locals;
+const id = Astro.params.id ?? '';
+if (!user || !supabase) return Astro.redirect(`/accedi?next=/messaggi/${id}`);
+
+// Dopo un invio o una risposta si ricarica la pagina con GET, così il form non si reinvia
+const sent = Astro.getActionResult(actions.messages.send);
+const responded = Astro.getActionResult(actions.messages.respond);
+if (sent?.data || responded?.data) return Astro.redirect(`/messaggi/${id}#fondo`, 303);
+const error = sent?.error?.message ?? responded?.error?.message;
+
+const conversation = await getConversation(supabase, user.id, id);
+if (!conversation) return new Response('Conversazione non trovata', { status: 404 });
+const openForOffers = conversation.listingStatus === 'pubblicato' || conversation.listingStatus === 'in_trattativa';
+const STATUS: Record<string, string> = { pubblicato: 'In vendita', in_trattativa: 'In trattativa', venduto: 'Venduto', archiviato: 'Non più in vendita' };
+---
+
+<Layout title={`${conversation.otherName} · ${conversation.listingTitle} · Piazza`}>
+  <section class="wrap band chat">
+    <p class="crumbs muted"><a href="/messaggi">Messaggi</a></p>
+
+    <header class="chat-head">
+      <a class="thumb" href={`/annuncio/${conversation.listingId}`} tabindex="-1" aria-hidden="true">
+        {conversation.cover && <img src={conversation.cover} alt="" width="96" height="72" decoding="async" />}
+      </a>
+      <div class="head-info">
+        <a class="title" href={`/annuncio/${conversation.listingId}`}>{conversation.listingTitle}</a>
+        <span class="meta">
+          <span class="mono">{formatChf(conversation.listingPrice)}</span>
+          <span class={`badge ${conversation.listingStatus === 'pubblicato' ? 'ok' : conversation.listingStatus === 'in_trattativa' ? 'sun' : 'plain'}`}>
+            {STATUS[conversation.listingStatus] ?? conversation.listingStatus}
+          </span>
+          <span class="muted">{conversation.role === 'compro' ? `Vende ${conversation.otherName}` : `Ti scrive ${conversation.otherName}`}</span>
+        </span>
+      </div>
+    </header>
+
+    {error && <p class="error" role="alert">{error}</p>}
+
+    <Thread conversation={conversation} userId={user.id} />
+
+    <form class="composer" method="POST" action={actions.messages.send}>
+      <input type="hidden" name="conversationId" value={conversation.id} />
+      <label class="sr" for="body">Messaggio</label>
+      <textarea id="body" name="body" rows="2" maxlength="2000" placeholder={`Scrivi a ${conversation.otherName}`}></textarea>
+      <div class="composer-row">
+        {
+          openForOffers && (
+            <label class="offer-field">
+              <span class="label">Offerta</span>
+              <span class="chf">
+                CHF <input id="offer" name="offer" inputmode="numeric" placeholder={String(conversation.listingPrice)} />
+              </span>
+            </label>
+          )
+        }
+        <button class="btn primary" type="submit">Invia</button>
+      </div>
+      <p class="small">Non pagare in anticipo a sconosciuti e non condividere codici ricevuti per SMS.</p>
+    </form>
+  </section>
+</Layout>
+
+<script>
+  // Aggiorna i messaggi ogni 5 secondi mentre la pagina è visibile
+  const thread = document.getElementById('thread');
+  const url = `${location.pathname.replace(/\/$/, '')}/thread`;
+  const atBottom = () => window.innerHeight + window.scrollY >= document.body.scrollHeight - 160;
+  setInterval(async () => {
+    const current = document.getElementById('thread');
+    if (!current || document.hidden) return;
+    const res = await fetch(url).catch(() => null);
+    if (!res?.ok) return;
+    const holder = document.createElement('div');
+    holder.innerHTML = await res.text();
+    const next = holder.querySelector<HTMLElement>('#thread');
+    if (!next || next.dataset.version === current.dataset.version) return;
+    const follow = atBottom();
+    current.replaceWith(next);
+    if (follow) document.getElementById('fondo')?.scrollIntoView({ block: 'end' });
+  }, 5000);
+  if (thread && location.hash === '#fondo') document.getElementById('fondo')?.scrollIntoView({ block: 'end' });
+</script>
+
+<style>
+  .chat { display: grid; gap: 24px; max-width: 760px; }
+  .crumbs { font-size: 13px; }
+  .crumbs a { color: inherit; text-underline-offset: 4px; }
+  .chat-head { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 16px; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .thumb { width: 96px; aspect-ratio: 4 / 3; border-radius: 4px; overflow: hidden; background: var(--surface); display: block; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .head-info { display: grid; gap: 6px; min-width: 0; }
+  .title { font-weight: 500; font-size: 17px; text-decoration: none; overflow-wrap: anywhere; }
+  .title:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 13px; }
+  .composer { display: grid; gap: 10px; position: sticky; bottom: 0; background: var(--bg); padding-block: 12px max(12px, env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); }
+  .composer textarea { width: 100%; font: 400 15px/1.5 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 10px 12px; resize: vertical; }
+  .composer-row { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
+  .offer-field { display: grid; gap: 6px; }
+  .chf { display: inline-flex; align-items: center; gap: 8px; font: 500 14px/1 var(--f-mono); }
+  .chf input { width: 110px; font: 400 15px/1.2 var(--f-mono); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 9px 10px; }
+</style>

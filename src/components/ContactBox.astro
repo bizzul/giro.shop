@@ -1,0 +1,76 @@
+---
+/**
+ * Riquadro per contattare chi vende, nella scheda annuncio. Server island (server:defer):
+ * dipende da chi guarda, mentre la scheda resta uguale per tutti e in cache.
+ */
+import { actions } from 'astro:actions';
+import { getListing } from '../core/store.ts';
+import { findConversation } from '../lib/messages.ts';
+
+interface Props {
+  listingId: string;
+  sellerName: string;
+}
+
+const { listingId, sellerName } = Astro.props;
+const { user, supabase } = Astro.locals;
+const listing = getListing(listingId);
+const isOwner = Boolean(user && listing?.sellerId === user.id);
+const existing = user && supabase && !isOwner ? await findConversation(supabase, user.id, listingId) : null;
+const startAction = `/messaggi/nuovo${actions.messages.start}`;
+---
+
+<div class="contact-box">
+  {
+    !supabase ? (
+      <p class="small">I messaggi richiedono Supabase.</p>
+    ) : !user ? (
+      <>
+        <a class="btn primary" href={`/accedi?next=/annuncio/${listingId}`}>Accedi per scrivere a {sellerName}</a>
+        <p class="small">Entri con un link via email, senza password.</p>
+      </>
+    ) : isOwner ? (
+      <>
+        <p class="small">È un tuo annuncio.</p>
+        <a class="btn" href={`/miei-annunci/${listingId}`}>Modifica l'annuncio</a>
+      </>
+    ) : existing ? (
+      <a class="btn primary" href={`/messaggi/${existing}`}>Apri la conversazione con {sellerName}</a>
+    ) : (
+      <form class="contact-form" method="POST" action={startAction}>
+        <input type="hidden" name="listingId" value={listingId} />
+        <label class="cf-field">
+          <span class="label">Scrivi a {sellerName}</span>
+          <textarea id="contact-body" name="body" rows="3" maxlength="2000">Ciao, è ancora disponibile?</textarea>
+        </label>
+        <label class="cf-field cf-offer">
+          <span class="label">Offerta, se vuoi</span>
+          <span class="cf-chf">
+            CHF
+            <input id="contact-offer" name="offer" inputmode="numeric" placeholder={listing ? String(listing.priceChf) : ''} />
+          </span>
+        </label>
+        <button class="btn primary" type="submit">Invia</button>
+      </form>
+    )
+  }
+</div>
+
+<style>
+  .contact-box { display: grid; gap: 8px; justify-items: start; }
+  .contact-form { display: grid; gap: 12px; width: 100%; }
+  .cf-field { display: grid; gap: 8px; }
+  .cf-field textarea, .cf-chf input {
+    width: 100%;
+    font: 400 15px/1.5 var(--f-body);
+    color: var(--ink);
+    background: var(--surface-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    padding: 10px 12px;
+  }
+  .cf-field textarea { resize: vertical; }
+  .cf-chf { display: inline-flex; align-items: center; gap: 8px; font: 500 14px/1 var(--f-mono); }
+  .cf-chf input { width: 120px; font-family: var(--f-mono); }
+  .contact-form .btn { justify-self: start; }
+</style>

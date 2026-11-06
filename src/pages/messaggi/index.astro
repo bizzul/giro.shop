@@ -1,0 +1,72 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { listConversations, type Message } from '../../lib/messages.ts';
+import { formatAge, formatChf } from '../../core/format.ts';
+
+const { user, supabase } = Astro.locals;
+if (!user || !supabase) return Astro.redirect('/accedi?next=/messaggi');
+const conversations = await listConversations(supabase, user.id);
+
+function preview(m: Message | null): string {
+  if (!m) return 'Nessun messaggio';
+  if (m.kind === 'offerta') return `${m.senderId === user!.id ? 'Hai offerto' : 'Offerta'} ${formatChf(m.offerChf ?? 0)}`;
+  return `${m.senderId === user!.id && m.kind === 'testo' ? 'Tu: ' : ''}${m.body}`;
+}
+---
+
+<Layout title="Messaggi · Piazza">
+  <section class="wrap band inbox">
+    <header class="section-h">
+      <h1>Messaggi</h1>
+      <span class="muted small">{conversations.length === 1 ? '1 conversazione' : `${conversations.length} conversazioni`}</span>
+    </header>
+
+    {
+      conversations.length === 0 ? (
+        <div class="panel">
+          <h3>Ancora nessuna conversazione.</h3>
+          <p class="muted">Quando scrivi a chi vende, o qualcuno scrive a te, la conversazione compare qui.</p>
+          <a class="btn" href="/cerca">Cerca annunci</a>
+        </div>
+      ) : (
+        <ul class="list">
+          {conversations.map((c) => (
+            <li>
+              <a class:list={['item', { unread: c.unread > 0 }]} href={`/messaggi/${c.id}#fondo`}>
+                <span class="thumb">{c.cover && <img src={c.cover} alt="" width="72" height="54" loading="lazy" decoding="async" />}</span>
+                <span class="body">
+                  <span class="top-line">
+                    <b>{c.otherName}</b>
+                    <span class="badge plain">{c.role === 'compro' ? 'Compri' : 'Vendi'}</span>
+                    <span class="muted when">{formatAge(c.lastMessageAt)}</span>
+                  </span>
+                  <span class="listing">{c.listingTitle}</span>
+                  <span class="preview muted">{preview(c.lastMessage)}</span>
+                </span>
+                {c.unread > 0 && <span class="count" aria-label={`${c.unread} non letti`}>{c.unread}</span>}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .inbox { display: grid; gap: 16px; max-width: 760px; }
+  .inbox h1 { font-size: clamp(28px, 3.6vw, 40px); }
+  .list { display: grid; border-top: 1px solid var(--line); }
+  .item { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 4px; border-bottom: 1px solid var(--line); text-decoration: none; }
+  .item:hover { background: var(--surface); }
+  .thumb { width: 72px; aspect-ratio: 4 / 3; border-radius: 4px; overflow: hidden; background: var(--surface); display: block; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .body { display: grid; gap: 3px; min-width: 0; }
+  .top-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .top-line b { font-weight: 500; }
+  .when { font-size: 12px; margin-left: auto; }
+  .listing { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .preview { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .unread .listing, .unread .preview { color: var(--ink); font-weight: 500; }
+  .count { min-width: 22px; height: 22px; border-radius: 11px; background: var(--action); color: var(--action-ink); font: 500 12px/22px var(--f-body); text-align: center; padding-inline: 6px; }
+</style>

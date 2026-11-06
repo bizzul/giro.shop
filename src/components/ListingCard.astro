@@ -21,6 +21,7 @@ const verdictTone = verdict === 'sopra_mercato' ? 'bad' : 'ok';
 // Al massimo due badge sulla foto, in ordine di importanza.
 const badges = [
   listing.priceChf === 0 && { tone: 'volt', label: 'Regalo' },
+  listing.negotiating && { tone: 'sun', label: 'In trattativa' },
   isNew(listing.publishedAt) && { tone: 'sun', label: 'Nuovo oggi' },
   verdict && listing.priceChf > 0 && { tone: verdictTone, label: VERDICT_LABEL[verdict] },
   listing.negotiable && { tone: 'plain', label: 'Trattabile' },

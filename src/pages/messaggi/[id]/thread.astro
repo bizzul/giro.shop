@@ -1,0 +1,14 @@
+---
+/** Solo i messaggi, senza layout: la pagina della conversazione lo richiede ogni pochi secondi. */
+import Thread from '../../../components/Thread.astro';
+import { getConversation } from '../../../lib/messages.ts';
+
+export const partial = true;
+
+const { user, supabase } = Astro.locals;
+if (!user || !supabase) return new Response(null, { status: 401 });
+const conversation = await getConversation(supabase, user.id, Astro.params.id ?? '');
+if (!conversation) return new Response(null, { status: 404 });
+---
+
+<Thread conversation={conversation} userId={user.id} />

@@ -258,15 +258,19 @@ otp_expiry = 3600
 # Allow/disallow new user signups via SMS to your project.
 enable_signup = false
 # If enabled, users need to confirm their phone number before signing in.
-enable_confirmations = false
+# Piazza: deve restare attivo, altrimenti il cambio di natel avviene senza codice e la verifica non vale nulla.
+enable_confirmations = true
 # Template for sending OTP to users
 template = "Your code is {{ .Code }}"
 # Controls the minimum amount of time that must pass before sending another sms otp.
 max_frequency = "5s"
 
 # Use pre-defined map of phone number to OTP for testing.
-# [auth.sms.test_otp]
-# 4152127777 = "123456"
+# Natel di prova per lo sviluppo locale: nessun SMS parte, il codice è fisso.
+[auth.sms.test_otp]
+41791234567 = "123456"
+41787654321 = "654321"
+41761112233 = "111222"
 
 # Configure logged in session timeouts.
 # [auth.sessions]
@@ -287,11 +291,13 @@ max_frequency = "5s"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 [auth.sms.twilio]
-enabled = false
-account_sid = ""
-message_service_sid = ""
+# In locale serve un fornitore "acceso" perché valgano i numeri di prova sopra; le credenziali non vengono usate.
+# Online: credenziali vere (o un fornitore svizzero tramite Send SMS hook).
+enabled = true
+account_sid = "placeholder"
+message_service_sid = "placeholder"
 # DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
-auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
+auth_token = "placeholder"
 
 # Multi-factor-authentication is available to Supabase Pro plan.
 [auth.mfa]

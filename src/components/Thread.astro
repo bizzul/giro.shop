@@ -1,0 +1,89 @@
+---
+/** I messaggi di una conversazione, con le offerte e i pulsanti per rispondere. */
+import { actions } from 'astro:actions';
+import type { Conversation } from '../lib/messages.ts';
+import { formatChf } from '../core/format.ts';
+
+interface Props {
+  conversation: Conversation;
+  userId: string;
+}
+
+const { conversation, userId } = Astro.props;
+const respond = actions.messages.respond;
+const OFFER_LABEL = { in_attesa: 'In attesa di risposta', accettata: 'Accettata', rifiutata: 'Rifiutata', ritirata: 'Ritirata' } as const;
+const tz = 'Europe/Zurich';
+const day = (iso: string) => new Date(iso).toLocaleDateString('it-CH', { timeZone: tz, day: 'numeric', month: 'long' });
+const time = (iso: string) => new Date(iso).toLocaleTimeString('it-CH', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+const messages = conversation.messages;
+// Cambia quando arriva un messaggio o cambia lo stato di un'offerta: serve all'aggiornamento automatico
+const version = `${messages.at(-1)?.id ?? 0}-${messages.map((m) => m.offerStatus?.[0] ?? '').join('')}`;
+---
+
+<ol id="thread" class="thread" data-version={version}>
+  {
+    messages.map((m, i) => {
+      const mine = m.senderId === userId;
+      const newDay = i === 0 || day(messages[i - 1].createdAt) !== day(m.createdAt);
+      return (
+        <>
+          {newDay && <li class="day">{day(m.createdAt)}</li>}
+          {m.kind === 'sistema' ? (
+            <li class="system">{m.body}</li>
+          ) : m.kind === 'offerta' ? (
+            <li class:list={['msg', 'offer', { mine }]}>
+              <span class="label">{mine ? 'La tua offerta' : `Offerta di ${conversation.otherName}`}</span>
+              <span class="offer-amount mono">{formatChf(m.offerChf ?? 0)}</span>
+              <span class:list={['badge', m.offerStatus === 'accettata' ? 'ok' : m.offerStatus === 'in_attesa' ? 'sun' : 'plain']}>
+                {OFFER_LABEL[m.offerStatus ?? 'in_attesa']}
+              </span>
+              {m.offerStatus === 'in_attesa' && (
+                <div class="offer-actions">
+                  {mine ? (
+                    <form method="POST" action={respond}>
+                      <input type="hidden" name="conversationId" value={conversation.id} />
+                      <input type="hidden" name="messageId" value={m.id} />
+                      <button class="btn" type="submit" name="decision" value="ritirata">Ritira</button>
+                    </form>
+                  ) : (
+                    <form method="POST" action={respond}>
+                      <input type="hidden" name="conversationId" value={conversation.id} />
+                      <input type="hidden" name="messageId" value={m.id} />
+                      <button class="btn primary" type="submit" name="decision" value="accettata">Accetta</button>
+                      <button class="btn" type="submit" name="decision" value="rifiutata">Rifiuta</button>
+                    </form>
+                  )}
+                </div>
+              )}
+              <time class="when" datetime={m.createdAt}>{time(m.createdAt)}</time>
+            </li>
+          ) : (
+            <li class:list={['msg', { mine }]}>
+              <p>{m.body}</p>
+              <time class="when" datetime={m.createdAt}>
+                {time(m.createdAt)}
+                {mine && m.readAt && ' · letto'}
+              </time>
+            </li>
+          )}
+        </>
+      );
+    })
+  }
+  <li id="fondo" class="anchor" aria-hidden="true"></li>
+</ol>
+
+<style>
+  .thread { display: flex; flex-direction: column; gap: 10px; }
+  .day { align-self: center; font: 500 11px/1.4 var(--f-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-top: 12px; }
+  .system { align-self: center; font-size: 13px; color: var(--muted); text-align: center; max-width: 46ch; }
+  .msg { align-self: flex-start; max-width: min(78%, 520px); background: var(--surface); border-radius: 8px 8px 8px 2px; padding: 10px 14px; display: grid; gap: 4px; }
+  .msg.mine { align-self: flex-end; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px 8px 2px 8px; }
+  .msg p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.5; }
+  .when { font-size: 11.5px; color: var(--muted); }
+  .offer { gap: 8px; justify-items: start; min-width: 220px; }
+  .offer-amount { font-size: 22px; font-weight: 500; }
+  .offer-actions form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .offer-actions .btn { padding: 10px 14px; }
+  .anchor { height: 1px; scroll-margin-bottom: 24px; }
+</style>

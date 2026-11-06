@@ -6,15 +6,16 @@
     "node": ">=22.23.4"
   },
   "scripts": {
-    "dev": "astro dev",
+    "dev": "NODE_OPTIONS=--max-http-header-size=65536 astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "start": "node dist/server/entry.mjs",
+    "start": "node --max-http-header-size=65536 dist/server/entry.mjs",
     "astro": "astro",
     "test": "vitest run",
     "mcp:stdio": "node src/mcp/stdio.ts",
     "mcp:smoke": "node scripts/mcp-smoke.ts",
-    "db:seed-sql": "node scripts/seed-sql.ts > supabase/seed.sql"
+    "db:seed-sql": "node scripts/seed-sql.ts > supabase/seed.sql",
+    "test:db": "node scripts/check-db.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.5.0",

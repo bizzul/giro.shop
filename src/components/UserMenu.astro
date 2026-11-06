@@ -1,14 +1,33 @@
 ---
 /**
- * Link all'account nell'intestazione. Si usa come server island (server:defer):
+ * Link all'account e ai messaggi nell'intestazione. Si usa come server island (server:defer):
  * le pagine restano uguali per tutti e possono stare in cache, questo pezzo si carica a parte.
  */
-const user = Astro.locals.user;
+import { unreadCount } from '../lib/messages.ts';
+
+const { user, supabase } = Astro.locals;
 let name: string | null = null;
-if (user && Astro.locals.supabase) {
-  const { data } = await Astro.locals.supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+let unread = 0;
+if (user && supabase) {
+  const [{ data }, count] = await Promise.all([
+    supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
+    unreadCount(supabase, user.id),
+  ]);
   name = data?.display_name ?? null;
+  unread = count;
 }
 ---
 
-{user ? <a href="/miei-annunci">{name ?? 'Il mio account'}</a> : <a href="/accedi">Accedi</a>}
+{
+  user ? (
+    <>
+      <a href="/messaggi" class="nav-messages">
+        Messaggi
+        {unread > 0 && <span class="nav-count" aria-label={`${unread} non letti`}>{unread}</span>}
+      </a>
+      <a href="/miei-annunci">{name ?? 'Il mio account'}</a>
+    </>
+  ) : (
+    <a href="/accedi">Accedi</a>
+  )
+}

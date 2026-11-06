@@ -64,6 +64,8 @@ export interface Listing {
   seller: { name: string; verified: boolean };
   /** Id dell'account di chi vende (solo con Supabase). */
   sellerId?: string;
+  /** Un'offerta è stata accettata: l'annuncio resta visibile ma è "in trattativa". */
+  negotiating?: boolean;
   photos?: Photo[];
 }
 

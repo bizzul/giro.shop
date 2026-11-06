@@ -31,11 +31,21 @@ Copia in `.env` i valori di `supabase status`: `API_URL` → `PUBLIC_SUPABASE_UR
 L'accesso è con link via email (PKCE, nessuna password). Il link va aperto nello stesso browser
 da cui è stato chiesto.
 
+Il natel si verifica con un SMS (`updateUser` + codice `phone_change`). In locale non parte nessun SMS:
+in `supabase/config.toml` ci sono numeri di prova con codice fisso, per esempio 079 123 45 67 → 123456.
+`[auth.sms] enable_confirmations` deve restare `true`, altrimenti il numero cambia senza codice.
+Online serve un fornitore SMS vero (Twilio, Vonage o uno svizzero tramite il Send SMS hook).
+
+`pnpm dev` e `pnpm start` alzano il limite delle intestazioni HTTP a 64 KB: su `localhost` il browser
+manda a Piazza anche i cookie degli altri progetti locali, e il limite predefinito di Node (16 KB)
+non basta.
+
 | Comando | Cosa fa |
 | --- | --- |
 | `pnpm dev` | Sito in sviluppo su `localhost:4321` |
 | `pnpm build` / `pnpm start` | Build di produzione e avvio con Node |
-| `pnpm test` | Test di ricerca, stime, bozze e server MCP |
+| `pnpm test` | Test di ricerca, stime, bozze, natel e server MCP |
+| `pnpm test:db` | Controlli di sicurezza sul database locale con utenti temporanei (28 casi) |
 | `pnpm mcp:smoke` | Prova il server MCP via HTTP (con `pnpm dev` acceso) |
 | `pnpm mcp:stdio` | Server MCP via stdio, per Claude Desktop |
 | `pnpm db:seed-sql` | Rigenera `supabase/seed.sql` dai dati di prova |
@@ -60,7 +70,10 @@ poi si aggiorna `PICKS` nello script e si rilancia `build`.
 - `/annuncio/[id]` scheda con foto, stima di prezzo e stato (anche "venduto")
 - `/vendi` "Scatta e vendi": foto e due righe → bozza → pubblicazione (serve l'accesso)
 - `/accedi` accesso o registrazione con link via email; `/auth/callback` ritorno dal link
-- `/miei-annunci` annunci propri: venduto (con prezzo), archivia, rimetti in vendita, elimina; nome visibile; esci
+- `/miei-annunci` annunci propri: modifica, venduto (con prezzo), archivia, rimetti in vendita, elimina; verifica del natel; nome visibile; esci
+- `/miei-annunci/[id]` modifica di un annuncio: testi, prezzo, trattabile, categoria, condizione, luogo, parole chiave, foto (togliere e aggiungere)
+- `/messaggi` conversazioni come acquirente e venditore, con i non letti
+- `/messaggi/[id]` conversazione con offerte (accetta, rifiuta, ritira, controfferta); si aggiorna da sola ogni 5 secondi
 - `/connetti` come collegare un assistente AI
 - `/mcp` endpoint MCP (Streamable HTTP, senza sessione)
 
@@ -73,8 +86,13 @@ poi si aggiorna `PICKS` nello script e si rilancia `build`.
 - Le pagine private usano un client Supabase con la sessione dell'utente: sono le regole RLS
   del database a decidere cosa si può leggere e modificare. Le foto vanno nel bucket `foto`,
   ognuno solo nella propria cartella (`foto/<utente>/<annuncio>/n.jpg`).
-- Verificato con un secondo utente: non può modificare, prendersi o cancellare annunci altrui,
-  né caricare foto nella loro cartella o pubblicare a loro nome.
+- Messaggi e offerte: solo i due partecipanti vedono una conversazione; nessuno scrive a nome di altri
+  né crea note di sistema. Accettare, rifiutare o ritirare un'offerta passa dalla funzione
+  `respond_to_offer` del database, che controlla chi può fare cosa. Un'offerta accettata mette
+  l'annuncio "in trattativa"; una nuova offerta chiude quelle ancora aperte nella conversazione.
+- Dopo ogni modifica la cache delle pagine con annunci si svuota (`cache.invalidate`), così i
+  cambiamenti si vedono subito.
+- `pnpm test:db` verifica tutto questo con tre utenti temporanei (venditore, acquirente, intruso).
 
 ## Struttura
 
@@ -121,8 +139,8 @@ la bozza si crea dal testo con regole semplici e la pagina lo dice.
 ## Cosa manca (Fase 1 e oltre)
 
 - Progetto Supabase online (per ora solo in locale) e messa online del sito
-- Messaggi e offerte tra chi compra e chi vende
-- Verifica del natel; modifica di un annuncio già pubblicato
+- Fornitore SMS reale per la verifica del natel online
+- Avvisi via email per i nuovi messaggi (ora si vedono nel sito); messaggi in tempo reale con Supabase Realtime
 - Ricerca per significato con embedding (colonna `embedding` già prevista)
 - Avvisi, OAuth 2.1 sul server MCP, `publish_listing` con conferma
 - Elenco ufficiale dei comuni con coordinate swisstopo (ora sono approssimative)

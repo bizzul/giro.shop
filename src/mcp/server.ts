@@ -50,6 +50,7 @@ function hitToJson(hit: SearchHit, baseUrl: string) {
     title: l.title,
     price_chf: l.priceChf,
     negotiable: Boolean(l.negotiable),
+    in_negotiation: Boolean(l.negotiating),
     condition: CONDITION_LABEL[l.condition],
     category: getCategory(l.category).name,
     comune: hit.comune.name,
