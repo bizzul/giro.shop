@@ -31,6 +31,8 @@ export default function ComunePicker({ id, name, value, initial = '', onChange, 
   const list = useRef<HTMLUListElement>(null);
   const state = useRef({ text, chosen });
   state.current = { text, chosen };
+  // Com'era l'elenco quando è cominciato il clic: un secondo clic sul campo lo chiude, come un menu
+  const wasOpen = useRef(false);
   const listId = `${id}-elenco`;
 
   // Valore controllato dal modulo che lo contiene (es. la bozza di Vendi)
@@ -139,7 +141,12 @@ export default function ComunePicker({ id, name, value, initial = '', onChange, 
         placeholder="Scrivi il comune o il CAP"
         value={text}
         onFocus={() => setOpen(true)}
-        onClick={() => setOpen(true)}
+        onPointerDown={() => (wasOpen.current = open)}
+        onClick={() => {
+          // Mentre si scrive il clic sposta solo il cursore; altrimenti apre e chiude
+          if (wasOpen.current && text === chosen) setOpen(false);
+          else setOpen(true);
+        }}
         onInput={(e) => {
           setText((e.target as HTMLInputElement).value);
           setOpen(true);
@@ -147,9 +154,22 @@ export default function ComunePicker({ id, name, value, initial = '', onChange, 
         }}
         onKeyDown={onKeyDown}
       />
-      <svg class="cp-chevron" viewBox="0 0 12 12" aria-hidden="true">
-        <path d="M3 4.5l3 3 3-3" />
-      </svg>
+      <button
+        type="button"
+        class="cp-toggle"
+        tabIndex={-1}
+        aria-hidden="true"
+        // Il fuoco resta nel campo: la freccetta apre e chiude l'elenco
+        onPointerDown={(e) => {
+          e.preventDefault();
+          input.current?.focus();
+          setOpen((o) => !o);
+        }}
+      >
+        <svg class="cp-chevron" viewBox="0 0 12 12">
+          <path d="M3 4.5l3 3 3-3" />
+        </svg>
+      </button>
       {open && (
         <ul ref={list} class="cp-list" id={listId} role="listbox" aria-label="Comuni">
           {results.length === 0 ? (

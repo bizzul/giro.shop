@@ -113,10 +113,10 @@ const onSale = listing.status === 'pubblicato' || listing.status === 'in_trattat
         </label>
       </div>
 
-      <label class="fld">
-        <span class="label">Comune di ritiro</span>
+      <div class="fld">
+        <label class="label" for="comune">Comune di ritiro</label>
         <ComunePicker client:load id="comune" name="comune" initial={comuneName} required autosave />
-      </label>
+      </div>
 
       <label class="fld">
         <span class="label">Parole chiave, separate da virgole</span>

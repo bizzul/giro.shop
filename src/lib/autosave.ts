@@ -36,8 +36,13 @@ function valueOf(el: Field): string {
 
 /** Il nome del campo come lo vede la persona: l'etichetta, senza "(CHF)" e simili. */
 function labelOf(el: Element): string {
-  const label = el.closest('label');
-  const text = label?.querySelector('.label')?.textContent ?? label?.querySelector('span')?.textContent ?? el.getAttribute('aria-label') ?? '';
+  const label = el.closest('label') ?? (el.id ? document.querySelector<HTMLLabelElement>(`label[for="${CSS.escape(el.id)}"]`) : null);
+  const text =
+    label?.querySelector('.label')?.textContent ??
+    label?.querySelector('span')?.textContent ??
+    (label?.classList.contains('label') ? label.textContent : null) ??
+    el.getAttribute('aria-label') ??
+    '';
   return text.replace(/\s*\(.*?\)\s*/g, ' ').replace(/,.*$/, '').trim() || 'modifiche';
 }
 

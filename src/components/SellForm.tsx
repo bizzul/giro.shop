@@ -209,10 +209,12 @@ export default function SellForm({ signedIn = false }: Props) {
           )}
         </div>
 
-        <label class="fld">
-          <span class="label">{draft.comune && !comune && <span class="ai-mark sm" />}Comune di ritiro</span>
+        <div class="fld">
+          <label class="label" for="draft-comune">
+            {draft.comune && !comune && <span class="ai-mark sm" />}Comune di ritiro
+          </label>
           <ComunePicker id="draft-comune" value={comune || draft.comune?.name || ''} onChange={setComune} required />
-        </label>
+        </div>
 
         <div class="fld">
           <span class="label">Spedizione</span>
@@ -292,10 +294,12 @@ export default function SellForm({ signedIn = false }: Props) {
         />
       </label>
 
-      <label class="fld">
-        <span class="label">Comune di ritiro</span>
+      <div class="fld">
+        <label class="label" for="comune">
+          Comune di ritiro
+        </label>
         <ComunePicker id="comune" value={comune} onChange={setComune} />
-      </label>
+      </div>
 
       {error && (
         <p class="error" role="alert">
