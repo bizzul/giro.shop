@@ -8,6 +8,15 @@ export const CONDITION_LABEL: Record<Condition, string> = {
   da_riparare: 'Da riparare',
 };
 
+/** Cosa vuol dire ogni condizione, con la stessa scala che usa la bozza (src/core/draft.ts). */
+export const CONDITION_HINT: Record<Condition, string> = {
+  nuovo: 'Mai usato',
+  come_nuovo: 'Usato poco, nessun segno visibile',
+  buono: "Segni d'uso leggeri",
+  usato: "Segni d'uso evidenti, funziona",
+  da_riparare: 'Ha difetti o non funziona',
+};
+
 export const VERDICT_LABEL: Record<PriceVerdict, string> = {
   sotto_mercato: 'Sotto mercato',
   prezzo_giusto: 'Prezzo giusto',

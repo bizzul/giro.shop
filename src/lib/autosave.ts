@@ -115,13 +115,14 @@ export function autosave(form: HTMLFormElement, options: AutosaveOptions) {
   // Testo: all'uscita dal campo. Il nuovo fuoco può essere nel modulo stesso o fuori.
   form.addEventListener('focusout', (event) => {
     const el = event.target as Element;
-    if (!isField(el) || !(el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && TEXTUAL.test(el.type)))) return;
+    // Campi senza nome (ricerca dentro un menu, parola chiave in scrittura) non vanno nel modulo: li salva il loro componente
+    if (!isField(el) || !el.name || !(el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && TEXTUAL.test(el.type)))) return;
     if (dirty(el)) request(labelOf(el));
   });
   // Caselle, menu e scelte: subito
   form.addEventListener('change', (event) => {
     const el = event.target as Element;
-    if (!isField(el)) return;
+    if (!isField(el) || !el.name) return;
     if (el instanceof HTMLSelectElement || (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio'))) {
       if (dirty(el)) request(labelOf(el));
     }
