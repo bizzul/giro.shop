@@ -2,11 +2,23 @@ import { ActionError, defineAction, type ActionAPIContext } from 'astro:actions'
 import { z } from 'astro/zod';
 import { IMAGE_TYPES, MAX_PHOTOS, MAX_PHOTO_BYTES, type ImageMediaType } from '../core/draft.ts';
 import { resolveComune } from '../core/comuni.ts';
-import { refreshListings } from '../core/store.ts';
+import { getListing, refreshListings } from '../core/store.ts';
 import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
 import { normalizeSwissMobile } from '../core/phone.ts';
 import { MIN_PHOTOS, planPhotoOrder } from '../core/photos.ts';
 import { invalidateListingPages } from '../lib/cache.ts';
+import { afterPriceChange, afterPublish, afterSale, afterTextChange } from '../lib/listing-events.ts';
+import { siteOrigin } from '../lib/notify.ts';
+
+/** Spedizione dal form: casella "si spedisce" e costo facoltativo. */
+const shippingFields = {
+  shipping: z.string().nullish(),
+  shippingChf: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().min(0, 'Il costo di spedizione non può essere negativo.').max(500).nullable()).optional(),
+};
+const shippingColumns = (input: { shipping?: string | null; shippingChf?: number | null }) => {
+  const shipping = Boolean(input.shipping);
+  return { shipping, shipping_chf: shipping ? (input.shippingChf ?? null) : null };
+};
 
 /** Client Supabase con la sessione, oppure un errore chiaro. */
 function requireSupabase(context: ActionAPIContext) {
@@ -15,7 +27,7 @@ function requireSupabase(context: ActionAPIContext) {
   return supabase;
 }
 
-function requireUser(context: ActionAPIContext) {
+export function requireUser(context: ActionAPIContext) {
   const supabase = requireSupabase(context);
   const user = context.locals.user;
   if (!user) throw new ActionError({ code: 'UNAUTHORIZED', message: 'Accedi per continuare.' });
@@ -95,6 +107,7 @@ export const account = {
       aiModel: z.string().nullish(),
       aiConfidence: z.coerce.number().min(0).max(1).nullish(),
       photos: z.array(z.instanceof(File)).optional(),
+      ...shippingFields,
     }),
     handler: async (input, context) => {
       const { supabase, user } = requireUser(context);
@@ -134,6 +147,7 @@ export const account = {
           ai_source: input.aiSource,
           ai_model: input.aiModel ?? null,
           ai_confidence: input.aiConfidence ?? null,
+          ...shippingColumns(input),
         })
         .select('id')
         .single();
@@ -157,6 +171,7 @@ export const account = {
 
       await refreshListings(true);
       await invalidateListingPages(context);
+      afterPublish(listing.id, siteOrigin(context.url.origin), () => invalidateListingPages(context));
       return { id: listing.id as string };
     },
   }),
@@ -167,18 +182,25 @@ export const account = {
     input: z.object({
       id: z.string().min(1),
       status: z.enum(['pubblicato', 'venduto', 'archiviato']),
-      soldPrice: z.coerce.number().min(0).max(1_000_000).nullish(),
+      soldPrice: z.preprocess((v) => (v === '' ? null : v), z.coerce.number().min(0).max(1_000_000).nullish()),
+      /** A chi è stato venduto, tra chi ha scritto: serve per valutarsi a vicenda. */
+      buyerId: z.preprocess((v) => (v === '' ? null : v), z.string().uuid().nullish()),
     }),
-    handler: async ({ id, status, soldPrice }, context) => {
+    handler: async ({ id, status, soldPrice, buyerId }, context) => {
       const { supabase, user } = requireUser(context);
+      const before = getListing(id);
       const patch: Record<string, unknown> = { status };
-      if (status === 'venduto') patch.sold_price_chf = soldPrice ?? null;
+      if (status === 'venduto') Object.assign(patch, { sold_price_chf: soldPrice ?? null, buyer_id: buyerId ?? null });
       if (status === 'pubblicato') Object.assign(patch, { sold_at: null, sold_price_chf: null });
       const { data, error } = await supabase.from('listings').update(patch).eq('id', id).eq('seller_id', user.id).select('id');
       if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Non ho aggiornato l'annuncio: ${error.message}` });
       if (!data?.length) throw new ActionError({ code: 'NOT_FOUND', message: 'Annuncio non trovato tra i tuoi.' });
       await refreshListings(true);
       await invalidateListingPages(context);
+      if (status === 'venduto' && before && before.status !== 'venduto') {
+        const { data: buyer } = buyerId ? await supabase.from('profiles').select('display_name').eq('id', buyerId).maybeSingle() : { data: null };
+        await afterSale(before, buyerId ?? null, buyer?.display_name ?? null, siteOrigin(context.url.origin));
+      }
       return { id, status };
     },
   }),
@@ -253,6 +275,7 @@ export const account = {
       /** Ordine dei riquadri: "e:<percorso>" foto già salvata, "n:<indice>" file nuovo. Il primo è la copertina. */
       order: z.array(z.string()).optional(),
       photos: z.array(z.instanceof(File)).optional(),
+      ...shippingFields,
     }),
     handler: async (input, context) => {
       const { supabase, user } = requireUser(context);
@@ -261,7 +284,7 @@ export const account = {
 
       const { data: current, error: readError } = await supabase
         .from('listings')
-        .select('id, photos:listing_photos(id, storage_path, position)')
+        .select('id, title, description, price_chf, photos:listing_photos(id, storage_path, position)')
         .eq('id', input.id)
         .eq('seller_id', user.id)
         .maybeSingle();
@@ -294,6 +317,7 @@ export const account = {
           negotiable: Boolean(input.negotiable),
           comune_id: comune.id,
           tags,
+          ...shippingColumns(input),
         })
         .eq('id', input.id)
         .eq('seller_id', user.id);
@@ -334,6 +358,11 @@ export const account = {
 
       await refreshListings(true);
       await invalidateListingPages(context);
+      const updated = getListing(input.id);
+      if (updated) await afterPriceChange(updated, Number(current.price_chf), input.price, siteOrigin(context.url.origin));
+      if (current.title !== input.title || current.description !== input.description) {
+        afterTextChange(input.id, () => invalidateListingPages(context));
+      }
       return { id: input.id };
     },
   }),

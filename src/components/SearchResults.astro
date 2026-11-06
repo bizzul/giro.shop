@@ -83,8 +83,14 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
 <div class="bar">
   {
     result ? (
-      <p class="count" data-status>
-        {total === 0 ? 'Nessun annuncio corrisponde.' : <b>{total === 1 ? '1 annuncio' : `${total} annunci`}</b>}
+      <p class="count">
+        <span data-status>{total === 0 ? 'Nessun annuncio corrisponde.' : <b>{total === 1 ? '1 annuncio' : `${total} annunci`}</b>}</span>
+        {total > 0 && (
+          <a class="save-search" href={`/salvati/nuova?q=${encodeURIComponent(q)}`}>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1 1H3z" /><path d="M6.5 14a1.5 1.5 0 0 0 3 0" /></svg>
+            Avvisami per i prossimi
+          </a>
+        )}
       </p>
     ) : (
       <div class="browse-h">
@@ -126,9 +132,10 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
       <div class="panel empty">
         <h3>Ancora niente, ma può arrivare.</h3>
         <p class="muted">
-          Con gli avvisi intelligenti (in arrivo) ti scriveremo appena qualcuno pubblica un annuncio che corrisponde a
-          questa ricerca. Intanto prova a togliere un filtro o ad allargare la zona.
+          Salva la ricerca: ti scriviamo, qui e per email, appena qualcuno pubblica un annuncio che corrisponde. Intanto prova a
+          togliere un filtro o ad allargare la zona.
         </p>
+        <a class="btn primary" href={`/salvati/nuova?q=${encodeURIComponent(q)}`}>Avvisami quando arriva</a>
       </div>
     )
   )
@@ -201,7 +208,9 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
   .removable:hover { border-color: var(--ink); }
   .removable:hover svg { stroke: var(--ink); }
   .bar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; margin-bottom: 24px; }
-  .count { font-size: 14px; }
+  .count { display: flex; align-items: baseline; gap: 6px 16px; flex-wrap: wrap; font-size: 14px; }
+  .save-search { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); text-underline-offset: 3px; text-decoration-color: var(--line-strong); font-size: 13.5px; }
+  .save-search svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; align-self: center; }
   .count b { font-weight: 500; }
   .browse-h { display: flex; align-items: baseline; gap: 16px; flex: 1; justify-content: space-between; }
   .browse-h h2 { font: 500 16px/1.3 var(--f-body); letter-spacing: 0; }

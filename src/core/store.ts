@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { Condition, Listing, Photo, PhotoCredit } from './types.ts';
+import type { Condition, Listing, Photo, PhotoCredit, PricePoint, Question } from './types.ts';
 import { LISTINGS } from '../data/listings.ts';
 import { PHOTOS } from '../data/photos.ts';
 
@@ -15,9 +15,11 @@ import { PHOTOS } from '../data/photos.ts';
 const MAX_AGE_MS = 10_000;
 const SELECT = `
   id, title, description, category_id, tags, attributes, price_chf, negotiable, condition, comune_id,
-  status, published_at, created_at, sold_price_chf, seller_id,
-  seller:profiles(display_name, phone_verified_at),
-  photos:listing_photos(storage_path, position, credit, width, height)
+  status, published_at, created_at, sold_price_chf, seller_id, buyer_id, shipping, shipping_chf, highlights,
+  seller:profiles!listings_seller_id_fkey(display_name, phone_verified_at),
+  photos:listing_photos(storage_path, position, credit, width, height),
+  history:price_history(price_chf, changed_at),
+  questions(id, body, answer, created_at, answered_at, asker:profiles(display_name))
 `;
 
 const SEED: Listing[] = LISTINGS.map((l) => ({ ...l, photos: PHOTOS[l.id] ? [PHOTOS[l.id]] : [] }));
@@ -63,8 +65,21 @@ interface Row {
   created_at: string;
   sold_price_chf: number | string | null;
   seller_id: string | null;
+  buyer_id?: string | null;
+  shipping?: boolean;
+  shipping_chf?: number | string | null;
+  highlights?: string[] | null;
   seller: { display_name: string; phone_verified_at: string | null } | null;
   photos: Array<{ storage_path: string; position: number; credit: PhotoCredit | null; width: number | null; height: number | null }>;
+  history?: Array<{ price_chf: number | string; changed_at: string }>;
+  questions?: Array<{
+    id: string;
+    body: string;
+    answer: string | null;
+    created_at: string;
+    answered_at: string | null;
+    asker: { display_name: string } | null;
+  }>;
 }
 
 /** Converte una riga di Supabase nel modello usato da ricerca, pagine e MCP. */
@@ -100,6 +115,29 @@ export function rowToListing(row: Row): Listing {
     sellerId: row.seller_id ?? undefined,
     negotiating: row.status === 'in_trattativa',
     photos,
+    shipping: Boolean(row.shipping),
+    shippingChf: row.shipping_chf != null ? Number(row.shipping_chf) : undefined,
+    buyerId: row.buyer_id ?? undefined,
+    highlights: row.highlights?.length ? row.highlights : undefined,
+    priceHistory: row.history
+      ? row.history
+          .map((h): PricePoint => ({ priceChf: Number(h.price_chf), at: h.changed_at }))
+          .sort((a, b) => a.at.localeCompare(b.at))
+      : undefined,
+    questions: row.questions
+      ? row.questions
+          .map(
+            (q): Question => ({
+              id: q.id,
+              body: q.body,
+              askerName: q.asker?.display_name ?? 'Utente',
+              createdAt: q.created_at,
+              answer: q.answer ?? undefined,
+              answeredAt: q.answered_at ?? undefined,
+            }),
+          )
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      : undefined,
   };
 }
 

@@ -1,0 +1,130 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ListingCard from '../components/ListingCard.astro';
+import { actions } from 'astro:actions';
+import { getListing } from '../core/store.ts';
+import { priceVerdict } from '../core/price.ts';
+import { parseQuery } from '../core/query.ts';
+import { formatAge, formatChf } from '../core/format.ts';
+
+const { user, supabase } = Astro.locals;
+if (!user || !supabase) return Astro.redirect('/accedi?next=/salvati');
+
+// Dopo ogni azione si ricarica la pagina con GET (niente doppio invio aggiornando)
+const saved = Astro.getActionResult(actions.alerts.saveSearch);
+const removed = Astro.getActionResult(actions.alerts.deleteSearch);
+const toggled = Astro.getActionResult(actions.alerts.toggleFavorite);
+if (saved?.data) return Astro.redirect(`/salvati?fatto=${saved.data.already ? 'gia' : 'ricerca'}&q=${encodeURIComponent(saved.data.query)}#ricerche`, 303);
+if (removed?.data) return Astro.redirect('/salvati?fatto=tolta#ricerche', 303);
+if (toggled?.data) return Astro.redirect('/salvati?fatto=annuncio', 303);
+const error = [saved, removed, toggled].find((r) => r?.error)?.error?.message;
+const done = Astro.url.searchParams.get('fatto');
+const query = Astro.url.searchParams.get('q') ?? '';
+const notice =
+  done === 'ricerca'
+    ? `Ricerca salvata: ti avvisiamo appena arriva un annuncio per «${query}».`
+    : done === 'gia'
+      ? `Avevi già salvato «${query}».`
+      : done === 'tolta'
+        ? 'Ricerca tolta.'
+        : done === 'annuncio'
+          ? 'Annuncio tolto dai salvati.'
+          : null;
+
+const [{ data: favs }, { data: searches }] = await Promise.all([
+  supabase.from('favorites').select('listing_id, created_at').eq('user_id', user.id).order('created_at', { ascending: false }),
+  supabase.from('alerts').select('id, query, created_at, last_notified_at').eq('user_id', user.id).order('created_at', { ascending: false }),
+]);
+// Gli annunci venduti restano visibili, quelli tolti dal sito spariscono
+const listings = (favs ?? []).map((f) => getListing(f.listing_id)).filter((l): l is NonNullable<typeof l> => Boolean(l));
+---
+
+<Layout title="Salvati · giro.shop">
+  <section class="wrap band saved">
+    <header class="section-h">
+      <h1>Salvati</h1>
+      <a href="/avvisi">Avvisi</a>
+    </header>
+
+    {notice && <p class="notice" role="status">{notice}</p>}
+    {error && <p class="error" role="alert">{error}</p>}
+
+    <section aria-labelledby="annunci-salvati">
+      <div class="section-h">
+        <h2 id="annunci-salvati">Annunci salvati</h2>
+        <span class="muted small">Ti avvisiamo se calano di prezzo o vengono venduti.</span>
+      </div>
+      {
+        listings.length === 0 ? (
+          <p class="muted">Nessun annuncio salvato. Nella scheda di un annuncio tocca il cuore per tenerlo qui.</p>
+        ) : (
+          <div class="cards">
+            {listings.map((l) => (
+              <div class="saved-card">
+                <ListingCard listing={l} verdict={l.status === 'venduto' ? undefined : priceVerdict(l)} />
+                {l.status === 'venduto' && <span class="badge plain gone">Venduto</span>}
+                <form method="POST" action={actions.alerts.toggleFavorite}>
+                  <input type="hidden" name="listingId" value={l.id} />
+                  <button class="link-button" type="submit">Togli dai salvati</button>
+                </form>
+              </div>
+            ))}
+          </div>
+        )
+      }
+    </section>
+
+    <section id="ricerche" aria-labelledby="ricerche-salvate">
+      <div class="section-h">
+        <h2 id="ricerche-salvate">Ricerche salvate</h2>
+        <span class="muted small">Un avviso, anche per email, per ogni annuncio nuovo che corrisponde.</span>
+      </div>
+      {
+        (searches ?? []).length === 0 ? (
+          <p class="muted">
+            Nessuna ricerca salvata. Cerca qualcosa e, sotto i risultati, tocca «Avvisami quando arriva».
+          </p>
+        ) : (
+          <ul class="searches">
+            {(searches ?? []).map((s) => (
+              <li>
+                <a class="q" href={`/cerca?q=${encodeURIComponent(s.query)}`}>{s.query}</a>
+                <span class="chips">
+                  {parseQuery(s.query).chips.map((c) => (
+                    <span class="chip">
+                      <span class="k">{c.key}</span>
+                      {c.value}
+                    </span>
+                  ))}
+                </span>
+                <span class="muted small">
+                  Salvata {formatAge(s.created_at)}
+                  {s.last_notified_at && ` · ultimo avviso ${formatAge(s.last_notified_at)}`}
+                </span>
+                <form method="POST" action={actions.alerts.deleteSearch}>
+                  <input type="hidden" name="id" value={s.id} />
+                  <button class="link-button" type="submit" aria-label={`Togli la ricerca ${s.query}`}>Togli</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </section>
+  </section>
+</Layout>
+
+<style>
+  .saved { display: grid; gap: 40px; }
+  .saved > .section-h h1 { font-size: clamp(28px, 3.6vw, 40px); }
+  .notice { background: var(--ok-soft); color: var(--ink); border-radius: 4px; padding: 12px 14px; font-size: 14px; }
+  .saved-card { display: grid; gap: 8px; align-content: start; position: relative; }
+  .gone { position: absolute; top: 10px; right: 10px; z-index: 2; }
+  .link-button { border: 0; background: none; padding: 0; font: 400 13px/1.4 var(--f-body); color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .link-button:hover { color: var(--ink); }
+  .searches { display: grid; border-top: 1px solid var(--line); }
+  .searches li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; padding: 16px 4px; border-bottom: 1px solid var(--line); }
+  .q { font-weight: 500; text-underline-offset: 4px; text-decoration-color: var(--line-strong); overflow-wrap: anywhere; }
+  .searches .chips, .searches .small { grid-column: 1; }
+  .searches form { grid-column: 2; grid-row: 1; }
+</style>

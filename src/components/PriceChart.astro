@@ -1,0 +1,85 @@
+---
+/** Storico del prezzo di un annuncio: linea a gradini dalla pubblicazione a oggi, più l'elenco dei cambi. */
+import type { PricePoint } from '../core/types.ts';
+import { formatChf } from '../core/format.ts';
+
+interface Props {
+  points: PricePoint[];
+}
+const { points } = Astro.props;
+
+const now = Date.now();
+const times = points.map((p) => new Date(p.at).getTime());
+const start = Math.min(...times);
+const end = Math.max(now, ...times);
+const prices = points.map((p) => p.priceChf);
+const lo = Math.min(...prices);
+const hi = Math.max(...prices);
+// Un po' d'aria sopra e sotto, e una scala anche quando il prezzo non è mai cambiato
+const span = hi - lo || Math.max(10, hi * 0.2);
+const yMin = Math.max(0, lo - span * 0.25);
+const yMax = hi + span * 0.25;
+
+// Coordinate da 0 a 100 nell'area del grafico: la linea si allarga con la pagina, testi e punti restano nitidi
+const x = (t: number) => ((t - start) / Math.max(1, end - start)) * 100;
+const y = (v: number) => (1 - (v - yMin) / (yMax - yMin)) * 100;
+
+let d = `M ${x(times[0]).toFixed(2)} ${y(prices[0]).toFixed(2)}`;
+for (let i = 1; i < points.length; i++) d += ` H ${x(times[i]).toFixed(2)} V ${y(prices[i]).toFixed(2)}`;
+d += ` H ${x(end).toFixed(2)}`;
+
+const day = (iso: string | number) => new Date(iso).toLocaleDateString('it-CH', { day: 'numeric', month: 'short' });
+const ticks = [...new Set([hi, lo])];
+const first = points[0];
+const last = points[points.length - 1];
+const summary =
+  points.length === 1
+    ? `Prezzo invariato dal ${day(first.at)}: ${formatChf(first.priceChf)}`
+    : `Da ${formatChf(first.priceChf)} il ${day(first.at)} a ${formatChf(last.priceChf)} oggi, ${points.length - 1} ${points.length === 2 ? 'cambio' : 'cambi'}`;
+const changes = points.map((p, i) => ({ ...p, prev: i > 0 ? points[i - 1].priceChf : null })).reverse();
+---
+
+<figure class="pchart">
+  <div class="area" role="img" aria-label={summary}>
+    <div class="plot" aria-hidden="true">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        {ticks.map((v) => <line class="grid" x1="0" x2="100" y1={y(v)} y2={y(v)} />)}
+        <path class="line" d={d} />
+      </svg>
+      {ticks.map((v) => <span class="tick y" style={`top:${y(v)}%`}>{Math.round(v)}</span>)}
+      {points.map((p, i) => <span class="dot" style={`left:${x(times[i])}%;top:${y(p.priceChf)}%`} />)}
+      <span class="tick x" style="left:0">{day(start)}</span>
+      <span class="tick x end">oggi</span>
+    </div>
+  </div>
+  <ul class="changes">
+    {changes.map((c) => (
+      <li>
+        <span class="muted">{day(c.at)}</span>
+        <span class="mono">{formatChf(c.priceChf)}</span>
+        <span class:list={['delta', { down: c.prev != null && c.priceChf < c.prev, up: c.prev != null && c.priceChf > c.prev }]}>
+          {c.prev == null ? 'pubblicato' : c.priceChf < c.prev ? `−${formatChf(c.prev - c.priceChf)}` : `+${formatChf(c.priceChf - c.prev)}`}
+        </span>
+      </li>
+    ))}
+  </ul>
+</figure>
+
+<style>
+  .pchart { display: grid; gap: 14px; }
+  .area { position: relative; height: 150px; }
+  .plot { position: absolute; inset: 12px 12px 26px 56px; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .grid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .line { fill: none; stroke: var(--ink); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+  .dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--bg); border: 1.5px solid var(--ink); }
+  .tick { position: absolute; color: var(--muted); font: 400 11px/1 var(--f-mono); white-space: nowrap; }
+  .tick.y { right: calc(100% + 8px); transform: translateY(-50%); }
+  .tick.x { top: calc(100% + 10px); }
+  .tick.x.end { right: 0; }
+  .changes { display: grid; }
+  .changes li { display: grid; grid-template-columns: 80px minmax(0, 1fr) auto; gap: 12px; padding-block: 8px; border-top: 1px solid var(--line); font-size: 13.5px; }
+  .delta { color: var(--muted); font-size: 12.5px; }
+  .delta.down { color: var(--ok); }
+  .delta.up { color: var(--bad); }
+</style>

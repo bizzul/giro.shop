@@ -1,0 +1,44 @@
+---
+import { dealOfTheDay } from '../core/deals.ts';
+import { getComune } from '../core/comuni.ts';
+import { getPhoto } from '../core/store.ts';
+import { formatChf, formatChfRange } from '../core/format.ts';
+
+const deal = dealOfTheDay();
+const photo = deal ? getPhoto(deal.listing.id) : undefined;
+const comune = deal ? getComune(deal.listing.comuneId) : undefined;
+---
+
+{
+  deal && (
+    <section class="wrap deal-wrap" aria-labelledby="affare">
+      <a class="deal" href={`/annuncio/${deal.listing.id}`}>
+        {photo && <img src={photo.srcSmall} alt="" width="480" height="360" loading="lazy" decoding="async" />}
+        <div class="deal-body">
+          <span class="label" id="affare">Affare del giorno</span>
+          <span class="deal-title">{deal.listing.title}</span>
+          <span class="deal-price">
+            <b class="mono">{formatChf(deal.listing.priceChf)}</b>
+            <span class="badge ok">{deal.savingPct}% sotto i simili</span>
+          </span>
+          <span class="muted small">
+            Annunci simili {formatChfRange(deal.estimate.low, deal.estimate.high)}
+            {comune && ` · ritiro ${/^[aA]/.test(comune.name) ? 'ad' : 'a'} ${comune.name}`}
+          </span>
+        </div>
+      </a>
+    </section>
+  )
+}
+
+<style>
+  .deal-wrap { margin-bottom: clamp(8px, 3vw, 24px); }
+  .deal { display: grid; grid-template-columns: minmax(0, 200px) minmax(0, 1fr); gap: 20px; align-items: center; padding: 14px; border-radius: 8px; background: var(--surface); text-decoration: none; }
+  .deal img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; display: block; }
+  .deal-body { display: grid; gap: 6px; min-width: 0; }
+  .deal-title { font: 500 18px/1.3 var(--f-body); overflow-wrap: anywhere; }
+  .deal:hover .deal-title { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+  .deal-price { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .deal-price b { font-weight: 500; font-size: 16px; }
+  @media (max-width: 560px) { .deal { grid-template-columns: 112px minmax(0, 1fr); gap: 14px; padding: 10px; } .deal-title { font-size: 15px; } }
+</style>

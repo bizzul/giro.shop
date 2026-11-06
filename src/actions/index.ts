@@ -5,12 +5,18 @@ import type { DraftImage, ImageMediaType } from '../core/draft.ts';
 import { estimatePrice } from '../core/price.ts';
 import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
 import { account } from './account.ts';
+import { alerts } from './alerts.ts';
 import { messages } from './messages.ts';
+import { questions } from './questions.ts';
+import { ratings } from './ratings.ts';
 
 /** Le stesse funzioni del nucleo usate dal server MCP, esposte al sito come Astro Actions. */
 export const server = {
   account,
+  alerts,
   messages,
+  questions,
+  ratings,
   createDraft: defineAction({
     accept: 'form',
     input: z.object({

@@ -67,6 +67,31 @@ export interface Listing {
   /** Un'offerta è stata accettata: l'annuncio resta visibile ma è "in trattativa". */
   negotiating?: boolean;
   photos?: Photo[];
+  /** Si può spedire; shippingChf è il costo indicato da chi vende (vuoto = da concordare). */
+  shipping?: boolean;
+  shippingChf?: number;
+  /** Chi ha comprato, quando chi vende l'ha indicato (serve per le valutazioni). */
+  buyerId?: string;
+  /** Punti chiave scritti da Claude alla pubblicazione. */
+  highlights?: string[];
+  /** Prezzi nel tempo, dal più vecchio: il primo è quello di pubblicazione. */
+  priceHistory?: PricePoint[];
+  /** Domande pubbliche con le risposte di chi vende, dalla più vecchia. */
+  questions?: Question[];
+}
+
+export interface PricePoint {
+  priceChf: number;
+  at: string;
+}
+
+export interface Question {
+  id: string;
+  body: string;
+  askerName: string;
+  createdAt: string;
+  answer?: string;
+  answeredAt?: string;
 }
 
 /** Foto di un annuncio, in due misure, con i crediti richiesti dalla licenza. */
@@ -112,6 +137,8 @@ export interface SearchFilters {
   yearTo?: number;
   wheelRange?: [number, number];
   pickup?: boolean;
+  /** Solo annunci che si possono spedire. */
+  shipping?: boolean;
 }
 
 export interface Chip {

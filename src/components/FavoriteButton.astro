@@ -1,0 +1,63 @@
+---
+/**
+ * Cuore nella scheda annuncio. Server island: dipende da chi guarda,
+ * mentre la scheda resta uguale per tutti e in cache. Funziona anche senza JavaScript.
+ */
+import { actions } from 'astro:actions';
+import { getListing } from '../core/store.ts';
+
+interface Props {
+  listingId: string;
+}
+const { listingId } = Astro.props;
+const { user, supabase } = Astro.locals;
+let saved = false;
+let count = 0;
+if (supabase) {
+  const [{ data: n }, mine] = await Promise.all([
+    supabase.rpc('favorite_count', { listing: listingId }),
+    user ? supabase.from('favorites').select('listing_id').eq('user_id', user.id).eq('listing_id', listingId).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  count = Number(n ?? 0);
+  saved = Boolean(mine.data);
+}
+const others = saved ? count - 1 : count;
+// Chi vende non salva il proprio annuncio: vede solo quante persone l'hanno salvato
+const isOwner = Boolean(user && getListing(listingId)?.sellerId === user.id);
+---
+
+<div class="fav" id="salva">
+  {
+    isOwner ? null : user ? (
+      <form method="POST" action={`/salvati/cambia${actions.alerts.toggleFavorite}&id=${encodeURIComponent(listingId)}`}>
+        <input type="hidden" name="listingId" value={listingId} />
+        <button class:list={['btn', 'fav-btn', { on: saved }]} type="submit" aria-pressed={saved ? 'true' : 'false'}>
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 13.5S2.5 10.2 2.5 6.2A2.9 2.9 0 0 1 8 4.8a2.9 2.9 0 0 1 5.5 1.4c0 4-5.5 7.3-5.5 7.3z" />
+          </svg>
+          {saved ? 'Salvato' : 'Salva'}
+        </button>
+      </form>
+    ) : (
+      <a class="btn fav-btn" href={`/accedi?next=${encodeURIComponent(`/annuncio/${listingId}`)}`}>
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M8 13.5S2.5 10.2 2.5 6.2A2.9 2.9 0 0 1 8 4.8a2.9 2.9 0 0 1 5.5 1.4c0 4-5.5 7.3-5.5 7.3z" />
+        </svg>
+        Salva
+      </a>
+    )
+  }
+  {
+    others > 0 && (
+      <span class="muted small">
+        {saved ? `Anche altre ${others} ${others === 1 ? 'persona' : 'persone'}` : `Salvato da ${others} ${others === 1 ? 'persona' : 'persone'}`}
+      </span>
+    )
+  }
+</div>
+
+<style>
+  .fav { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .fav-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+  .fav-btn.on svg { fill: var(--bad); stroke: var(--bad); }
+</style>

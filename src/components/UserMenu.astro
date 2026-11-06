@@ -8,14 +8,18 @@ import { unreadCount } from '../lib/messages.ts';
 const { user, supabase } = Astro.locals;
 let name: string | null = null;
 let unread = 0;
+let alerts = 0;
 if (user && supabase) {
-  const [{ data }, count] = await Promise.all([
+  const [{ data }, count, notices] = await Promise.all([
     supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
     unreadCount(supabase, user.id),
+    supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('read_at', null),
   ]);
   name = data?.display_name ?? null;
   unread = count;
+  alerts = notices.count ?? 0;
 }
+
 ---
 
 {
@@ -27,6 +31,20 @@ if (user && supabase) {
         </svg>
         <span class="nav-text">Messaggi</span>
         {unread > 0 && <span class="nav-count" aria-label={`${unread} non letti`}>{unread}</span>}
+      </a>
+      <a href="/salvati" class="nav-saved">
+        <svg class="nav-ico" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M8 13.5S2.5 10.2 2.5 6.2A2.9 2.9 0 0 1 8 4.8a2.9 2.9 0 0 1 5.5 1.4c0 4-5.5 7.3-5.5 7.3z" />
+        </svg>
+        <span class="nav-text">Salvati</span>
+      </a>
+      <a href="/avvisi" class="nav-messages nav-alerts">
+        <svg class="nav-ico" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1 1H3z" />
+          <path d="M6.5 14a1.5 1.5 0 0 0 3 0" />
+        </svg>
+        <span class="nav-text">Avvisi</span>
+        {alerts > 0 && <span class="nav-count" aria-label={`${alerts} avvisi nuovi`}>{alerts}</span>}
       </a>
       <a href="/miei-annunci" class="nav-account">
         <span class="nav-avatar" aria-hidden="true">{(name ?? '?').trim().charAt(0).toUpperCase()}</span>

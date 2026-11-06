@@ -67,78 +67,87 @@ export function browseListings(order: SortOrder = 'recenti', limit = 24): { tota
 
 /** Tutti i risultati che corrispondono ai filtri, dal più pertinente. */
 function rankAll(filters: SearchFilters): SearchHit[] {
-  const origin = filters.comuneId ? getComune(filters.comuneId) : undefined;
   const now = Date.now();
   const hits: SearchHit[] = [];
-
   for (const listing of publishedListings()) {
-    const comune = getComune(listing.comuneId);
-    if (!comune) continue;
-    const reasons: string[] = [];
+    const hit = scoreListing(filters, listing, now);
+    if (hit) hits.push(hit);
+  }
+  return hits.sort((a, b) => b.score - a.score);
+}
 
-    if (filters.required && !findAlt(listing, filters.required.alts)) continue;
-    if (filters.maxPrice != null && listing.priceChf > filters.maxPrice) continue;
-    if (filters.minPrice != null && listing.priceChf < filters.minPrice) continue;
-    if (filters.conditions && !filters.conditions.includes(listing.condition)) continue;
+/**
+ * Un annuncio corrisponde a una ricerca salvata? Più severo della ricerca normale:
+ * deve essere proprio l'oggetto cercato (una lampada "da scrivania" non avvisa chi cerca scrivanie).
+ */
+export function matchesSearch(query: string, listing: Listing): boolean {
+  const { filters } = parseQuery(query);
+  if (filters.required && !isMainObject(listing, filters.required.alts)) return false;
+  return scoreListing(filters, listing, Date.now()) !== null;
+}
 
-    if (filters.yearFrom != null) {
-      const year = Number(listing.attributes.anno);
-      if (!year || year < filters.yearFrom || (filters.yearTo != null && year > filters.yearTo)) continue;
-      reasons.push(`del ${year}`);
-    }
+/** Controlla un annuncio contro i filtri: null se non corrisponde, altrimenti punteggio e motivi. */
+function scoreListing(filters: SearchFilters, listing: Listing, now: number): SearchHit | null {
+  const origin = filters.comuneId ? getComune(filters.comuneId) : undefined;
+  const comune = getComune(listing.comuneId);
+  if (!comune) return null;
+  const reasons: string[] = [];
 
-    if (filters.wheelRange) {
-      const inches = wheelInches(listing.attributes.ruote);
-      const [a, b] = filters.wheelRange;
-      if (inches == null || inches < a || inches > b) continue;
-      reasons.push(`ruote ${inches}″`);
-    }
+  if (filters.required && !findAlt(listing, filters.required.alts)) return null;
+  if (filters.maxPrice != null && listing.priceChf > filters.maxPrice) return null;
+  if (filters.minPrice != null && listing.priceChf < filters.minPrice) return null;
+  if (filters.conditions && !filters.conditions.includes(listing.condition)) return null;
+  if (filters.shipping && !listing.shipping) return null;
 
-    let distance: number | undefined;
-    if (origin) {
-      distance = distanceKm(origin, comune);
-      if (filters.radiusKm != null && distance > filters.radiusKm) continue;
-    }
-
-    let matched = 0;
-    for (const g of filters.groups) {
-      const word = findAlt(listing, g.alts);
-      if (!word) continue;
-      matched++;
-      if (g.kind === 'materiale') reasons.unshift(listing.attributes.materiale ?? word);
-    }
-    if (filters.groups.length && matched === 0) continue;
-
-    if (filters.maxPrice != null) {
-      reasons.push(listing.priceChf <= filters.maxPrice * 0.85 ? 'sotto budget' : 'al limite del budget');
-    }
-    if (filters.conditions) reasons.push(CONDITION_LABEL[listing.condition].toLowerCase());
-    if (filters.includeBroken && listing.condition === 'da_riparare') reasons.push('da riparare');
-
-    // Chi cerca "scrivania" vede prima le scrivanie, poi chi la nomina soltanto (lampada da scrivania)
-    const sideMention = filters.required != null && !isMainObject(listing, filters.required.alts);
-    const relevance = (filters.groups.length ? matched / filters.groups.length : 1) - (sideMention ? 0.6 : 0);
-    const proximity = distance != null && filters.radiusKm ? 1 - distance / filters.radiusKm : 0;
-    const ageDays = (now - new Date(listing.publishedAt).getTime()) / 864e5;
-    const freshness = Math.max(0, 1 - ageDays / 14);
-    const score =
-      relevance * 100 +
-      proximity * 25 +
-      freshness * 10 +
-      (listing.seller.verified ? 3 : 0) +
-      (filters.category && listing.category === filters.category ? 5 : 0);
-
-    hits.push({
-      listing,
-      comune,
-      distanceKm: distance,
-      score,
-      reasons,
-      verdict: priceVerdict(listing),
-    });
+  if (filters.yearFrom != null) {
+    const year = Number(listing.attributes.anno);
+    if (!year || year < filters.yearFrom || (filters.yearTo != null && year > filters.yearTo)) return null;
+    reasons.push(`del ${year}`);
   }
 
-  return hits.sort((a, b) => b.score - a.score);
+  if (filters.wheelRange) {
+    const inches = wheelInches(listing.attributes.ruote);
+    const [a, b] = filters.wheelRange;
+    if (inches == null || inches < a || inches > b) return null;
+    reasons.push(`ruote ${inches}″`);
+  }
+
+  let distance: number | undefined;
+  if (origin) {
+    distance = distanceKm(origin, comune);
+    if (filters.radiusKm != null && distance > filters.radiusKm) return null;
+  }
+
+  let matched = 0;
+  for (const g of filters.groups) {
+    const word = findAlt(listing, g.alts);
+    if (!word) continue;
+    matched++;
+    if (g.kind === 'materiale') reasons.unshift(listing.attributes.materiale ?? word);
+  }
+  if (filters.groups.length && matched === 0) return null;
+
+  if (filters.maxPrice != null) {
+    reasons.push(listing.priceChf <= filters.maxPrice * 0.85 ? 'sotto budget' : 'al limite del budget');
+  }
+  if (filters.conditions) reasons.push(CONDITION_LABEL[listing.condition].toLowerCase());
+  if (filters.includeBroken && listing.condition === 'da_riparare') reasons.push('da riparare');
+  if (filters.shipping) reasons.push('si spedisce');
+
+  // Chi cerca "scrivania" vede prima le scrivanie, poi chi la nomina soltanto (lampada da scrivania)
+  const sideMention = filters.required != null && !isMainObject(listing, filters.required.alts);
+  const relevance = (filters.groups.length ? matched / filters.groups.length : 1) - (sideMention ? 0.6 : 0);
+  const proximity = distance != null && filters.radiusKm ? 1 - distance / filters.radiusKm : 0;
+  const ageDays = (now - new Date(listing.publishedAt).getTime()) / 864e5;
+  const freshness = Math.max(0, 1 - ageDays / 14);
+  const score =
+    relevance * 100 +
+    proximity * 25 +
+    freshness * 10 +
+    (listing.seller.verified ? 3 : 0) +
+    (filters.category && listing.category === filters.category ? 5 : 0);
+
+  return { listing, comune, distanceKm: distance, score, reasons, verdict: priceVerdict(listing) };
 }
 
 /** Annunci simili a uno dato, per la scheda annuncio. */

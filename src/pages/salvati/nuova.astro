@@ -1,0 +1,53 @@
+---
+/** Conferma prima di salvare una ricerca: mostra come è stata capita la frase. */
+import Layout from '../../layouts/Layout.astro';
+import { actions } from 'astro:actions';
+import { parseQuery } from '../../core/query.ts';
+import { search } from '../../core/search.ts';
+
+const q = Astro.url.searchParams.get('q')?.trim().slice(0, 200) ?? '';
+if (!q) return Astro.redirect('/cerca');
+const back = `/salvati/nuova?q=${encodeURIComponent(q)}`;
+if (!Astro.locals.user) return Astro.redirect(`/accedi?next=${encodeURIComponent(back)}`);
+
+const { chips } = parseQuery(q);
+const { total } = search(q, { limit: 1 });
+---
+
+<Layout title="Salva la ricerca · giro.shop">
+  <section class="wrap band confirm">
+    <div class="panel">
+      <span class="label">Avviso per questa ricerca</span>
+      <h1>«{q}»</h1>
+      {
+        chips.length > 0 && (
+          <div class="chips">
+            {chips.map((c) => (
+              <span class="chip">
+                <span class="k">{c.key}</span>
+                {c.value}
+              </span>
+            ))}
+          </div>
+        )
+      }
+      <p class="muted">
+        {total === 0 ? 'Oggi non c\'è ancora niente.' : total === 1 ? 'Oggi c\'è 1 annuncio.' : `Oggi ci sono ${total} annunci.`}
+        {' '}Ti avvisiamo qui e per email appena ne arriva uno nuovo che corrisponde.
+      </p>
+      <form method="POST" action={`/salvati${actions.alerts.saveSearch}`}>
+        <input type="hidden" name="q" value={q} />
+        <div class="row">
+          <button class="btn primary" type="submit">Avvisami</button>
+          <a class="btn" href={`/cerca?q=${encodeURIComponent(q)}`}>Torna alla ricerca</a>
+        </div>
+      </form>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .confirm { max-width: 640px; }
+  .confirm h1 { font-size: clamp(24px, 3vw, 32px); overflow-wrap: anywhere; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; }
+</style>

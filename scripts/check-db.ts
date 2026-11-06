@@ -3,7 +3,8 @@
  * Uso: pnpm test:db   (con `supabase start` acceso)
  *
  * Crea venditore, acquirente e intruso, prova ciò che è permesso e ciò che è vietato
- * su annunci, foto, conversazioni, messaggi, offerte e cellulare, poi cancella tutto.
+ * su annunci, foto, conversazioni, messaggi, offerte, cellulare, salvati, avvisi, domande
+ * e valutazioni, poi cancella tutto.
  */
 import { execFileSync } from 'node:child_process';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -140,6 +141,47 @@ try {
 
   const stolen = await seller.client.auth.updateUser({ phone });
   expect('un cellulare già verificato da altri viene rifiutato', Boolean(stolen.error));
+
+  // Storico prezzi, salvati, avvisi, domande pubbliche, vendita e valutazioni
+  const { data: second } = await seller.client
+    .from('listings')
+    .insert({ seller_id: seller.id, status: 'pubblicato', title: `Prova domande ${tag}`, category_id: 'altro', price_chf: 80, condition: 'buono', comune_id: 'lugano' })
+    .select('id')
+    .single();
+  const qListing = second!.id as string;
+  await seller.client.from('listings').update({ price_chf: 60 }).eq('id', qListing);
+  const hist = await anon.from('price_history').select('price_chf').eq('listing_id', qListing).order('changed_at');
+  expect('lo storico registra pubblicazione e ribasso', hist.data?.map((h) => Number(h.price_chf)).join(',') === '80,60', JSON.stringify(hist.data));
+
+  expect('ognuno salva per sé', !(await buyer.client.from('favorites').insert({ user_id: buyer.id, listing_id: qListing })).error);
+  expect('nessuno salva a nome di altri', Boolean((await intruder.client.from('favorites').insert({ user_id: buyer.id, listing_id: listingId })).error));
+  expect('i salvati degli altri non si vedono', (await intruder.client.from('favorites').select('user_id').eq('user_id', buyer.id)).data?.length === 0);
+  expect('il conteggio dei salvati è pubblico, senza nomi', Number((await anon.rpc('favorite_count', { listing: qListing })).data) === 1);
+
+  const note = await admin.from('notifications').insert({ user_id: buyer.id, kind: 'prezzo', title: 'Prova', url: '/' }).select('id').single();
+  expect('gli avvisi li scrive solo il server', Boolean((await buyer.client.from('notifications').insert({ user_id: buyer.id, kind: 'prezzo', title: 'finto', url: '/' })).error));
+  expect('gli avvisi degli altri non si vedono', (await intruder.client.from('notifications').select('id').eq('id', note.data!.id)).data?.length === 0);
+  expect("chi riceve segna l'avviso come letto", !denied(await buyer.client.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', note.data!.id).select('id')));
+  expect("il testo dell'avviso non si cambia", Boolean((await buyer.client.from('notifications').update({ title: 'cambiato' }).eq('id', note.data!.id)).error));
+
+  const q = await buyer.client.from('questions').insert({ listing_id: qListing, asker_id: buyer.id, body: 'Funziona ancora?' }).select('id').single();
+  expect('chi compra fa una domanda pubblica', !q.error, q.error?.message);
+  expect('chi vende non si fa domande da solo', Boolean((await seller.client.from('questions').insert({ listing_id: qListing, asker_id: seller.id, body: 'Domanda finta' })).error));
+  expect('una domanda non nasce con la risposta', Boolean((await buyer.client.from('questions').insert({ listing_id: qListing, asker_id: buyer.id, body: 'Altra?', answer: 'sì' })).error));
+  expect('chi chiede non si risponde da solo', denied(await buyer.client.from('questions').update({ answer: 'sì' }).eq('id', q.data!.id).select('id')));
+  expect('intruso non risponde alle domande', denied(await intruder.client.from('questions').update({ answer: 'sì' }).eq('id', q.data!.id).select('id')));
+  expect('chi vende risponde', !denied(await seller.client.from('questions').update({ answer: 'Sì, funziona.', answered_at: new Date().toISOString() }).eq('id', q.data!.id).select('id')));
+  expect('domande e risposte le vedono tutti', (await anon.from('questions').select('answer').eq('id', q.data!.id)).data?.[0]?.answer === 'Sì, funziona.');
+
+  expect('non si vende a chi non ha mai scritto', Boolean((await seller.client.from('listings').update({ status: 'venduto', buyer_id: intruder.id }).eq('id', listingId)).error));
+  expect('si vende a chi ha scritto', !(await seller.client.from('listings').update({ status: 'venduto', buyer_id: buyer.id }).eq('id', listingId)).error);
+  expect('chi compra valuta chi vende', !(await buyer.client.from('ratings').insert({ listing_id: listingId, rater_id: buyer.id, rated_id: seller.id, stars: 5, tags: ['puntuale'] })).error);
+  expect('una sola valutazione per vendita', Boolean((await buyer.client.from('ratings').insert({ listing_id: listingId, rater_id: buyer.id, rated_id: seller.id, stars: 1 })).error));
+  expect('intruso non valuta', Boolean((await intruder.client.from('ratings').insert({ listing_id: listingId, rater_id: intruder.id, rated_id: seller.id, stars: 1 })).error));
+  expect('niente etichette inventate nelle valutazioni', Boolean((await seller.client.from('ratings').insert({ listing_id: listingId, rater_id: seller.id, rated_id: buyer.id, stars: 4, tags: ['truffatore'] })).error));
+  const stats = await anon.rpc('seller_stats', { seller: seller.id });
+  const st = (stats.data as Array<{ rating_count: number; sold: number }> | null)?.[0];
+  expect('affidabilità di chi vende visibile a tutti', st?.rating_count === 1 && st?.sold === 1, JSON.stringify(stats.data ?? stats.error));
 } catch (error) {
   expect('esecuzione', false, (error as Error).message);
 } finally {

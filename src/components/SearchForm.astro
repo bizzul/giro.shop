@@ -1,5 +1,6 @@
 ---
 import SearchSuggest from './SearchSuggest.astro';
+import PhotoSearch from './PhotoSearch.astro';
 
 interface Props {
   value?: string;
@@ -40,6 +41,7 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUG
     autofocus={autofocus}
     data-suggestions={suggestions?.length ? JSON.stringify(suggestions) : undefined}
   />
+  <PhotoSearch />
   <SearchSuggest />
 </form>
 

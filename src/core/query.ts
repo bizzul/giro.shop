@@ -151,7 +151,12 @@ export function parseQuery(raw: string): ParsedQuery {
     conditionPart = m[0];
   }
 
-  // Ritiro
+  // Spedizione ("con spedizione", "spedibile", "da spedire") e ritiro
+  let shippingPart: string | undefined;
+  if ((m = take(/\b(?:con\s+|anche\s+)?(?:spedizione|spedibile|spedibili|da\s+spedire|si\s+spedisce|spedito|spedita)\b/))) {
+    filters.shipping = true;
+    shippingPart = m[0];
+  }
   if (/\britiro\b/.test(n)) filters.pickup = true;
 
   // Luogo
@@ -235,6 +240,7 @@ export function parseQuery(raw: string): ParsedQuery {
   if (filters.includeBroken) chips.push({ key: 'Stato', value: 'anche da riparare', without: conditionWithout });
   if (filters.conditions) chips.push({ key: 'Stato', value: conditionsLabel(filters.conditions), without: conditionWithout });
   if (filters.pickup) chips.push({ key: 'Consegna', value: 'ritiro', without: without({ fragment: 'ritiro', leading: PICKUP_LEAD }) });
+  if (filters.shipping && shippingPart) chips.push({ key: 'Consegna', value: 'si spedisce', without: without({ fragment: shippingPart }) });
   const words = filters.groups.filter((g) => g.kind === 'parola').map((g) => g.term);
   if (words.length) chips.push({ key: 'Parole', value: words.join(', ') });
 

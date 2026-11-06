@@ -10,7 +10,19 @@ configureStore(SUPABASE_URL, SUPABASE_KEY);
  * si carica a parte come server island.
  */
 const PUBLIC_PREFIXES = ['/annuncio/', '/foto/', '/_astro/'];
-const PUBLIC_PATHS = new Set(['/', '/cerca', '/risultati', '/suggerimenti', '/connetti', '/mcp', '/favicon.svg']);
+const PUBLIC_PATHS = new Set([
+  '/',
+  '/cerca',
+  '/risultati',
+  '/suggerimenti',
+  '/connetti',
+  '/mcp',
+  '/favicon.svg',
+  '/sicurezza',
+  '/confronta',
+  '/traduci',
+  '/cerca-foto',
+]);
 
 export const onRequest = defineMiddleware(async (context, next) => {
   await refreshListings();

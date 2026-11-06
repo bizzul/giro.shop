@@ -127,8 +127,8 @@ h3 { font-size: 18px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01e
 .top nav .nav-avatar { display: none; }
 .top nav .nav-name { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; }
 
-/* Telefono: icone al posto delle parole, iniziale al posto del nome; il testo resta per gli screen reader */
-@media (max-width: 640px) {
+/* Fino ai tablet: icone al posto delle parole, iniziale al posto del nome; il testo resta per gli screen reader */
+@media (max-width: 960px) {
   .top-in { gap: 12px; }
   .top nav { gap: 18px; }
   .top nav a[href='/connetti'] { display: none; }
@@ -141,6 +141,13 @@ h3 { font-size: 18px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01e
   .top nav a[aria-current='page']:not(.btn) .nav-ico { stroke-width: 2.2; }
   .top nav .btn { padding: 10px 14px; }
   .top nav .nav-ghost { width: 28px; overflow: hidden; }
+}
+/* Su telefono c'è poco spazio: i salvati si raggiungono da Avvisi e dal proprio account */
+@media (max-width: 640px) {
+  .top nav a.nav-saved { display: none; }
+}
+@media (max-width: 400px) {
+  .top nav { gap: 14px; }
 }
 @media (max-width: 360px) {
   .wordmark { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -237,6 +244,11 @@ h3 { font-size: 18px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01e
 .section-h a { color: var(--muted); font-size: 14px; text-underline-offset: 4px; text-decoration-color: var(--line-strong); }
 .section-h a:hover { color: var(--ink); }
 .panel { background: var(--surface); border-radius: 8px; padding: clamp(24px, 4vw, 40px); display: grid; gap: 16px; justify-items: start; }
+
+/* Bottone che sembra un link (azioni secondarie) */
+.link-button { border: 0; background: none; padding: 0; font: 400 13px/1.4 var(--f-body); color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.link-button:hover { color: var(--ink); }
+.notice { background: var(--ok-soft); color: var(--ink); border-radius: 4px; padding: 12px 14px; font-size: 14px; }
 
 /* Avvisi */
 .error { color: var(--bad); background: var(--bad-soft); border-radius: 4px; padding: 12px 14px; font-size: 14px; }

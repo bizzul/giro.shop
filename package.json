@@ -25,6 +25,7 @@
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
     "astro": "^7.4.7",
+    "nodemailer": "^10.3.1",
     "preact": "^11.2.0",
     "zod": "^4.6.7"
   },
@@ -32,6 +33,7 @@
     "@astrojs/check": "^0.9.12",
     "@modelcontextprotocol/client": "^2.4.0",
     "@types/node": "^26.6.6",
+    "@types/nodemailer": "^8.0.2",
     "sharp": "^0.35.5",
     "typescript": "^6.0.3",
     "vitest": "^5.1.0"

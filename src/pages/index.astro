@@ -3,6 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import SearchForm from '../components/SearchForm.astro';
 import SearchResults from '../components/SearchResults.astro';
 import TicinoMap from '../components/TicinoMap.astro';
+import DealOfTheDay from '../components/DealOfTheDay.astro';
 import { LISTINGS_TAG } from '../lib/cache.ts';
 
 Astro.cache.set({ tags: [LISTINGS_TAG] });
@@ -15,6 +16,8 @@ Astro.cache.set({ tags: [LISTINGS_TAG] });
     <p class="muted lede">Annunci da una foto e ricerca a frasi, con l'assistente al tuo fianco.</p>
     <SearchForm target="risultati" mode="home" />
   </section>
+
+  <DealOfTheDay />
 
   <section class="wrap band">
     <p id="risultati-stato" class="sr" aria-live="polite"></p>

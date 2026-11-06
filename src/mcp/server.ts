@@ -88,6 +88,7 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
         near: z.string().optional().describe('Comune ticinese di riferimento, es. "Lugano"'),
         radius_km: z.number().optional().describe('Raggio in km attorno a "near" (predefinito 15)'),
         condition: z.array(z.enum(CONDITIONS)).optional().describe('Condizioni ammesse'),
+        shipping: z.boolean().optional().describe('Solo annunci che chi vende può spedire'),
         limit: z.number().int().optional().describe('Numero massimo di risultati (predefinito 10)'),
       }),
       annotations: { readOnlyHint: true, openWorldHint: false },
@@ -99,6 +100,7 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
       if (args.max_price_chf != null) merged.maxPrice = args.max_price_chf;
       if (args.min_price_chf != null) merged.minPrice = args.min_price_chf;
       if (args.condition?.length) merged.conditions = args.condition;
+      if (args.shipping) merged.shipping = true;
       if (args.near) {
         const comune = resolveComune(args.near);
         if (!comune) return errorResult(`Non conosco il comune "${args.near}". Prova con il nome di un comune ticinese.`);
@@ -121,7 +123,8 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
     'get_listing',
     {
       title: 'Scheda annuncio',
-      description: 'Restituisce un annuncio completo, con la stima di prezzo calcolata dagli annunci simili.',
+      description:
+        'Restituisce un annuncio completo: stima di prezzo dagli annunci simili, storico del prezzo, spedizione e domande pubbliche con le risposte di chi vende.',
       inputSchema: z.object({ id: z.string().describe('Id dell\'annuncio, es. "l-014"') }),
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
@@ -150,6 +153,10 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
         seller: { name: l.seller.name, verified: l.seller.verified },
         published_at: l.publishedAt,
         market_estimate_chf: estimate ? { low: estimate.low, mid: estimate.mid, high: estimate.high, based_on: estimate.comparables } : null,
+        price_history: (l.priceHistory ?? []).map((p) => ({ price_chf: p.priceChf, at: p.at })),
+        shipping: l.shipping ? { available: true, cost_chf: l.shippingChf ?? null } : { available: false },
+        highlights: l.highlights ?? [],
+        questions: (l.questions ?? []).filter((q) => q.answer).map((q) => ({ question: q.body, answer: q.answer })),
         url: `${baseUrl}/annuncio/${l.id}`,
         photo: getPhoto(l.id)
           ? {

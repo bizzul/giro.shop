@@ -3,6 +3,15 @@ import Layout from '../../layouts/Layout.astro';
 import CategoryIcon from '../../components/CategoryIcon.astro';
 import ListingCard from '../../components/ListingCard.astro';
 import ContactBox from '../../components/ContactBox.astro';
+import FavoriteButton from '../../components/FavoriteButton.astro';
+import QuestionBox from '../../components/QuestionBox.astro';
+import PriceChart from '../../components/PriceChart.astro';
+import { ruleHighlights } from '../../core/highlights.ts';
+import { detectCategory } from '../../core/categories.ts';
+import { tokenize } from '../../core/text.ts';
+import { LANGUAGES } from '../../core/claude.ts';
+import { claudeKey } from '../../lib/claude.ts';
+import { replyTime, sellerProfile } from '../../lib/sellers.ts';
 import { LISTINGS_TAG } from '../../lib/cache.ts';
 import { getListing, getPhoto, sourceName } from '../../core/store.ts';
 import { getComune } from '../../core/comuni.ts';
@@ -37,7 +46,33 @@ const comparables = (estimate?.comparableIds ?? [])
   .filter((l): l is NonNullable<typeof l> => Boolean(l))
   .map((l) => ({ l, price: l.status === 'venduto' && l.soldPriceChf ? l.soldPriceChf : l.priceChf }))
   .sort((a, b) => a.price - b.price);
-const factCount = 3 + attributes.length;
+const factCount = 3 + attributes.length + (listing.shipping ? 1 : 0);
+
+// Prezzo ridotto di recente: lo dice lo storico
+const history = listing.priceHistory ?? [];
+const last = history.at(-1);
+const before = history.at(-2);
+const reducedFrom =
+  !sold && last && before && last.priceChf < before.priceChf && Date.now() - new Date(last.at).getTime() < 30 * 864e5 ? before.priceChf : null;
+
+// In sintesi: i punti di Claude se ci sono, altrimenti righe costruite dai dati
+const highlights = listing.highlights ?? ruleHighlights(listing, estimate, verdict);
+const fromClaude = Boolean(listing.highlights?.length);
+
+// Lo stesso oggetto in vendita adesso, per avere il prezzo in contesto
+const object = detectCategory(tokenize(listing.title));
+const forSale = estimate?.basis === 'simili' ? comparables.filter(({ l }) => l.status === 'pubblicato') : [];
+const market = forSale.length
+  ? { n: forSale.length, min: Math.min(...forSale.map((c) => c.price)), max: Math.max(...forSale.map((c) => c.price)) }
+  : null;
+
+const questions = listing.questions ?? [];
+const answered = questions.filter((q) => q.answer);
+const { stats, ratings } = listing.sellerId ? await sellerProfile(listing.sellerId) : { stats: null, ratings: [] };
+const distribution = [5, 4, 3, 2, 1].map((n) => ({ n, count: ratings.filter((r) => r.stars === n).length }));
+const memberSince = stats ? new Date(stats.memberSince).toLocaleDateString('it-CH', { month: 'long', year: 'numeric' }) : null;
+const canTranslate = Boolean(claudeKey());
+const day = (iso: string) => new Date(iso).toLocaleDateString('it-CH', { day: 'numeric', month: 'short', year: 'numeric' });
 ---
 
 <Layout title={`${listing.title} · giro.shop`} description={listing.description}>
@@ -99,9 +134,10 @@ const factCount = 3 + attributes.length;
       }
 
       <div class="info">
-        <h1 class="title">{listing.title}</h1>
+        <h1 class="title" data-tr="title">{listing.title}</h1>
         <div class="price-row">
           <span class="price mono">{formatChf(listing.priceChf)}</span>
+          {reducedFrom != null && <a class="badge ok" href="#storico">Ridotto da {formatChf(reducedFrom)}</a>}
           {sold && <span class="badge plain">Venduto</span>}
           {!sold && listing.negotiating && <span class="badge sun">In trattativa</span>}
           {!sold && !listing.negotiating && listing.negotiable && <span class="badge plain">Trattabile</span>}
@@ -122,8 +158,64 @@ const factCount = 3 + attributes.length;
             </a>
           )
         }
+        {
+          market && object && (
+            <p class="market small">
+              In vendita ora: {market.n === 1 ? 'un altro annuncio' : `altri ${market.n} annunci`} di {object.label.toLowerCase()}
+              {market.n > 1 ? `, da ${formatChf(market.min)} a ${formatChf(market.max)}` : `, a ${formatChf(market.min)}`}.{' '}
+              <a href={`/cerca?q=${encodeURIComponent(object.label.toLowerCase())}`}>Vedili</a>
+            </p>
+          )
+        }
 
-        <p class="desc">{listing.description}</p>
+        <div class="actions-row">
+          {
+            !sold && (
+              <FavoriteButton server:defer listingId={listing.id}>
+                <span slot="fallback" class="fav-ghost" aria-hidden="true" />
+              </FavoriteButton>
+            )
+          }
+          <button class="btn compare-btn" type="button" data-compare={listing.id} aria-pressed="false">
+            Confronta
+          </button>
+          <a class="compare-link small" href="/confronta" data-compare-link hidden>Vedi il confronto</a>
+        </div>
+
+        {
+          highlights.length > 0 && (
+            <div class="summary">
+              <span class="label">
+                {fromClaude && <span class="ai-mark sm" />}
+                In sintesi
+              </span>
+              <ul data-tr="highlights">
+                {highlights.map((h) => (
+                  <li>{h}</li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+
+        <p class="desc" data-tr="description">{listing.description}</p>
+
+        {
+          canTranslate && (
+            <div class="translate small" data-translate={listing.id}>
+              <span class="muted">Traduci:</span>
+              {Object.entries(LANGUAGES).map(([code, name]) => (
+                <button type="button" class="link-button" data-lang={code} lang={code}>
+                  {name}
+                </button>
+              ))}
+              <button type="button" class="link-button" data-lang="" hidden>
+                Mostra l'originale
+              </button>
+              <span class="tr-status muted" aria-live="polite" />
+            </div>
+          )
+        }
 
         <div id="contatta" class="seller panel">
           <div>
@@ -132,6 +224,28 @@ const factCount = 3 + attributes.length;
               {listing.seller.name}
               {listing.seller.verified && <span class="badge ok">Cellulare verificato</span>}
             </p>
+            {
+              stats && (
+                <ul class="trust small">
+                  {stats.ratingCount > 0 && (
+                    <li>
+                      <a href="#valutazioni">
+                        <b class="stars-inline" aria-hidden="true">★</b> {stats.ratingAvg?.toFixed(1)} · {stats.ratingCount}{' '}
+                        {stats.ratingCount === 1 ? 'valutazione' : 'valutazioni'}
+                      </a>
+                    </li>
+                  )}
+                  {stats.medianReplyMinutes != null && <li>Risponde di solito {replyTime(stats.medianReplyMinutes)}</li>}
+                  {stats.conversations >= 3 && (
+                    <li>
+                      Ha risposto a {stats.answered} {stats.answered === 1 ? 'persona' : 'persone'} su {stats.conversations}
+                    </li>
+                  )}
+                  {stats.sold > 0 && <li>{stats.sold === 1 ? '1 vendita conclusa' : `${stats.sold} vendite concluse`}</li>}
+                  {memberSince && <li>Su giro.shop da {memberSince}</li>}
+                </ul>
+              )
+            }
           </div>
           {
             !sold && (
@@ -151,10 +265,58 @@ const factCount = 3 + attributes.length;
             <dl class="facts">
               <div><dt>Condizione</dt><dd>{CONDITION_LABEL[listing.condition]}</dd></div>
               <div><dt>Ritiro</dt><dd>{comune ? `${comune.cap} ${comune.name} · distretto di ${comune.district}` : '—'}</dd></div>
+              {listing.shipping && <div><dt>Spedizione</dt><dd>{listing.shippingChf != null ? `Possibile, ${formatChf(listing.shippingChf)}` : 'Possibile, costo da concordare'}</dd></div>}
               {attributes.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}
               <div><dt>Pubblicato</dt><dd>{formatAge(listing.publishedAt)}</dd></div>
             </dl>
           </details>
+
+          <details id="domande" open={answered.length > 0 ? true : undefined} data-description={listing.description}>
+            <summary>
+              <h2>Domande</h2>
+              {questions.length > 0 && <span class="count">{questions.length}</span>}
+            </summary>
+            <div class="block-body">
+              {
+                answered.length === 0 ? (
+                  <p class="muted">Nessuna domanda con risposta, per ora. La risposta di chi vende la vedono tutti.</p>
+                ) : (
+                  <ul class="qa">
+                    {answered.map((q) => (
+                      <li>
+                        <p class="q">{q.body}</p>
+                        <p class="a">
+                          <span class="label">{listing.seller.name} risponde</span>
+                          {q.answer}
+                        </p>
+                        <span class="muted small">
+                          Chiesto da {q.askerName} · {formatAge(q.createdAt)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              }
+              <QuestionBox server:defer listingId={listing.id}>
+                <span slot="fallback" aria-hidden="true" />
+              </QuestionBox>
+            </div>
+          </details>
+
+          {
+            history.length > 0 && (
+              <details id="storico" open={reducedFrom != null ? true : undefined}>
+                <summary>
+                  <h2>Storico del prezzo</h2>
+                  {history.length > 1 && <span class="count">{history.length - 1}</span>}
+                </summary>
+                <div class="block-body">
+                  <PriceChart points={history} />
+                  {!sold && <p class="muted">Salva l'annuncio con il cuore: se il prezzo cala ti avvisiamo, anche per email.</p>}
+                </div>
+              </details>
+            )
+          }
 
           {
             estimate && comparables.length > 0 && (
@@ -190,16 +352,68 @@ const factCount = 3 + attributes.length;
             )
           }
 
+          {
+            stats && stats.ratingCount > 0 && (
+              <details id="valutazioni">
+                <summary>
+                  <h2>Valutazioni di {listing.seller.name}</h2>
+                  <span class="count">{stats.ratingCount}</span>
+                </summary>
+                <div class="block-body">
+                  <div class="score">
+                    <b class="avg">{stats.ratingAvg?.toFixed(1)}</b>
+                    <div class="bars">
+                      {distribution.map((d) => (
+                        <div class="bar-row">
+                          <span class="small">{d.n} ★</span>
+                          <span class="bar" aria-hidden="true">
+                            <span style={`width:${(d.count / stats.ratingCount) * 100}%`} />
+                          </span>
+                          <span class="small muted">{d.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <p class="muted small">Solo da chi ha concluso una vendita con {listing.seller.name}.</p>
+                  <ul class="reviews">
+                    {ratings.slice(0, 6).map((r) => (
+                      <li>
+                        <span class="stars-inline" aria-label={`${r.stars} su 5`}>
+                          {'★'.repeat(r.stars)}
+                          <span class="off">{'★'.repeat(5 - r.stars)}</span>
+                        </span>
+                        {r.tags.length > 0 && (
+                          <span class="chips">
+                            {r.tags.map((t) => (
+                              <span class="chip">{t}</span>
+                            ))}
+                          </span>
+                        )}
+                        {r.comment && <p>{r.comment}</p>}
+                        <span class="muted small">
+                          {r.raterName} · {day(r.createdAt)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </details>
+            )
+          }
+
           <details id="sicurezza">
             <summary>
               <h2>Comprare in sicurezza</h2>
             </summary>
-            <ul class="block-body tips">
-              <li>Fissa l'incontro in un luogo pubblico e guarda l'oggetto prima di pagare.</li>
-              <li>Non pagare in anticipo a chi non conosci e non condividere codici ricevuti per SMS.</li>
-              <li>Diffida di chi vuole spostare la conversazione su WhatsApp o ti manda link per pagare.</li>
-              <li>Per gli oggetti di valore chiedi lo scontrino o il certificato di garanzia.</li>
-            </ul>
+            <div class="block-body">
+              <ul class="tips">
+                <li>Fissa l'incontro in un luogo pubblico e guarda l'oggetto prima di pagare.</li>
+                <li>Non pagare in anticipo a chi non conosci e non condividere codici ricevuti per SMS.</li>
+                <li>Diffida di chi vuole spostare la conversazione su WhatsApp o ti manda link per pagare.</li>
+                <li>Per gli oggetti di valore chiedi lo scontrino o il certificato di garanzia.</li>
+              </ul>
+              <a class="small" href="/sicurezza">Leggi la guida completa</a>
+            </div>
           </details>
         </div>
       </div>
@@ -241,6 +455,108 @@ const factCount = 3 + attributes.length;
 </Layout>
 
 <script>
+  // Confronto: fino a 4 annunci, ricordati solo in questo browser
+  const KEY = 'giro:confronto';
+  const readCompare = (): string[] => {
+    try {
+      const v = JSON.parse(localStorage.getItem(KEY) ?? '[]');
+      return Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(0, 4) : [];
+    } catch {
+      return [];
+    }
+  };
+  const compareBtn = document.querySelector<HTMLButtonElement>('[data-compare]');
+  const compareLink = document.querySelector<HTMLAnchorElement>('[data-compare-link]');
+  const showCompare = () => {
+    if (!compareBtn || !compareLink) return;
+    const ids = readCompare();
+    const inside = ids.includes(compareBtn.dataset.compare ?? '');
+    compareBtn.setAttribute('aria-pressed', String(inside));
+    compareBtn.textContent = inside ? 'Nel confronto' : 'Confronta';
+    compareLink.hidden = ids.length === 0;
+    compareLink.href = `/confronta?ids=${ids.map(encodeURIComponent).join(',')}`;
+    compareLink.textContent = `Vedi il confronto (${ids.length})`;
+  };
+  compareBtn?.addEventListener('click', () => {
+    const id = compareBtn.dataset.compare ?? '';
+    let ids = readCompare();
+    ids = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids.slice(-3), id];
+    try {
+      localStorage.setItem(KEY, JSON.stringify(ids));
+    } catch {
+      /* senza salvataggio il confronto vale per questa pagina */
+    }
+    showCompare();
+  });
+  showCompare();
+
+  // Traduzione con Claude: titolo e descrizione cambiano lingua sul posto, l'originale torna con un tocco
+  const tr = document.querySelector<HTMLElement>('[data-translate]');
+  if (tr) {
+    const title = document.querySelector<HTMLElement>('[data-tr="title"]');
+    const desc = document.querySelector<HTMLElement>('[data-tr="description"]');
+    const status = tr.querySelector<HTMLElement>('.tr-status');
+    const original = { title: title?.textContent ?? '', description: desc?.textContent ?? '' };
+    const back = tr.querySelector<HTMLButtonElement>('[data-lang=""]');
+    tr.addEventListener('click', async (event) => {
+      const button = (event.target as Element).closest<HTMLButtonElement>('button[data-lang]');
+      if (!button || !title || !desc || !status) return;
+      const lang = button.dataset.lang ?? '';
+      if (!lang) {
+        title.textContent = original.title;
+        desc.textContent = original.description;
+        title.removeAttribute('lang');
+        desc.removeAttribute('lang');
+        if (back) back.hidden = true;
+        status.textContent = '';
+        return;
+      }
+      status.textContent = 'Traduco…';
+      const res = await fetch(`/traduci?id=${encodeURIComponent(tr.dataset.translate ?? '')}&lang=${lang}`).catch(() => null);
+      const data = res?.ok ? ((await res.json()) as { title: string; description: string }) : null;
+      if (!data) {
+        status.textContent = 'Traduzione non riuscita, riprova più tardi.';
+        return;
+      }
+      title.textContent = data.title;
+      desc.textContent = data.description;
+      title.lang = lang;
+      desc.lang = lang;
+      if (back) back.hidden = false;
+      status.textContent = 'Tradotto con Claude';
+    });
+  }
+
+  // Prima di chiedere: forse la risposta è già nella descrizione
+  const stem = (w: string) => w.slice(0, 5);
+  const words = (text: string) =>
+    text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length >= 4 && !['sono', 'della', 'delle', 'questo', 'questa', 'ancora', 'anche', 'come', 'quanto', 'quale'].includes(w))
+      .map(stem);
+  document.addEventListener('input', (event) => {
+    const field = event.target as HTMLTextAreaElement;
+    if (!field.matches?.('textarea[data-question]')) return;
+    const hint = field.form?.querySelector<HTMLElement>('[data-question-hint]');
+    const description = document.getElementById('domande')?.dataset.description ?? '';
+    if (!hint) return;
+    const asked = new Set(words(field.value));
+    let best = '';
+    let score = 0;
+    for (const sentence of description.split(/(?<=[.!?])\s+|\n+/)) {
+      const shared = new Set(words(sentence).filter((w) => asked.has(w))).size;
+      if (shared > score) {
+        score = shared;
+        best = sentence.trim();
+      }
+    }
+    hint.hidden = score < 2;
+    hint.textContent = score >= 2 ? `Forse è già scritto nella descrizione: «${best}»` : '';
+  });
+
   // Sezioni a fisarmonica: il link con #dettagli, #prezzo o #sicurezza apre quella giusta,
   // e aprirne una mette il suo indirizzo nella barra, così si può condividere.
   const openFromHash = () => {
@@ -326,6 +642,33 @@ const factCount = 3 + attributes.length;
   .estimate { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 4px; background: var(--surface); font-size: 14px; text-decoration: none; }
   .estimate:hover { text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--line-strong); }
   .estimate b { font-weight: 500; }
+  .market { margin-top: -12px; }
+  a.badge { text-decoration: none; }
+  .market a { color: inherit; text-underline-offset: 3px; }
+  .actions-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .fav-ghost { display: inline-block; width: 96px; height: 44px; }
+  .compare-btn[aria-pressed='true'] { border-color: var(--ink); }
+  .compare-link { color: var(--muted); text-underline-offset: 3px; }
+  .summary { display: grid; gap: 10px; padding: 16px 18px; border-radius: 4px; border: 1px solid var(--line); }
+  .summary .label { display: inline-flex; align-items: center; gap: 8px; }
+  .summary ul { display: grid; gap: 6px; list-style: disc; padding-left: 18px; font-size: 15px; }
+  .translate { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin-top: -12px; }
+  .trust { display: grid; gap: 4px; margin-top: 10px; color: var(--muted); }
+  .trust a { color: var(--ink); text-underline-offset: 3px; }
+  .stars-inline { color: var(--sun); letter-spacing: 1px; font-weight: 400; }
+  .stars-inline .off { color: var(--line-strong); }
+  .qa { display: grid; }
+  .qa li { display: grid; gap: 8px; padding-block: 14px; border-top: 1px solid var(--line); }
+  .qa .q { font-weight: 500; color: var(--ink); }
+  .qa .a { display: grid; gap: 4px; padding-left: 12px; border-left: 2px solid var(--line-strong); color: var(--ink); }
+  .score { display: flex; align-items: center; gap: 24px; }
+  .avg { font: 300 48px/1 var(--f-display); letter-spacing: -0.04em; color: var(--ink); }
+  .bars { display: grid; gap: 4px; flex: 1; max-width: 320px; }
+  .bar-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) 24px; gap: 10px; align-items: center; }
+  .bar { height: 6px; border-radius: 3px; background: var(--surface); overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--ink); }
+  .reviews { display: grid; }
+  .reviews li { display: grid; gap: 6px; padding-block: 12px; border-top: 1px solid var(--line); color: var(--ink); }
 
   /* Sezioni a fisarmonica, con il numero di voci accanto al titolo */
   .blocks { border-top: 1px solid var(--line); }

@@ -1,0 +1,9 @@
+---
+/** Riceve il cuore dalla scheda annuncio e torna alla scheda. */
+import { actions } from 'astro:actions';
+
+const result = Astro.getActionResult(actions.alerts.toggleFavorite);
+const id = result?.data?.listingId ?? Astro.url.searchParams.get('id') ?? '';
+if (!Astro.locals.user) return Astro.redirect(`/accedi?next=${encodeURIComponent(id ? `/annuncio/${id}` : '/salvati')}`);
+return Astro.redirect(id ? `/annuncio/${id}#salva` : '/salvati', 303);
+---

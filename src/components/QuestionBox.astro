@@ -1,0 +1,70 @@
+---
+/**
+ * Domande nella scheda annuncio: per chi vende i moduli per rispondere, per gli altri il modulo per chiedere.
+ * Server island: dipende da chi guarda. Le domande con risposta sono già nella scheda, uguali per tutti.
+ */
+import { actions } from 'astro:actions';
+import { getListing } from '../core/store.ts';
+
+interface Props {
+  listingId: string;
+}
+const { listingId } = Astro.props;
+const { user, supabase } = Astro.locals;
+const listing = getListing(listingId);
+const isOwner = Boolean(user && listing?.sellerId === user.id);
+const open = (listing?.questions ?? []).filter((q) => !q.answer);
+const target = (action: string) => `/domande${action}&id=${encodeURIComponent(listingId)}`;
+---
+
+<div class="qbox">
+  {
+    !supabase || !listing || listing.status === 'venduto' ? null : isOwner ? (
+      open.length === 0 ? (
+        <p class="small">Nessuna domanda in attesa di risposta.</p>
+      ) : (
+        <div class="to-answer">
+          <span class="label">Da rispondere ({open.length})</span>
+          {open.map((q) => (
+            <form class="answer-form" method="POST" action={target(actions.questions.answer)}>
+              <input type="hidden" name="id" value={q.id} />
+              <p class="q">
+                <b>{q.askerName}:</b> {q.body}
+              </p>
+              <label class="sr" for={`a-${q.id}`}>Risposta a {q.askerName}</label>
+              <textarea id={`a-${q.id}`} name="answer" rows="2" maxlength="1000" required placeholder="La risposta la vedono tutti" />
+              <button class="btn" type="submit">Rispondi</button>
+            </form>
+          ))}
+        </div>
+      )
+    ) : user ? (
+      <form class="ask-form" method="POST" action={target(actions.questions.ask)}>
+        <input type="hidden" name="listingId" value={listingId} />
+        <label class="ask">
+          <span class="label">Fai una domanda</span>
+          <textarea name="body" rows="2" maxlength="500" required data-question placeholder="Per esempio: ci sono graffi sul piano?" />
+        </label>
+        <p class="hint small" data-question-hint hidden />
+        <div class="row">
+          <button class="btn" type="submit">Chiedi</button>
+          <span class="small">La domanda e la risposta le vedono tutti. Per trattare sul prezzo scrivi un messaggio.</span>
+        </div>
+      </form>
+    ) : (
+      <a class="btn" href={`/accedi?next=${encodeURIComponent(`/annuncio/${listingId}#domande`)}`}>Accedi per fare una domanda</a>
+    )
+  }
+</div>
+
+<style>
+  .qbox { display: grid; gap: 12px; }
+  .to-answer, .ask-form, .answer-form { display: grid; gap: 10px; }
+  .answer-form { padding-top: 12px; border-top: 1px solid var(--line); }
+  .q b { font-weight: 500; }
+  .ask { display: grid; gap: 8px; }
+  textarea { width: 100%; font: 400 15px/1.5 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 10px 12px; resize: vertical; }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .hint { background: var(--surface); border-radius: 4px; padding: 10px 12px; color: var(--ink); }
+  .answer-form .btn, .ask-form .btn { justify-self: start; }
+</style>

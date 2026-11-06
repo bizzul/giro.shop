@@ -1,0 +1,91 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { actions } from 'astro:actions';
+import { formatAge } from '../core/format.ts';
+
+const { user, supabase } = Astro.locals;
+if (!user || !supabase) return Astro.redirect('/accedi?next=/avvisi');
+
+const { data: rows } = await supabase
+  .from('notifications')
+  .select('id, kind, title, body, url, created_at, read_at')
+  .eq('user_id', user.id)
+  .order('created_at', { ascending: false })
+  .limit(60);
+const notices = rows ?? [];
+const unread = notices.filter((n) => !n.read_at).length;
+
+// Aperta la pagina, gli avvisi contano come letti (restano evidenziati solo questa volta)
+if (unread > 0) {
+  await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('user_id', user.id).is('read_at', null);
+}
+
+const { count: searches } = await supabase.from('alerts').select('id', { count: 'exact', head: true }).eq('user_id', user.id);
+const { count: saved } = await supabase.from('favorites').select('listing_id', { count: 'exact', head: true }).eq('user_id', user.id);
+
+const KIND: Record<string, string> = {
+  ricerca: 'Ricerca salvata',
+  prezzo: 'Prezzo ridotto',
+  venduto: 'Venduto',
+  domanda: 'Domanda',
+  risposta: 'Risposta',
+  valutazione: 'Valutazione',
+};
+---
+
+<Layout title="Avvisi · giro.shop">
+  <section class="wrap band alerts">
+    <header class="section-h">
+      <h1>Avvisi</h1>
+      <span class="muted small">{unread === 1 ? '1 nuovo' : unread > 1 ? `${unread} nuovi` : 'Nessun avviso nuovo'}</span>
+    </header>
+
+    <nav class="shortcuts" aria-label="Cosa ti avvisa">
+      <a href="/salvati#ricerche"><b>{searches ?? 0}</b> {searches === 1 ? 'ricerca salvata' : 'ricerche salvate'}</a>
+      <a href="/salvati"><b>{saved ?? 0}</b> {saved === 1 ? 'annuncio salvato' : 'annunci salvati'}</a>
+    </nav>
+
+    {
+      notices.length === 0 ? (
+        <div class="panel">
+          <h3>Ancora nessun avviso.</h3>
+          <p class="muted">
+            Salva una ricerca e ti scriviamo appena arriva un annuncio che corrisponde. Salva un annuncio con il cuore e ti avvisiamo
+            se cala di prezzo o viene venduto. Gli avvisi arrivano anche per email.
+          </p>
+          <a class="btn" href="/cerca">Cerca annunci</a>
+        </div>
+      ) : (
+        <ul class="list">
+          {notices.map((n) => (
+            <li>
+              <a class:list={['item', { fresh: !n.read_at }]} href={n.url}>
+                <span class="kind label">{KIND[n.kind] ?? n.kind}</span>
+                <span class="title">{n.title}</span>
+                {n.body && <span class="body muted">{n.body}</span>}
+                <span class="when muted">{formatAge(n.created_at)}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .alerts { display: grid; gap: 20px; max-width: 760px; }
+  .alerts h1 { font-size: clamp(28px, 3.6vw, 40px); }
+  .shortcuts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .shortcuts a { padding: 10px 14px; border-radius: 2px; background: var(--surface); text-decoration: none; font-size: 14px; }
+  .shortcuts a:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .shortcuts b { font-weight: 500; font-family: var(--f-mono); }
+  .list { display: grid; border-top: 1px solid var(--line); }
+  .item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; padding: 16px 4px; border-bottom: 1px solid var(--line); text-decoration: none; }
+  .item:hover { background: var(--surface); }
+  .kind { grid-column: 1; }
+  .title { grid-column: 1; font-weight: 500; overflow-wrap: anywhere; }
+  .body { grid-column: 1; font-size: 14px; overflow-wrap: anywhere; }
+  .when { grid-column: 2; grid-row: 1; font-size: 12px; }
+  .fresh { box-shadow: inset 3px 0 0 var(--volt); padding-left: 14px; }
+</style>

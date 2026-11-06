@@ -1,0 +1,146 @@
+---
+/** Confronto affiancato di 2–4 annunci. Gli annunci scelti stanno nell'indirizzo, così il confronto si può condividere. */
+import Layout from '../layouts/Layout.astro';
+import CategoryIcon from '../components/CategoryIcon.astro';
+import { getListing, getPhoto } from '../core/store.ts';
+import { getComune } from '../core/comuni.ts';
+import { priceVerdict } from '../core/price.ts';
+import { CONDITION_LABEL, VERDICT_LABEL, formatAge, formatChf } from '../core/format.ts';
+
+const ids = (Astro.url.searchParams.get('ids') ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 4);
+const listings = ids.map((id) => getListing(id)).filter((l): l is NonNullable<typeof l> => Boolean(l));
+const attrKeys = [...new Set(listings.flatMap((l) => Object.keys(l.attributes)))];
+const cheapest = listings.length > 1 ? Math.min(...listings.map((l) => l.priceChf)) : null;
+
+const rows: Array<{ label: string; values: string[] }> = [
+  { label: 'Condizione', values: listings.map((l) => CONDITION_LABEL[l.condition]) },
+  {
+    label: 'Prezzo rispetto ai simili',
+    values: listings.map((l) => {
+      if (l.status === 'venduto') return '—';
+      const v = priceVerdict(l);
+      return v ? VERDICT_LABEL[v] : 'Pochi annunci simili';
+    }),
+  },
+  { label: 'Ritiro', values: listings.map((l) => getComune(l.comuneId)?.name ?? '—') },
+  { label: 'Spedizione', values: listings.map((l) => (l.shipping ? (l.shippingChf != null ? formatChf(l.shippingChf) : 'Da concordare') : 'No')) },
+  ...attrKeys.map((k) => ({ label: k.charAt(0).toUpperCase() + k.slice(1), values: listings.map((l) => l.attributes[k] ?? '—') })),
+  { label: 'Chi vende', values: listings.map((l) => `${l.seller.name}${l.seller.verified ? ' · cellulare verificato' : ''}`) },
+  { label: 'Pubblicato', values: listings.map((l) => formatAge(l.publishedAt)) },
+];
+---
+
+<Layout title="Confronta · giro.shop">
+  <section class="wrap band compare">
+    <header class="section-h">
+      <h1>Confronta</h1>
+      {listings.length > 0 && <button class="link-button" type="button" data-clear>Svuota il confronto</button>}
+    </header>
+
+    {
+      listings.length === 0 ? (
+        <div class="panel" data-empty>
+          <h3>Nessun annuncio da confrontare.</h3>
+          <p class="muted">Nella scheda di un annuncio tocca «Confronta», poi fai lo stesso con altri, fino a quattro.</p>
+          <a class="btn" href="/cerca">Cerca annunci</a>
+        </div>
+      ) : (
+        <div class="scroller" tabindex="0" aria-label="Tabella di confronto, scorre di lato">
+          <table style={`--cols:${listings.length}`}>
+            <caption class="sr">Confronto tra {listings.length} annunci</caption>
+            <thead>
+              <tr>
+                <td />
+                {listings.map((l) => {
+                  const photo = getPhoto(l.id);
+                  return (
+                    <th scope="col">
+                      <a class="ph" href={`/annuncio/${l.id}`}>
+                        {photo ? <img src={photo.srcSmall} alt="" width="240" height="180" loading="lazy" /> : <CategoryIcon category={l.category} />}
+                      </a>
+                      <a class="t" href={`/annuncio/${l.id}`}>{l.title}</a>
+                      <span class:list={['p', 'mono', { best: cheapest != null && l.priceChf === cheapest }]}>
+                        {formatChf(l.priceChf)}
+                        {l.status === 'venduto' && ' · venduto'}
+                      </span>
+                      <button class="link-button" type="button" data-remove={l.id}>Togli</button>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr>
+                  <th scope="row">{r.label}</th>
+                  {r.values.map((v, i) => (
+                    <td class:list={{ diff: new Set(r.values).size > 1 }}>{v}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
+  </section>
+</Layout>
+
+<script>
+  const KEY = 'giro:confronto';
+  const read = (): string[] => {
+    try {
+      const v = JSON.parse(localStorage.getItem(KEY) ?? '[]');
+      return Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(0, 4) : [];
+    } catch {
+      return [];
+    }
+  };
+  const save = (ids: string[]) => {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(ids));
+    } catch {
+      /* niente */
+    }
+  };
+  const go = (ids: string[]) => location.replace(ids.length ? `/confronta?ids=${ids.map(encodeURIComponent).join(',')}` : '/confronta');
+
+  // Senza annunci nell'indirizzo si usano quelli scelti in questo browser
+  const url = new URLSearchParams(location.search).get('ids');
+  if (!url && read().length) go(read());
+  if (url) save(url.split(',').filter(Boolean).slice(0, 4));
+
+  document.addEventListener('click', (event) => {
+    const target = event.target as Element;
+    const remove = target.closest<HTMLElement>('[data-remove]');
+    if (remove) {
+      const ids = read().filter((id) => id !== remove.dataset.remove);
+      save(ids);
+      go(ids);
+    }
+    if (target.closest('[data-clear]')) {
+      save([]);
+      go([]);
+    }
+  });
+</script>
+
+<style>
+  .compare { display: grid; gap: 24px; }
+  .compare h1 { font-size: clamp(28px, 3.6vw, 40px); }
+  .scroller { overflow-x: auto; margin-inline: -16px; padding-inline: 16px; }
+  table { border-collapse: collapse; width: 100%; min-width: calc(140px + var(--cols) * 200px); table-layout: fixed; }
+  thead th { vertical-align: top; text-align: left; padding: 0 12px 20px 0; font-weight: 400; }
+  thead td { width: 140px; }
+  .ph { display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: 6px; overflow: hidden; background: var(--surface); color: var(--muted); margin-bottom: 10px; }
+  .ph img { width: 100%; height: 100%; object-fit: cover; }
+  .ph svg { width: 34%; height: auto; }
+  .t { display: block; font-weight: 500; text-decoration: none; margin-bottom: 4px; overflow-wrap: anywhere; }
+  .t:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .p { display: block; font-size: 14px; margin-bottom: 8px; }
+  .p.best { color: var(--ok); }
+  tbody th { text-align: left; font: 500 11px/1.4 var(--f-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 12px 12px 12px 0; vertical-align: top; }
+  tbody td { padding: 12px 12px 12px 0; font-size: 14.5px; vertical-align: top; overflow-wrap: anywhere; }
+  tbody tr { border-top: 1px solid var(--line); }
+  td.diff { font-weight: 500; }
+</style>

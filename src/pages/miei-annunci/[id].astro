@@ -20,7 +20,7 @@ const formError = result?.error && !isInputError(result.error) ? result.error.me
 
 const { data: listing } = await supabase
   .from('listings')
-  .select('id, title, description, category_id, condition, price_chf, negotiable, comune_id, tags, status, photos:listing_photos(storage_path, position)')
+  .select('id, title, description, category_id, condition, price_chf, negotiable, comune_id, tags, status, shipping, shipping_chf, photos:listing_photos(storage_path, position)')
   .eq('id', id)
   .eq('seller_id', user.id)
   .maybeSingle();
@@ -82,6 +82,18 @@ const onSale = listing.status === 'pubblicato' || listing.status === 'in_trattat
         <label class="fld check">
           <input id="negotiable" name="negotiable" type="checkbox" checked={listing.negotiable} />
           <span>Prezzo trattabile</span>
+        </label>
+      </div>
+
+      <div class="row">
+        <label class="fld check">
+          <input id="shipping" name="shipping" type="checkbox" checked={listing.shipping} />
+          <span>Si può spedire</span>
+        </label>
+        <label class="fld">
+          <span class="label">Costo di spedizione (CHF)</span>
+          <input id="shippingChf" name="shippingChf" inputmode="decimal" value={listing.shipping_chf != null ? String(Number(listing.shipping_chf)) : ''} placeholder="da concordare" />
+          <small>Il ritiro di persona resta sempre possibile.</small>
         </label>
       </div>
 

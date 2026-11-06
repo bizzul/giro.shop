@@ -1,0 +1,111 @@
+---
+/** Valutazione dopo una vendita: chi compra valuta chi vende e viceversa. */
+import Layout from '../../layouts/Layout.astro';
+import { actions } from 'astro:actions';
+import { RATING_TAGS } from '../../actions/ratings.ts';
+import { photoUrl } from '../../core/store.ts';
+
+const id = Astro.params.id ?? '';
+const { user, supabase } = Astro.locals;
+if (!user || !supabase) return Astro.redirect(`/accedi?next=/valuta/${encodeURIComponent(id)}`);
+
+const result = Astro.getActionResult(actions.ratings.rate);
+if (result?.data) return Astro.redirect(`/annuncio/${id}#valutazioni`, 303);
+
+const { data: listing } = await supabase
+  .from('listings')
+  .select('id, title, status, seller_id, buyer_id, photos:listing_photos(storage_path, position)')
+  .eq('id', id)
+  .maybeSingle();
+const otherId = listing?.status === 'venduto' && listing.buyer_id ? (user.id === listing.seller_id ? listing.buyer_id : user.id === listing.buyer_id ? listing.seller_id : null) : null;
+const { data: other } = otherId ? await supabase.from('profiles').select('display_name').eq('id', otherId).maybeSingle() : { data: null };
+const { data: mine } = otherId ? await supabase.from('ratings').select('stars').eq('listing_id', id).eq('rater_id', user.id).maybeSingle() : { data: null };
+const cover = [...(listing?.photos ?? [])].sort((a, b) => a.position - b.position)[0]?.storage_path;
+const role = user.id === listing?.seller_id ? 'Hai venduto a' : 'Hai comprato da';
+---
+
+<Layout title="Valuta · giro.shop">
+  <section class="wrap band rate">
+    {
+      !listing || !otherId ? (
+        <div class="panel">
+          <h1>Non c'è niente da valutare qui.</h1>
+          <p class="muted">Si valuta solo una vendita conclusa, quando chi vende ha indicato a chi ha venduto.</p>
+          <a class="btn" href="/avvisi">Torna agli avvisi</a>
+        </div>
+      ) : mine ? (
+        <div class="panel">
+          <h1>Hai già valutato {other?.display_name ?? 'questa vendita'}.</h1>
+          <p class="muted">Hai dato {mine.stars} {mine.stars === 1 ? 'stella' : 'stelle'}. Grazie.</p>
+          <a class="btn" href={`/annuncio/${id}#valutazioni`}>Vai all'annuncio</a>
+        </div>
+      ) : (
+        <form class="panel" method="POST" action={actions.ratings.rate}>
+          <input type="hidden" name="listingId" value={id} />
+          <div class="head">
+            {cover && <img src={photoUrl(cover)} alt="" width="96" height="72" />}
+            <div>
+              <span class="label">{role}</span>
+              <h1>{other?.display_name ?? 'Utente'}</h1>
+              <p class="muted small">{listing.title}</p>
+            </div>
+          </div>
+
+          {result?.error && <p class="error" role="alert">{result.error.message}</p>}
+
+          <fieldset class="stars">
+            <legend>Com'è andata?</legend>
+            <div class="star-row">
+              {[5, 4, 3, 2, 1].map((n) => (
+                <>
+                  <input type="radio" id={`s${n}`} name="stars" value={n} required />
+                  <label for={`s${n}`} title={`${n} ${n === 1 ? 'stella' : 'stelle'}`}>
+                    <span class="sr">{n} {n === 1 ? 'stella' : 'stelle'}</span>★
+                  </label>
+                </>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset class="tags">
+            <legend>Cosa è andato bene? <span class="muted">(facoltativo)</span></legend>
+            <div class="chips">
+              {RATING_TAGS.map((t) => (
+                <label class="tag">
+                  <input type="checkbox" name="tags" value={t} />
+                  <span>{t}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <label class="fld">
+            <span class="label">Un commento <span class="muted">(facoltativo, lo vedono tutti)</span></span>
+            <textarea name="comment" rows="3" maxlength="500"></textarea>
+          </label>
+
+          <button class="btn primary" type="submit">Invia la valutazione</button>
+        </form>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .rate { max-width: 640px; }
+  .rate h1 { font-size: clamp(24px, 3vw, 32px); }
+  .head { display: flex; gap: 16px; align-items: center; }
+  .head img { width: 96px; height: 72px; object-fit: cover; border-radius: 4px; }
+  fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; }
+  legend { font-weight: 500; margin-bottom: 8px; }
+  /* Stelle da destra a sinistra: passando sopra o scegliendo, si colorano anche quelle prima */
+  .star-row { display: inline-flex; flex-direction: row-reverse; justify-content: flex-end; gap: 4px; }
+  .star-row input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .star-row label { font-size: 34px; line-height: 1; color: var(--line-strong); cursor: pointer; padding: 2px; }
+  .star-row label:hover, .star-row label:hover ~ label, .star-row input:checked ~ label { color: var(--sun); }
+  .star-row input:focus-visible + label { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .tag { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 2px; background: var(--surface-2); font-size: 13px; cursor: pointer; }
+  .tag:has(input:checked) { border-color: var(--ink); }
+  .fld { display: grid; gap: 8px; width: 100%; }
+  .fld textarea { width: 100%; font: 400 15px/1.5 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 10px 12px; }
+</style>

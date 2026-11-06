@@ -1,0 +1,71 @@
+---
+/**
+ * Fotocamera nel campo di ricerca: scatti o scegli una foto, Claude riconosce l'oggetto
+ * e la frase di ricerca finisce nel campo. Compare solo se la chiave di Claude è configurata.
+ * Va messa dentro il form della ricerca.
+ */
+import { claudeKey } from '../lib/claude.ts';
+
+const enabled = Boolean(claudeKey());
+---
+
+{
+  enabled && (
+    <>
+      <button class="photo-search" type="button" data-photo-search aria-label="Cerca con una foto" title="Cerca con una foto">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 5.5h2.5l1.2-1.8h4.6l1.2 1.8H14v7.5H2z" />
+          <circle cx="8" cy="9" r="2.4" />
+        </svg>
+      </button>
+      <input class="sr" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true" data-photo-input />
+    </>
+  )
+}
+
+<script>
+  import { shrinkImage } from '../lib/images.ts';
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-photo-search]')) {
+    const form = button.closest('form');
+    const field = form?.querySelector<HTMLInputElement>('[data-photo-input]');
+    const input = form?.querySelector<HTMLInputElement>('input[name="q"]');
+    const status = document.getElementById(`${form?.dataset.target ?? ''}-stato`);
+    if (!form || !field || !input) continue;
+
+    button.addEventListener('click', () => field.click());
+    field.addEventListener('change', async () => {
+      const file = field.files?.[0];
+      field.value = '';
+      if (!file) return;
+      button.setAttribute('aria-busy', 'true');
+      input.placeholder = 'Guardo la foto…';
+      if (status) status.textContent = 'Riconosco l\'oggetto nella foto';
+      try {
+        const body = new FormData();
+        body.append('foto', await shrinkImage(file));
+        const res = await fetch('/cerca-foto', { method: 'POST', body });
+        const data = (await res.json()) as { q?: string; error?: string };
+        if (!res.ok || !data.q) throw new Error(data.error ?? 'Non riconosciuto');
+        input.value = data.q;
+        // Con la ricerca dal vivo si aggiornano i risultati; altrimenti si apre /cerca
+        if (form.dataset.live != null) input.dispatchEvent(new Event('input', { bubbles: true }));
+        else form.requestSubmit();
+        if (status) status.textContent = `Cerco: ${data.q}`;
+      } catch (error) {
+        input.placeholder = (error as Error).message;
+        if (status) status.textContent = (error as Error).message;
+      } finally {
+        button.removeAttribute('aria-busy');
+      }
+    });
+  }
+</script>
+
+<style is:global>
+  .photo-search { flex: none; display: grid; place-items: center; width: 36px; height: 36px; margin-right: -8px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+  .photo-search:hover { color: var(--ink); background: var(--surface); }
+  .photo-search svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
+  .photo-search[aria-busy='true'] svg { animation: photo-pulse 1s ease-in-out infinite; }
+  @keyframes photo-pulse { 50% { opacity: 0.3; } }
+</style>

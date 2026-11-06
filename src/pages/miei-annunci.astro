@@ -43,9 +43,22 @@ const { data: rows } = await supabase
   .eq('seller_id', user.id)
   .order('created_at', { ascending: false });
 
+// Chi ha scritto per ogni annuncio: quando si segna venduto si sceglie a chi, per valutarsi a vicenda
+const { data: convs } = await supabase
+  .from('conversations')
+  .select('listing_id, buyer_id, buyer:profiles!conversations_buyer_id_fkey(display_name)')
+  .eq('seller_id', user.id);
+const buyersOf = new Map<string, Array<{ id: string; name: string }>>();
+for (const c of (convs ?? []) as unknown as Array<{ listing_id: string; buyer_id: string; buyer: { display_name: string } | null }>) {
+  const list = buyersOf.get(c.listing_id) ?? [];
+  list.push({ id: c.buyer_id, name: c.buyer?.display_name ?? 'Utente' });
+  buyersOf.set(c.listing_id, list);
+}
+
 const listings = (rows ?? []).map((r) => ({
   ...r,
   cover: [...(r.photos ?? [])].sort((a, b) => a.position - b.position)[0]?.storage_path,
+  buyers: buyersOf.get(r.id) ?? [],
 }));
 
 const STATUS_LABEL: Record<string, string> = {
@@ -67,6 +80,7 @@ const STATUS_LABEL: Record<string, string> = {
       </div>
       <div class="head-actions">
         <a class="btn primary" href="/vendi">Nuovo annuncio</a>
+        <a class="btn" href="/salvati">Salvati</a>
         <form method="POST" action={actions.account.signOut}>
           <button class="btn" type="submit">Esci</button>
         </form>
@@ -177,6 +191,17 @@ const STATUS_LABEL: Record<string, string> = {
                       <input type="hidden" name="status" value="venduto" />
                       <label class="sr" for={`sold-${l.id}`}>Prezzo di vendita in CHF</label>
                       <input id={`sold-${l.id}`} class="sold" name="soldPrice" inputmode="numeric" placeholder={String(Number(l.price_chf))} />
+                      {l.buyers.length > 0 && (
+                        <>
+                          <label class="sr" for={`buyer-${l.id}`}>A chi l'hai venduto</label>
+                          <select id={`buyer-${l.id}`} class="buyer" name="buyerId">
+                            <option value="">A chi? (facoltativo)</option>
+                            {l.buyers.map((b) => (
+                              <option value={b.id}>{b.name}</option>
+                            ))}
+                          </select>
+                        </>
+                      )}
                       <button class="btn" type="submit">Venduto</button>
                     </form>
                     <form method="POST" action={actions.account.setListingStatus}>
@@ -237,6 +262,7 @@ const STATUS_LABEL: Record<string, string> = {
   .row-actions .btn { padding: 10px 12px; }
   .inline { display: flex; gap: 6px; align-items: center; }
   .sold { width: 84px; font: 400 14px/1.2 var(--f-mono); padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); color: var(--ink); }
+  .buyer { max-width: 160px; font: 400 14px/1.2 var(--f-body); padding: 9px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); color: var(--ink); }
   .danger summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 10px 4px; }
   .danger form { display: grid; gap: 8px; padding-top: 8px; }
   @media (max-width: 720px) {

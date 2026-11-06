@@ -22,6 +22,8 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [publishing, setPublishing] = useState(false);
+  const [shipping, setShipping] = useState(false);
+  const [shippingChf, setShippingChf] = useState('');
 
   useEffect(() => () => photos.forEach((p) => URL.revokeObjectURL(p.url)), []);
 
@@ -67,6 +69,10 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
     form.append('condition', draft.condition);
     form.append('price', price);
     form.append('comune', pickup);
+    if (shipping) {
+      form.append('shipping', 'on');
+      if (shippingChf) form.append('shippingChf', shippingChf);
+    }
     form.append('tags', JSON.stringify(draft.tags));
     form.append('attributes', JSON.stringify(draft.attributes));
     form.append('aiSource', draft.source);
@@ -214,6 +220,28 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
               ))}
             </select>
           )}
+        </div>
+
+        <div class="fld">
+          <span class="label">Spedizione</span>
+          <label class="check">
+            <input type="checkbox" checked={shipping} onChange={(e) => setShipping((e.target as HTMLInputElement).checked)} />
+            <span>Si può anche spedire</span>
+          </label>
+          {shipping && (
+            <label class="ship-cost">
+              <span>CHF</span>
+              <input
+                id="draft-shipping"
+                inputMode="decimal"
+                placeholder="da concordare"
+                aria-label="Costo di spedizione in franchi"
+                value={shippingChf}
+                onInput={(e) => setShippingChf((e.target as HTMLInputElement).value.replace(/[^\d.]/g, ''))}
+              />
+            </label>
+          )}
+          <small>Chi cerca «con spedizione» lo trova; il ritiro di persona resta sempre possibile.</small>
         </div>
 
         {draft.questions.length > 0 && (
