@@ -9,7 +9,7 @@ configureStore(SUPABASE_URL, SUPABASE_KEY);
  * così nessuna risposta in cache può contenere cookie di un utente. Il menu dell'account
  * si carica a parte come server island.
  */
-const PUBLIC_PREFIXES = ['/annuncio/', '/foto/', '/_astro/'];
+const PUBLIC_PREFIXES = ['/annuncio/', '/venditore/', '/foto/', '/_astro/'];
 const PUBLIC_PATHS = new Set([
   '/',
   '/cerca',
@@ -22,6 +22,7 @@ const PUBLIC_PATHS = new Set([
   '/confronta',
   '/traduci',
   '/cerca-foto',
+  '/email-avvisi',
 ]);
 
 export const onRequest = defineMiddleware(async (context, next) => {

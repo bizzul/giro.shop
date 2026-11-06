@@ -5,12 +5,13 @@ import { actions } from 'astro:actions';
 
 const asked = Astro.getActionResult(actions.questions.ask);
 const answered = Astro.getActionResult(actions.questions.answer);
-const listingId = asked?.data?.listingId ?? answered?.data?.listingId ?? Astro.url.searchParams.get('id') ?? '';
+const voted = Astro.getActionResult(actions.questions.vote);
+const listingId = asked?.data?.listingId ?? answered?.data?.listingId ?? voted?.data?.listingId ?? Astro.url.searchParams.get('id') ?? '';
 const back = listingId ? `/annuncio/${listingId}#domande` : '/cerca';
 if (!Astro.locals.user) return Astro.redirect(`/accedi?next=${encodeURIComponent(back)}`);
-if (asked?.data || answered?.data) return Astro.redirect(back, 303);
-if (!asked && !answered) return Astro.redirect(back);
-const error = asked?.error?.message ?? answered?.error?.message;
+if (asked?.data || answered?.data || voted?.data) return Astro.redirect(back, 303);
+if (!asked && !answered && !voted) return Astro.redirect(back);
+const error = asked?.error?.message ?? answered?.error?.message ?? voted?.error?.message;
 ---
 
 <Layout title="Domanda non inviata · giro.shop">

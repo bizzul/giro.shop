@@ -29,7 +29,7 @@ const badges = [
   .slice(0, 2);
 ---
 
-<a class="lcard" href={`/annuncio/${listing.id}`}>
+<a class="lcard" href={`/annuncio/${listing.id}`} data-lat={comune?.lat} data-lon={comune?.lon}>
   <div class="lph">
     {
       badges.length > 0 && (
@@ -72,7 +72,7 @@ const badges = [
     </span>
     <span class="ltitle">{listing.title}</span>
     <span class="lmeta">
-      {comune?.name}{distanceKm != null && ` · ${formatKm(distanceKm)}`}
+      {comune?.name}{distanceKm != null ? ` · ${formatKm(distanceKm)}` : <span data-dist />}
     </span>
     {
       reasons.length > 0 && (

@@ -1,0 +1,153 @@
+---
+/**
+ * "Da dove parti?": il comune della persona, per mostrare le distanze ("a 3 km da te")
+ * e ordinare per vicinanza. Resta solo in questo browser; la posizione GPS serve una volta
+ * per trovare il comune più vicino e non viene salvata.
+ * Un solo dialogo per pagina (sta nel layout); lo aprono i bottoni con data-place-open.
+ */
+import { COMUNI } from '../core/comuni.ts';
+
+const comuni = [...COMUNI].sort((a, b) => a.name.localeCompare(b.name, 'it'));
+---
+
+<dialog class="place-dialog" data-place-dialog aria-labelledby="place-title">
+  <form method="dialog" class="place-form">
+    <h2 id="place-title">Da dove parti?</h2>
+    <p class="muted small">Ti mostriamo quanto è lontano ogni annuncio. Il comune resta solo in questo browser.</p>
+    <button class="btn" type="button" data-place-locate>
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.5" /><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2" /><circle cx="8" cy="8" r="5" /></svg>
+      Usa la mia posizione
+    </button>
+    <p class="place-msg small" data-place-msg aria-live="polite"></p>
+    <label class="fld">
+      <span class="label">Oppure scegli il comune</span>
+      <select data-place-select>
+        <option value="">—</option>
+        {comuni.map((c) => <option value={c.id}>{c.name}</option>)}
+      </select>
+    </label>
+    <div class="place-actions">
+      <button class="btn primary" type="button" data-place-save>Usa questo comune</button>
+      <button class="link-button" type="button" data-place-clear>Non mostrare le distanze</button>
+      <button class="link-button" value="close">Chiudi</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  import { COMUNI, distanceKm, getComune } from '../core/comuni.ts';
+  import { formatKm } from '../core/format.ts';
+
+  const KEY = 'giro:zona';
+  const read = () => {
+    try {
+      return getComune(localStorage.getItem(KEY) ?? '') ?? null;
+    } catch {
+      return null;
+    }
+  };
+  const write = (id: string | null) => {
+    try {
+      if (id) localStorage.setItem(KEY, id);
+      else localStorage.removeItem(KEY);
+    } catch {
+      /* senza salvataggio vale solo per questa pagina */
+    }
+  };
+
+  const dialog = document.querySelector<HTMLDialogElement>('[data-place-dialog]');
+  const select = dialog?.querySelector<HTMLSelectElement>('[data-place-select]');
+  const msg = dialog?.querySelector<HTMLElement>('[data-place-msg]');
+
+  /** Distanze sulle schede annuncio e nelle schede della ricerca. */
+  function paint() {
+    const place = read();
+    for (const label of document.querySelectorAll<HTMLElement>('[data-place-label]')) {
+      label.textContent = place ? `Distanze da ${place.name}` : 'Distanze da te';
+    }
+    for (const el of document.querySelectorAll<HTMLElement>('[data-dist]')) {
+      const card = el.closest<HTMLElement>('[data-lat]');
+      if (!card || !place) {
+        el.textContent = '';
+        continue;
+      }
+      const km = distanceKm(place, { lat: Number(card.dataset.lat), lon: Number(card.dataset.lon) } as typeof place);
+      el.textContent = ` · ${formatKm(km)} da te`;
+    }
+    for (const ask of document.querySelectorAll<HTMLElement>('[data-place-ask]')) ask.hidden = Boolean(place);
+    // La ricerca dal vivo riceve il comune: serve per "Più vicini a te"
+    for (const form of document.querySelectorAll<HTMLFormElement>('form[data-live]')) {
+      let field = form.querySelector<HTMLInputElement>('input[name="da"]');
+      if (!field) {
+        field = document.createElement('input');
+        field.type = 'hidden';
+        field.name = 'da';
+        form.append(field);
+      }
+      field.value = place?.id ?? '';
+    }
+  }
+
+  function changed() {
+    paint();
+    const field = document.querySelector<HTMLInputElement>('form[data-live] input[name="da"]');
+    field?.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  document.addEventListener('click', (event) => {
+    if (!(event.target as Element).closest('[data-place-open]') || !dialog || !select) return;
+    select.value = read()?.id ?? '';
+    if (msg) msg.textContent = '';
+    dialog.showModal();
+  });
+
+  dialog?.querySelector('[data-place-save]')?.addEventListener('click', () => {
+    if (!select?.value) {
+      if (msg) msg.textContent = 'Scegli un comune o usa la tua posizione.';
+      return;
+    }
+    write(select.value);
+    dialog.close();
+    changed();
+  });
+  dialog?.querySelector('[data-place-clear]')?.addEventListener('click', () => {
+    write(null);
+    dialog.close();
+    changed();
+  });
+  dialog?.querySelector('[data-place-locate]')?.addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      if (msg) msg.textContent = 'Questo browser non dà la posizione: scegli il comune.';
+      return;
+    }
+    if (msg) msg.textContent = 'Cerco la tua posizione…';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const here = { lat: pos.coords.latitude, lon: pos.coords.longitude } as (typeof COMUNI)[number];
+        const nearest = [...COMUNI].sort((a, b) => distanceKm(here, a) - distanceKm(here, b))[0];
+        const far = distanceKm(here, nearest) > 40;
+        if (select) select.value = nearest.id;
+        if (msg) msg.textContent = far ? `Sei lontano dal Ticino: il comune più vicino è ${nearest.name}.` : `Sei vicino a ${nearest.name}.`;
+      },
+      () => {
+        if (msg) msg.textContent = 'Posizione non disponibile: scegli il comune dall\'elenco.';
+      },
+      { timeout: 10000, maximumAge: 600000 },
+    );
+  });
+
+  paint();
+  document.addEventListener('results:update', paint);
+</script>
+
+<style>
+  .place-dialog { border: 0; border-radius: 8px; padding: 0; width: min(420px, calc(100vw - 32px)); background: var(--bg); color: var(--ink); box-shadow: var(--shadow-search); }
+  .place-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+  .place-form { display: grid; gap: 14px; padding: 24px; }
+  .place-form h2 { font: 500 20px/1.3 var(--f-body); letter-spacing: -0.01em; }
+  .place-form .btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+  .place-msg:empty { display: none; }
+  .fld { display: grid; gap: 8px; }
+  .fld select { font: 400 15px/1.3 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 10px 12px; }
+  .place-actions { display: flex; align-items: center; gap: 12px 18px; flex-wrap: wrap; }
+</style>

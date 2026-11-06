@@ -1,4 +1,4 @@
-import type { Listing, SearchFilters, SearchHit, SearchResult } from './types.ts';
+import type { Comune, Listing, SearchFilters, SearchHit, SearchResult } from './types.ts';
 import { publishedListings } from './store.ts';
 import { parseQuery } from './query.ts';
 import { findAlt, isMainObject } from './match.ts';
@@ -42,12 +42,14 @@ export interface SearchOptions {
   /** Quanti risultati restituire (gli altri si contano in total). */
   limit?: number;
   sort?: SortOrder;
+  /** Comune di chi cerca: se la frase non nomina un luogo, le distanze ("più vicini") partono da qui. */
+  from?: string;
 }
 
 /** Cerca con una frase in linguaggio naturale. */
 export function search(query: string, options: SearchOptions = {}): SearchResult {
   const { filters, chips } = parseQuery(query);
-  const all = sortHits(rankAll(filters), options.sort);
+  const all = sortHits(rankAll(filters, options.from ? getComune(options.from) : undefined), options.sort);
   return { filters, chips, total: all.length, hits: all.slice(0, options.limit ?? 30) };
 }
 
@@ -56,21 +58,27 @@ export function searchWithFilters(filters: SearchFilters, limit = 30): SearchHit
   return rankAll(filters).slice(0, limit);
 }
 
-/** Tutti gli annunci pubblicati, senza frase: dal più recente, o per prezzo. */
-export function browseListings(order: SortOrder = 'recenti', limit = 24): { total: number; listings: Listing[] } {
+/** Tutti gli annunci pubblicati, senza frase: dal più recente, per prezzo o dal più vicino a chi cerca. */
+export function browseListings(order: SortOrder = 'recenti', limit = 24, from?: string): { total: number; listings: Listing[] } {
   const all = [...publishedListings()];
+  const origin = from ? getComune(from) : undefined;
+  const km = (l: Listing) => {
+    const c = getComune(l.comuneId);
+    return origin && c ? distanceKm(origin, c) : Infinity;
+  };
   if (order === 'prezzo') all.sort((a, b) => a.priceChf - b.priceChf || byDate(a, b));
   else if (order === 'prezzo-desc') all.sort((a, b) => b.priceChf - a.priceChf || byDate(a, b));
+  else if (order === 'vicini' && origin) all.sort((a, b) => km(a) - km(b) || byDate(a, b));
   else all.sort(byDate);
   return { total: all.length, listings: all.slice(0, limit) };
 }
 
 /** Tutti i risultati che corrispondono ai filtri, dal più pertinente. */
-function rankAll(filters: SearchFilters): SearchHit[] {
+function rankAll(filters: SearchFilters, from?: Comune): SearchHit[] {
   const now = Date.now();
   const hits: SearchHit[] = [];
   for (const listing of publishedListings()) {
-    const hit = scoreListing(filters, listing, now);
+    const hit = scoreListing(filters, listing, now, from);
     if (hit) hits.push(hit);
   }
   return hits.sort((a, b) => b.score - a.score);
@@ -87,7 +95,7 @@ export function matchesSearch(query: string, listing: Listing): boolean {
 }
 
 /** Controlla un annuncio contro i filtri: null se non corrisponde, altrimenti punteggio e motivi. */
-function scoreListing(filters: SearchFilters, listing: Listing, now: number): SearchHit | null {
+function scoreListing(filters: SearchFilters, listing: Listing, now: number, from?: Comune): SearchHit | null {
   const origin = filters.comuneId ? getComune(filters.comuneId) : undefined;
   const comune = getComune(listing.comuneId);
   if (!comune) return null;
@@ -116,6 +124,9 @@ function scoreListing(filters: SearchFilters, listing: Listing, now: number): Se
   if (origin) {
     distance = distanceKm(origin, comune);
     if (filters.radiusKm != null && distance > filters.radiusKm) return null;
+  } else if (from) {
+    // Solo per ordinare "più vicini a te": nessun raggio, nessun effetto sul punteggio
+    distance = distanceKm(from, comune);
   }
 
   let matched = 0;
@@ -137,7 +148,7 @@ function scoreListing(filters: SearchFilters, listing: Listing, now: number): Se
   // Chi cerca "scrivania" vede prima le scrivanie, poi chi la nomina soltanto (lampada da scrivania)
   const sideMention = filters.required != null && !isMainObject(listing, filters.required.alts);
   const relevance = (filters.groups.length ? matched / filters.groups.length : 1) - (sideMention ? 0.6 : 0);
-  const proximity = distance != null && filters.radiusKm ? 1 - distance / filters.radiusKm : 0;
+  const proximity = origin && distance != null && filters.radiusKm ? 1 - distance / filters.radiusKm : 0;
   const ageDays = (now - new Date(listing.publishedAt).getTime()) / 864e5;
   const freshness = Math.max(0, 1 - ageDays / 14);
   const score =

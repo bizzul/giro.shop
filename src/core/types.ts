@@ -92,6 +92,8 @@ export interface Question {
   createdAt: string;
   answer?: string;
   answeredAt?: string;
+  /** Quante persone hanno trovato utile la risposta. */
+  helpful: number;
 }
 
 /** Foto di un annuncio, in due misure, con i crediti richiesti dalla licenza. */

@@ -8,6 +8,7 @@ const params = Astro.url.searchParams;
 const q = params.get('q')?.trim().slice(0, 200) ?? '';
 const sort = parseSort(params.get('ordine'));
 const n = Number(params.get('n')) || undefined;
+const from = params.get('da') ?? undefined;
 ---
 
 <Layout title={q ? `${q} · giro.shop` : 'Cerca · giro.shop'}>
@@ -17,7 +18,7 @@ const n = Number(params.get('n')) || undefined;
     </div>
     <p id="risultati-stato" class="sr" aria-live="polite"></p>
     <div id="risultati" class="results">
-      <SearchResults q={q} mode="cerca" sort={sort} n={n} />
+      <SearchResults q={q} mode="cerca" sort={sort} n={n} from={from} />
     </div>
   </section>
 </Layout>

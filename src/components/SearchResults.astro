@@ -2,6 +2,7 @@
 import ListingCard from './ListingCard.astro';
 import { browseListings, search, type SortOrder } from '../core/search.ts';
 import { priceVerdict } from '../core/price.ts';
+import { getComune } from '../core/comuni.ts';
 
 interface Props {
   q: string;
@@ -10,33 +11,29 @@ interface Props {
   sort?: SortOrder;
   /** Quanti annunci mostrare: cresce con "Mostra altri". */
   n?: number;
+  /** Comune di chi cerca (scelto nel browser), per "Più vicini a te". */
+  from?: string;
 }
 
 /** Annunci per pagina: si divide bene in 2, 3 e 4 colonne. */
 const PAGE = 24;
 
-const { q, mode, sort, n = PAGE } = Astro.props;
+const { q, mode, sort, n = PAGE, from: fromParam } = Astro.props;
+const from = fromParam && getComune(fromParam) ? fromParam : undefined;
 const limit = Math.min(Math.max(PAGE, n), 240);
-const result = q ? search(q, { sort, limit }) : null;
-const browse = result ? null : browseListings(sort, mode === 'home' ? 8 : limit);
+const result = q ? search(q, { sort, limit, from }) : null;
+const browse = result ? null : browseListings(sort, mode === 'home' ? 8 : limit, from);
 const total = result?.total ?? browse?.total ?? 0;
 const shown = result?.hits.length ?? browse?.listings.length ?? 0;
 
 // Ordini sensati per questa ricerca: "più vicini" solo se la frase nomina un luogo
-const nearby = Boolean(result?.filters.comuneId);
+// Con un luogo nella frase le distanze partono da lì; altrimenti dal comune di chi cerca, se l'ha scelto
+const placeInQuery = Boolean(result?.filters.comuneId);
+const nearLabel = placeInQuery ? 'Più vicini' : from ? 'Più vicini a te' : null;
+const nearOption = (nearLabel ? [['vicini', nearLabel]] : []) as Array<[SortOrder, string]>;
 const orders: Array<[SortOrder | '', string]> = result
-  ? [
-      ['', 'Pertinenza'],
-      ...(nearby ? ([['vicini', 'Più vicini']] as Array<[SortOrder, string]>) : []),
-      ['recenti', 'Più recenti'],
-      ['prezzo', 'Prezzo crescente'],
-      ['prezzo-desc', 'Prezzo decrescente'],
-    ]
-  : [
-      ['', 'Più recenti'],
-      ['prezzo', 'Prezzo crescente'],
-      ['prezzo-desc', 'Prezzo decrescente'],
-    ];
+  ? [['', 'Pertinenza'], ...nearOption, ['recenti', 'Più recenti'], ['prezzo', 'Prezzo crescente'], ['prezzo-desc', 'Prezzo decrescente']]
+  : [['', 'Più recenti'], ...nearOption, ['prezzo', 'Prezzo crescente'], ['prezzo-desc', 'Prezzo decrescente']];
 const selected = orders.some(([v]) => v && v === sort) ? sort : '';
 const showSort = total > 1 && !(mode === 'home' && !result);
 
@@ -46,6 +43,7 @@ const params = (extra: Record<string, string>) => {
   const p = new URLSearchParams();
   if (q) p.set('q', q);
   if (selected) p.set('ordine', selected);
+  if (from) p.set('da', from);
   for (const [k, v] of Object.entries(extra)) p.set(k, v);
   return p.toString();
 };
@@ -102,6 +100,10 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
       </div>
     )
   }
+  <button class="place-btn" type="button" data-place-open>
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.5s4.5-4.2 4.5-8a4.5 4.5 0 0 0-9 0c0 3.8 4.5 8 4.5 8z" /><circle cx="8" cy="6.5" r="1.6" /></svg>
+    <span data-place-label>Distanze da te</span>
+  </button>
   {
     showSort && (
       <label class="sort">
@@ -123,7 +125,7 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
     <div class="cards">
       {result
         ? result.hits.map((h, i) => (
-            <ListingCard listing={h.listing} distanceKm={h.distanceKm} reasons={h.reasons} verdict={h.verdict} eager={i < 4} />
+            <ListingCard listing={h.listing} distanceKm={placeInQuery ? h.distanceKm : undefined} reasons={h.reasons} verdict={h.verdict} eager={i < 4} />
           ))
         : browse?.listings.map((l, i) => <ListingCard listing={l} verdict={priceVerdict(l)} eager={i < 4} />)}
     </div>
@@ -217,6 +219,9 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
   .browse-h a { color: var(--muted); font-size: 14px; text-underline-offset: 4px; text-decoration-color: var(--line-strong); }
   .browse-h a:hover { color: var(--ink); }
   .sort { display: inline-flex; align-items: baseline; gap: 8px; font-size: 14px; }
+  .place-btn { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; border: 0; background: none; padding: 0; color: var(--muted); font: 400 13.5px/1.4 var(--f-body); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
+  .place-btn:hover { color: var(--ink); }
+  .place-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; }
   .sort select {
     font: 500 14px/1.4 var(--f-body);
     color: var(--ink);

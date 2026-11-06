@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { adminClient } from './admin.ts';
 import { noticeMail, sendMail } from './mail.ts';
+import { unsubscribeUrl } from './unsubscribe.ts';
 
 export type NoticeKind = 'ricerca' | 'prezzo' | 'venduto' | 'domanda' | 'risposta' | 'valutazione';
 
@@ -48,15 +49,21 @@ export async function notify(notices: Notice[], origin: string): Promise<void> {
 }
 
 async function emailNotices(admin: SupabaseClient, notices: Notice[], ids: string[], origin: string): Promise<void> {
+  // Chi ha spento le email riceve gli avvisi solo nel sito
+  const users = [...new Set(notices.map((n) => n.userId))];
+  const { data: prefs } = await admin.from('profiles').select('id, notify_email').in('id', users);
+  const wants = new Set((prefs ?? []).filter((p) => p.notify_email).map((p) => p.id as string));
   const emails = new Map<string, string | null>();
   for (const [i, n] of notices.entries()) {
+    if (!wants.has(n.userId)) continue;
     if (!emails.has(n.userId)) {
       const { data } = await admin.auth.admin.getUserById(n.userId);
       emails.set(n.userId, data.user?.email ?? null);
     }
     const to = emails.get(n.userId);
     if (!to) continue;
-    const sent = await sendMail(noticeMail({ to, title: n.title, body: n.body ?? '', url: n.url, origin }));
+    const unsubscribe = unsubscribeUrl(origin, n.userId);
+    const sent = await sendMail(noticeMail({ to, title: n.title, body: n.body ?? '', url: n.url, origin, unsubscribe }));
     if (sent) await admin.from('notifications').update({ emailed_at: new Date().toISOString() }).eq('id', ids[i]);
   }
 }

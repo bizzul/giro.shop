@@ -22,6 +22,7 @@ if (unread > 0) {
 
 const { count: searches } = await supabase.from('alerts').select('id', { count: 'exact', head: true }).eq('user_id', user.id);
 const { count: saved } = await supabase.from('favorites').select('listing_id', { count: 'exact', head: true }).eq('user_id', user.id);
+const { data: me } = await supabase.from('profiles').select('notify_email').eq('id', user.id).maybeSingle();
 
 const KIND: Record<string, string> = {
   ricerca: 'Ricerca salvata',
@@ -43,6 +44,7 @@ const KIND: Record<string, string> = {
     <nav class="shortcuts" aria-label="Cosa ti avvisa">
       <a href="/salvati#ricerche"><b>{searches ?? 0}</b> {searches === 1 ? 'ricerca salvata' : 'ricerche salvate'}</a>
       <a href="/salvati"><b>{saved ?? 0}</b> {saved === 1 ? 'annuncio salvato' : 'annunci salvati'}</a>
+      <a href="/miei-annunci#email">Email {me?.notify_email === false ? 'spente' : 'accese'}</a>
     </nav>
 
     {

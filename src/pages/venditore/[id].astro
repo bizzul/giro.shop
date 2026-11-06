@@ -1,0 +1,98 @@
+---
+/** Profilo pubblico di chi vende: affidabilità, annunci in vendita e tutte le valutazioni. */
+import Layout from '../../layouts/Layout.astro';
+import ListingCard from '../../components/ListingCard.astro';
+import RatingsSummary from '../../components/RatingsSummary.astro';
+import { LISTINGS_TAG } from '../../lib/cache.ts';
+import { allListings } from '../../core/store.ts';
+import { priceVerdict } from '../../core/price.ts';
+import { replyTime, sellerProfile } from '../../lib/sellers.ts';
+
+const id = Astro.params.id ?? '';
+const valid = /^[0-9a-f-]{36}$/i.test(id);
+const { stats, ratings } = valid ? await sellerProfile(id) : { stats: null, ratings: [] };
+if (!stats) return new Response('Profilo non trovato', { status: 404 });
+
+Astro.cache.set({ tags: [LISTINGS_TAG] });
+const mine = allListings().filter((l) => l.sellerId === id);
+const forSale = mine.filter((l) => l.status === 'pubblicato').sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+const memberSince = new Date(stats.memberSince).toLocaleDateString('it-CH', { month: 'long', year: 'numeric' });
+---
+
+<Layout title={`${stats.name} · giro.shop`} description={`Annunci e valutazioni di ${stats.name} su giro.shop`}>
+  <section class="wrap band profile">
+    <header class="head">
+      <span class="avatar" aria-hidden="true">{stats.name.trim().charAt(0).toUpperCase()}</span>
+      <div>
+        <h1>{stats.name}</h1>
+        <p class="badges">
+          {stats.phoneVerified && <span class="badge ok">Cellulare verificato</span>}
+          <span class="muted small">Su giro.shop da {memberSince}</span>
+        </p>
+      </div>
+    </header>
+
+    <ul class="facts" aria-label="Affidabilità">
+      <li>
+        <b>{stats.ratingCount > 0 ? `★ ${stats.ratingAvg?.toFixed(1)}` : '—'}</b>
+        <span class="muted small">{stats.ratingCount === 1 ? '1 valutazione' : `${stats.ratingCount} valutazioni`}</span>
+      </li>
+      <li>
+        <b>{stats.medianReplyMinutes != null ? replyTime(stats.medianReplyMinutes).replace('entro ', '') : '—'}</b>
+        <span class="muted small">tempo tipico di risposta</span>
+      </li>
+      <li>
+        <b>{stats.conversations > 0 ? `${stats.answered}/${stats.conversations}` : '—'}</b>
+        <span class="muted small">persone a cui ha risposto</span>
+      </li>
+      <li>
+        <b>{stats.sold}</b>
+        <span class="muted small">{stats.sold === 1 ? 'vendita conclusa' : 'vendite concluse'}</span>
+      </li>
+    </ul>
+
+    <section aria-labelledby="in-vendita">
+      <div class="section-h">
+        <h2 id="in-vendita">In vendita</h2>
+        <span class="muted small">{forSale.length === 1 ? '1 annuncio' : `${forSale.length} annunci`}</span>
+      </div>
+      {
+        forSale.length === 0 ? (
+          <p class="muted">Nessun annuncio in vendita in questo momento.</p>
+        ) : (
+          <div class="cards">
+            {forSale.map((l, i) => (
+              <ListingCard listing={l} verdict={priceVerdict(l)} eager={i < 4} />
+            ))}
+          </div>
+        )
+      }
+    </section>
+
+    <section id="valutazioni" aria-labelledby="valutazioni-titolo">
+      <div class="section-h">
+        <h2 id="valutazioni-titolo">Valutazioni</h2>
+      </div>
+      {
+        stats.ratingCount === 0 ? (
+          <p class="muted">Ancora nessuna valutazione. Arrivano da chi conclude una vendita con {stats.name}.</p>
+        ) : (
+          <RatingsSummary stats={stats} ratings={ratings} name={stats.name} />
+        )
+      }
+    </section>
+  </section>
+</Layout>
+
+<style>
+  .profile { display: grid; gap: 40px; }
+  .head { display: flex; align-items: center; gap: 20px; }
+  .avatar { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--surface-2); font: 400 26px/1 var(--f-display); flex: none; }
+  .head h1 { font-size: clamp(28px, 4vw, 44px); }
+  .badges { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+  .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .facts li { display: grid; gap: 4px; padding: 18px 16px 18px 0; }
+  .facts b { font: 400 24px/1.1 var(--f-display); letter-spacing: -0.02em; }
+  @media (max-width: 640px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  #valutazioni { max-width: 760px; }
+</style>

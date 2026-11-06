@@ -15,5 +15,6 @@ export default defineConfig({
   routeRules: {
     '/': { maxAge: 30, swr: 120 },
     '/annuncio/[id]': { maxAge: 60, swr: 300 },
+    '/venditore/[id]': { maxAge: 60, swr: 300 },
   },
 });

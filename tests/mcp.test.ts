@@ -24,7 +24,7 @@ afterAll(async () => {
 describe('server MCP', () => {
   it('espone i quattro strumenti', async () => {
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(['create_draft', 'estimate_price', 'get_listing', 'search_listings']);
+    expect(tools.map((t) => t.name).sort()).toEqual(['create_draft', 'estimate_price', 'get_listing', 'save_search', 'search_listings']);
   });
 
   it('search_listings capisce la frase e restituisce link agli annunci', async () => {
@@ -55,5 +55,12 @@ describe('server MCP', () => {
     const res = json(await client.callTool({ name: 'estimate_price', arguments: { item: 'bici da corsa Bianchi telaio 55' } }));
     expect(res.low_chf).toBeLessThan(res.suggested_chf);
     expect(res.comparables.length).toBeGreaterThan(2);
+  });
+
+  it('save_search non salva niente: restituisce il link di conferma', async () => {
+    const res = json(await client.callTool({ name: 'save_search', arguments: { query: 'bici da corsa sotto 600 franchi' } }));
+    expect(res.confirm_url).toMatch(/\/salvati\/nuova\?q=bici%20da%20corsa%20sotto%20600%20franchi$/);
+    expect(res.understood_as).toContain('Prezzo: ≤ CHF 600.–');
+    expect(typeof res.matching_now).toBe('number');
   });
 });

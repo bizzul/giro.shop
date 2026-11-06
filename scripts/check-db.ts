@@ -3,11 +3,12 @@
  * Uso: pnpm test:db   (con `supabase start` acceso)
  *
  * Crea venditore, acquirente e intruso, prova ciò che è permesso e ciò che è vietato
- * su annunci, foto, conversazioni, messaggi, offerte, cellulare, salvati, avvisi, domande
- * e valutazioni, poi cancella tutto.
+ * su annunci, foto, conversazioni, messaggi, offerte, cellulare, salvati, avvisi, domande,
+ * voti, preferenze email e valutazioni, poi cancella tutto.
  */
 import { execFileSync } from 'node:child_process';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { LISTING_SELECT } from '../src/core/store.ts';
 
 const status = JSON.parse(execFileSync('supabase', ['status', '--output', 'json'], { encoding: 'utf8' }));
 const URL: string = status.API_URL;
@@ -38,6 +39,10 @@ try {
   const intruder = await makeUser('intruso');
   users.push(seller.id, buyer.id, intruder.id);
   const anon = createClient(URL, PUBLISHABLE, { auth: { persistSession: false } });
+
+  // La copia degli annunci usata da ricerca e schede: se una relazione diventa ambigua, il sito ripiega sui dati di prova
+  const snapshot = await anon.from('listings').select(LISTING_SELECT).limit(1);
+  expect('la copia degli annunci si legge dal database', !snapshot.error, snapshot.error?.message);
 
   // Annunci
   const { data: listing, error: le } = await seller.client
@@ -172,6 +177,21 @@ try {
   expect('intruso non risponde alle domande', denied(await intruder.client.from('questions').update({ answer: 'sì' }).eq('id', q.data!.id).select('id')));
   expect('chi vende risponde', !denied(await seller.client.from('questions').update({ answer: 'Sì, funziona.', answered_at: new Date().toISOString() }).eq('id', q.data!.id).select('id')));
   expect('domande e risposte le vedono tutti', (await anon.from('questions').select('answer').eq('id', q.data!.id)).data?.[0]?.answer === 'Sì, funziona.');
+
+  // Voto "utile": uno a testa, non sulla propria domanda; il conteggio è pubblico, i nomi no
+  expect('chi chiede non vota la propria domanda', Boolean((await buyer.client.from('question_votes').insert({ question_id: q.data!.id, user_id: buyer.id })).error));
+  expect('nessuno vota a nome di altri', Boolean((await intruder.client.from('question_votes').insert({ question_id: q.data!.id, user_id: seller.id })).error));
+  expect('si vota una risposta utile', !(await intruder.client.from('question_votes').insert({ question_id: q.data!.id, user_id: intruder.id })).error);
+  expect('un solo voto a testa', Boolean((await intruder.client.from('question_votes').insert({ question_id: q.data!.id, user_id: intruder.id })).error));
+  expect('il conteggio dei voti è pubblico', (await anon.from('questions').select('helpful').eq('id', q.data!.id)).data?.[0]?.helpful === 1);
+  expect('chi ha votato resta privato', denied(await anon.from('question_votes').select('user_id').eq('question_id', q.data!.id)) && denied(await seller.client.from('question_votes').select('user_id').eq('question_id', q.data!.id)));
+  expect('il conteggio non si scrive a mano', Boolean((await seller.client.from('questions').update({ helpful: 99 }).eq('id', q.data!.id)).error));
+  await intruder.client.from('question_votes').delete().eq('question_id', q.data!.id).eq('user_id', intruder.id);
+  expect('togliere il voto abbassa il conteggio', (await anon.from('questions').select('helpful').eq('id', q.data!.id)).data?.[0]?.helpful === 0);
+
+  // Email degli avvisi: ognuno spegne le proprie
+  expect('ognuno spegne le proprie email', !denied(await buyer.client.from('profiles').update({ notify_email: false }).eq('id', buyer.id).select('id')));
+  expect('nessuno spegne le email di altri', denied(await intruder.client.from('profiles').update({ notify_email: false }).eq('id', seller.id).select('id')));
 
   expect('non si vende a chi non ha mai scritto', Boolean((await seller.client.from('listings').update({ status: 'venduto', buyer_id: intruder.id }).eq('id', listingId)).error));
   expect('si vende a chi ha scritto', !(await seller.client.from('listings').update({ status: 'venduto', buyer_id: buyer.id }).eq('id', listingId)).error);

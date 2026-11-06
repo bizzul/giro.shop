@@ -1,0 +1,61 @@
+---
+/**
+ * Spegne le email degli avvisi dal link in fondo a ogni email, senza accedere.
+ * Il link è firmato: vale solo per la persona a cui è stato mandato.
+ * Aprire il link non cambia niente (i programmi di posta e gli antivirus aprono i link da soli):
+ * si spegne con il bottone, oppure con la disiscrizione a un clic del programma di posta (POST).
+ */
+import Layout from '../layouts/Layout.astro';
+import { adminClient } from '../lib/admin.ts';
+import { validUnsubscribe } from '../lib/unsubscribe.ts';
+
+const userId = Astro.url.searchParams.get('u') ?? '';
+const token = Astro.url.searchParams.get('t') ?? '';
+const valid = Boolean(userId && token && validUnsubscribe(userId, token));
+let done = false;
+if (valid && Astro.request.method === 'POST') {
+  const admin = adminClient();
+  const { error } = (await admin?.from('profiles').update({ notify_email: false }).eq('id', userId)) ?? { error: { message: 'non configurato' } };
+  done = !error;
+  // Disiscrizione automatica del programma di posta: basta la risposta
+  const form = await Astro.request.formData().catch(() => null);
+  if (form?.get('List-Unsubscribe') === 'One-Click') return new Response(null, { status: done ? 200 : 500 });
+}
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+---
+
+<Layout title="Email degli avvisi · giro.shop">
+  <section class="wrap band unsub">
+    <div class="panel">
+      {
+        !valid ? (
+          <>
+            <h1>Link non valido.</h1>
+            <p class="muted">Puoi spegnere le email degli avvisi anche dal tuo account, in «I miei annunci».</p>
+            <a class="btn" href="/miei-annunci#email">Vai all'account</a>
+          </>
+        ) : done ? (
+          <>
+            <h1>Fatto: niente più email degli avvisi.</h1>
+            <p class="muted">Gli avvisi restano nel sito, sotto la campanella. Puoi riaccendere le email quando vuoi dal tuo account.</p>
+            <a class="btn" href="/">Torna a giro.shop</a>
+          </>
+        ) : (
+          <>
+            <span class="label">Email degli avvisi</span>
+            <h1>Non vuoi più ricevere email?</h1>
+            <p class="muted">Gli avvisi resteranno visibili nel sito, sotto la campanella.</p>
+            <form method="POST">
+              <button class="btn primary" type="submit">Spegni le email</button>
+            </form>
+          </>
+        )
+      }
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .unsub { max-width: 640px; }
+  .unsub h1 { font-size: clamp(24px, 3vw, 32px); }
+</style>

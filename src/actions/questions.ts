@@ -34,6 +34,26 @@ export const questions = {
     },
   }),
 
+  /** "Utile": un voto per persona; votare di nuovo lo toglie. */
+  vote: defineAction({
+    accept: 'form',
+    input: z.object({ questionId: z.string().uuid() }),
+    handler: async ({ questionId }, context) => {
+      const { supabase, user } = requireUser(context);
+      const { data: q } = await supabase.from('questions').select('listing_id, asker_id, answer').eq('id', questionId).maybeSingle();
+      if (!q) throw new ActionError({ code: 'NOT_FOUND', message: 'Domanda non trovata.' });
+      if (q.asker_id === user.id) throw new ActionError({ code: 'BAD_REQUEST', message: 'Non puoi votare la risposta alla tua domanda.' });
+      const { data: mine } = await supabase.from('question_votes').select('question_id').eq('question_id', questionId).eq('user_id', user.id).maybeSingle();
+      const { error } = mine
+        ? await supabase.from('question_votes').delete().eq('question_id', questionId).eq('user_id', user.id)
+        : await supabase.from('question_votes').insert({ question_id: questionId, user_id: user.id });
+      if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Voto non salvato: ${error.message}` });
+      await refreshListings(true);
+      await invalidateListingPages(context);
+      return { listingId: q.listing_id as string, voted: !mine };
+    },
+  }),
+
   answer: defineAction({
     accept: 'form',
     input: z.object({

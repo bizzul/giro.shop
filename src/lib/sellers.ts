@@ -5,6 +5,7 @@ let client: SupabaseClient | null | undefined;
 const anon = () => (client ??= SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false } }) : null);
 
 export interface SellerStats {
+  name: string;
   memberSince: string;
   phoneVerified: boolean;
   sold: number;
@@ -27,7 +28,7 @@ export interface Rating {
 export async function sellerProfile(sellerId: string): Promise<{ stats: SellerStats | null; ratings: Rating[] }> {
   const c = anon();
   if (!c) return { stats: null, ratings: [] };
-  const [{ data: rows }, { data: list }] = await Promise.all([
+  const [{ data: rows }, { data: list }, { data: profile }] = await Promise.all([
     c.rpc('seller_stats', { seller: sellerId }),
     c
       .from('ratings')
@@ -35,10 +36,12 @@ export async function sellerProfile(sellerId: string): Promise<{ stats: SellerSt
       .eq('rated_id', sellerId)
       .order('created_at', { ascending: false })
       .limit(50),
+    c.from('profiles').select('display_name').eq('id', sellerId).maybeSingle(),
   ]);
   const r = (rows as Array<Record<string, unknown>> | null)?.[0];
   const stats: SellerStats | null = r
     ? {
+        name: profile?.display_name ?? 'Utente',
         memberSince: String(r.member_since),
         phoneVerified: Boolean(r.phone_verified),
         sold: Number(r.sold ?? 0),

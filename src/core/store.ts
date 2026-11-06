@@ -13,13 +13,14 @@ import { PHOTOS } from '../data/photos.ts';
  */
 
 const MAX_AGE_MS = 10_000;
-const SELECT = `
+/** Le colonne della copia in memoria: la usa anche `pnpm test:db` per controllare che la query funzioni. */
+export const LISTING_SELECT = `
   id, title, description, category_id, tags, attributes, price_chf, negotiable, condition, comune_id,
   status, published_at, created_at, sold_price_chf, seller_id, buyer_id, shipping, shipping_chf, highlights,
   seller:profiles!listings_seller_id_fkey(display_name, phone_verified_at),
   photos:listing_photos(storage_path, position, credit, width, height),
   history:price_history(price_chf, changed_at),
-  questions(id, body, answer, created_at, answered_at, asker:profiles(display_name))
+  questions(id, body, answer, created_at, answered_at, helpful, asker:profiles!questions_asker_id_fkey(display_name))
 `;
 
 const SEED: Listing[] = LISTINGS.map((l) => ({ ...l, photos: PHOTOS[l.id] ? [PHOTOS[l.id]] : [] }));
@@ -78,6 +79,7 @@ interface Row {
     answer: string | null;
     created_at: string;
     answered_at: string | null;
+    helpful?: number | null;
     asker: { display_name: string } | null;
   }>;
 }
@@ -134,6 +136,7 @@ export function rowToListing(row: Row): Listing {
               createdAt: q.created_at,
               answer: q.answer ?? undefined,
               answeredAt: q.answered_at ?? undefined,
+              helpful: q.helpful ?? 0,
             }),
           )
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
@@ -145,7 +148,7 @@ async function load(): Promise<void> {
   if (!client) return;
   const { data, error } = await client
     .from('listings')
-    .select(SELECT)
+    .select(LISTING_SELECT)
     .in('status', ['pubblicato', 'in_trattativa', 'venduto'])
     .order('published_at', { ascending: false, nullsFirst: false })
     .limit(2000);

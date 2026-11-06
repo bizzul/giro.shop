@@ -1,0 +1,73 @@
+---
+/** Media, barre da 5 a 1 stella e ultime valutazioni: nella scheda annuncio e nel profilo di chi vende. */
+import type { Rating, SellerStats } from '../lib/sellers.ts';
+
+interface Props {
+  stats: SellerStats;
+  ratings: Rating[];
+  name: string;
+  /** Quante valutazioni mostrare (le altre nel profilo). */
+  limit?: number;
+}
+const { stats, ratings, name, limit = ratings.length } = Astro.props;
+const distribution = [5, 4, 3, 2, 1].map((n) => ({ n, count: ratings.filter((r) => r.stars === n).length }));
+const total = Math.max(1, ratings.length);
+const day = (iso: string) => new Date(iso).toLocaleDateString('it-CH', { day: 'numeric', month: 'short', year: 'numeric' });
+---
+
+<div class="ratings">
+  <div class="score">
+    <b class="avg">{stats.ratingAvg?.toFixed(1)}</b>
+    <div class="bars">
+      {
+        distribution.map((d) => (
+          <div class="bar-row">
+            <span class="small">{d.n} ★</span>
+            <span class="bar" aria-hidden="true">
+              <span style={`width:${(d.count / total) * 100}%`} />
+            </span>
+            <span class="small muted">{d.count}</span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+  <p class="muted small">Solo da chi ha concluso una vendita con {name}.</p>
+  <ul class="reviews">
+    {
+      ratings.slice(0, limit).map((r) => (
+        <li>
+          <span class="stars-inline" aria-label={`${r.stars} su 5`}>
+            {'★'.repeat(r.stars)}
+            <span class="off">{'★'.repeat(5 - r.stars)}</span>
+          </span>
+          {r.tags.length > 0 && (
+            <span class="chips">
+              {r.tags.map((t) => (
+                <span class="chip">{t}</span>
+              ))}
+            </span>
+          )}
+          {r.comment && <p>{r.comment}</p>}
+          <span class="muted small">
+            {r.raterName} · {day(r.createdAt)}
+          </span>
+        </li>
+      ))
+    }
+  </ul>
+</div>
+
+<style>
+  .ratings { display: grid; gap: 14px; }
+  .score { display: flex; align-items: center; gap: 24px; }
+  .avg { font: 300 48px/1 var(--f-display); letter-spacing: -0.04em; color: var(--ink); }
+  .bars { display: grid; gap: 4px; flex: 1; max-width: 320px; }
+  .bar-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) 24px; gap: 10px; align-items: center; }
+  .bar { height: 6px; border-radius: 3px; background: var(--surface); overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--ink); }
+  .reviews { display: grid; }
+  .reviews li { display: grid; gap: 6px; padding-block: 12px; border-top: 1px solid var(--line); color: var(--ink); }
+  .stars-inline { color: var(--sun); letter-spacing: 1px; }
+  .stars-inline .off { color: var(--line-strong); }
+</style>

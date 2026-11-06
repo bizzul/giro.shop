@@ -1,11 +1,13 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import { actions } from 'astro:actions';
 import CategoryIcon from '../../components/CategoryIcon.astro';
 import ListingCard from '../../components/ListingCard.astro';
 import ContactBox from '../../components/ContactBox.astro';
 import FavoriteButton from '../../components/FavoriteButton.astro';
 import QuestionBox from '../../components/QuestionBox.astro';
 import PriceChart from '../../components/PriceChart.astro';
+import RatingsSummary from '../../components/RatingsSummary.astro';
 import { ruleHighlights } from '../../core/highlights.ts';
 import { detectCategory } from '../../core/categories.ts';
 import { tokenize } from '../../core/text.ts';
@@ -67,12 +69,12 @@ const market = forSale.length
   : null;
 
 const questions = listing.questions ?? [];
-const answered = questions.filter((q) => q.answer);
+// Prima le risposte che più persone hanno trovato utili
+const answered = questions.filter((q) => q.answer).sort((a, b) => b.helpful - a.helpful || a.createdAt.localeCompare(b.createdAt));
+const voteAction = `/domande${actions.questions.vote}&id=${encodeURIComponent(listing.id)}`;
 const { stats, ratings } = listing.sellerId ? await sellerProfile(listing.sellerId) : { stats: null, ratings: [] };
-const distribution = [5, 4, 3, 2, 1].map((n) => ({ n, count: ratings.filter((r) => r.stars === n).length }));
 const memberSince = stats ? new Date(stats.memberSince).toLocaleDateString('it-CH', { month: 'long', year: 'numeric' }) : null;
 const canTranslate = Boolean(claudeKey());
-const day = (iso: string) => new Date(iso).toLocaleDateString('it-CH', { day: 'numeric', month: 'short', year: 'numeric' });
 ---
 
 <Layout title={`${listing.title} · giro.shop`} description={listing.description}>
@@ -221,7 +223,7 @@ const day = (iso: string) => new Date(iso).toLocaleDateString('it-CH', { day: 'n
           <div>
             <span class="label">Pubblicato da</span>
             <p class="name">
-              {listing.seller.name}
+              {listing.sellerId ? <a class="seller-link" href={`/venditore/${listing.sellerId}`}>{listing.seller.name}</a> : listing.seller.name}
               {listing.seller.verified && <span class="badge ok">Cellulare verificato</span>}
             </p>
             {
@@ -264,7 +266,22 @@ const day = (iso: string) => new Date(iso).toLocaleDateString('it-CH', { day: 'n
             </summary>
             <dl class="facts">
               <div><dt>Condizione</dt><dd>{CONDITION_LABEL[listing.condition]}</dd></div>
-              <div><dt>Ritiro</dt><dd>{comune ? `${comune.cap} ${comune.name} · distretto di ${comune.district}` : '—'}</dd></div>
+              <div>
+                <dt>Ritiro</dt>
+                <dd>
+                  {comune ? `${comune.cap} ${comune.name} · distretto di ${comune.district}` : '—'}
+                  {comune && (
+                    <span class="dist" data-lat={comune.lat} data-lon={comune.lon}>
+                      <span data-dist />
+                    </span>
+                  )}
+                  {comune && (
+                    <button class="link-button ask-dist" type="button" data-place-open data-place-ask>
+                      Quanto dista da te?
+                    </button>
+                  )}
+                </dd>
+              </div>
               {listing.shipping && <div><dt>Spedizione</dt><dd>{listing.shippingChf != null ? `Possibile, ${formatChf(listing.shippingChf)}` : 'Possibile, costo da concordare'}</dd></div>}
               {attributes.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}
               <div><dt>Pubblicato</dt><dd>{formatAge(listing.publishedAt)}</dd></div>
@@ -289,8 +306,18 @@ const day = (iso: string) => new Date(iso).toLocaleDateString('it-CH', { day: 'n
                           <span class="label">{listing.seller.name} risponde</span>
                           {q.answer}
                         </p>
-                        <span class="muted small">
-                          Chiesto da {q.askerName} · {formatAge(q.createdAt)}
+                        <span class="qa-foot">
+                          <span class="muted small">
+                            Chiesto da {q.askerName} · {formatAge(q.createdAt)}
+                          </span>
+                          {!sold && (
+                            <form method="POST" action={voteAction}>
+                              <input type="hidden" name="questionId" value={q.id} />
+                              <button class="helpful" type="submit" data-vote={q.id} aria-pressed="false">
+                                Utile{q.helpful > 0 && <span class="mono"> · {q.helpful}</span>}
+                              </button>
+                            </form>
+                          )}
                         </span>
                       </li>
                     ))}
@@ -360,42 +387,12 @@ const day = (iso: string) => new Date(iso).toLocaleDateString('it-CH', { day: 'n
                   <span class="count">{stats.ratingCount}</span>
                 </summary>
                 <div class="block-body">
-                  <div class="score">
-                    <b class="avg">{stats.ratingAvg?.toFixed(1)}</b>
-                    <div class="bars">
-                      {distribution.map((d) => (
-                        <div class="bar-row">
-                          <span class="small">{d.n} ★</span>
-                          <span class="bar" aria-hidden="true">
-                            <span style={`width:${(d.count / stats.ratingCount) * 100}%`} />
-                          </span>
-                          <span class="small muted">{d.count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <p class="muted small">Solo da chi ha concluso una vendita con {listing.seller.name}.</p>
-                  <ul class="reviews">
-                    {ratings.slice(0, 6).map((r) => (
-                      <li>
-                        <span class="stars-inline" aria-label={`${r.stars} su 5`}>
-                          {'★'.repeat(r.stars)}
-                          <span class="off">{'★'.repeat(5 - r.stars)}</span>
-                        </span>
-                        {r.tags.length > 0 && (
-                          <span class="chips">
-                            {r.tags.map((t) => (
-                              <span class="chip">{t}</span>
-                            ))}
-                          </span>
-                        )}
-                        {r.comment && <p>{r.comment}</p>}
-                        <span class="muted small">
-                          {r.raterName} · {day(r.createdAt)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <RatingsSummary stats={stats} ratings={ratings} name={listing.seller.name} limit={4} />
+                  {listing.sellerId && (
+                    <a class="small" href={`/venditore/${listing.sellerId}#valutazioni`}>
+                      {stats.ratingCount > 4 ? `Tutte le ${stats.ratingCount} valutazioni` : `Profilo di ${listing.seller.name}`}
+                    </a>
+                  )}
                 </div>
               </details>
             )
@@ -527,6 +524,18 @@ const day = (iso: string) => new Date(iso).toLocaleDateString('it-CH', { day: 'n
     });
   }
 
+  // "Utile": quali risposte la persona ha già votato (la scheda è uguale per tutti, il voto no)
+  const voteButtons = document.querySelectorAll<HTMLButtonElement>('[data-vote]');
+  if (voteButtons.length) {
+    const id = location.pathname.split('/').pop() ?? '';
+    fetch(`/domande/voti?annuncio=${encodeURIComponent(id)}`)
+      .then((r) => (r.ok ? r.json() : { voted: [] }))
+      .then(({ voted }: { voted: string[] }) => {
+        for (const b of voteButtons) b.setAttribute('aria-pressed', String(voted.includes(b.dataset.vote ?? '')));
+      })
+      .catch(() => {});
+  }
+
   // Prima di chiedere: forse la risposta è già nella descrizione
   const stem = (w: string) => w.slice(0, 5);
   const words = (text: string) =>
@@ -656,19 +665,17 @@ const day = (iso: string) => new Date(iso).toLocaleDateString('it-CH', { day: 'n
   .trust { display: grid; gap: 4px; margin-top: 10px; color: var(--muted); }
   .trust a { color: var(--ink); text-underline-offset: 3px; }
   .stars-inline { color: var(--sun); letter-spacing: 1px; font-weight: 400; }
-  .stars-inline .off { color: var(--line-strong); }
+  .seller-link { text-underline-offset: 4px; text-decoration-color: var(--line-strong); }
+  .dist { font-weight: 500; }
+  .ask-dist { display: block; margin-top: 4px; }
   .qa { display: grid; }
   .qa li { display: grid; gap: 8px; padding-block: 14px; border-top: 1px solid var(--line); }
   .qa .q { font-weight: 500; color: var(--ink); }
   .qa .a { display: grid; gap: 4px; padding-left: 12px; border-left: 2px solid var(--line-strong); color: var(--ink); }
-  .score { display: flex; align-items: center; gap: 24px; }
-  .avg { font: 300 48px/1 var(--f-display); letter-spacing: -0.04em; color: var(--ink); }
-  .bars { display: grid; gap: 4px; flex: 1; max-width: 320px; }
-  .bar-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) 24px; gap: 10px; align-items: center; }
-  .bar { height: 6px; border-radius: 3px; background: var(--surface); overflow: hidden; }
-  .bar span { display: block; height: 100%; background: var(--ink); }
-  .reviews { display: grid; }
-  .reviews li { display: grid; gap: 6px; padding-block: 12px; border-top: 1px solid var(--line); color: var(--ink); }
+  .qa-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .helpful { border: 1px solid var(--line); border-radius: 2px; background: var(--surface-2); color: var(--muted); font: 500 11px/1 var(--f-body); letter-spacing: 0.06em; text-transform: uppercase; padding: 7px 10px; cursor: pointer; }
+  .helpful:hover { border-color: var(--ink); color: var(--ink); }
+  .helpful[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); background: var(--surface); }
 
   /* Sezioni a fisarmonica, con il numero di voci accanto al titolo */
   .blocks { border-top: 1px solid var(--line); }

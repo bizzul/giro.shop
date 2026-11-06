@@ -91,6 +91,19 @@ export const account = {
     },
   }),
 
+  /** Email degli avvisi: accese o spente. Gli avvisi nel sito restano sempre. */
+  setEmailNotices: defineAction({
+    accept: 'form',
+    input: z.object({ on: z.string().nullish() }),
+    handler: async ({ on }, context) => {
+      const { supabase, user } = requireUser(context);
+      const value = Boolean(on);
+      const { error } = await supabase.from('profiles').update({ notify_email: value }).eq('id', user.id);
+      if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Preferenza non salvata: ${error.message}` });
+      return { on: value };
+    },
+  }),
+
   /** Pubblica un annuncio con le sue foto. Le regole RLS garantiscono che chi vende sia l'utente. */
   publishListing: defineAction({
     accept: 'form',

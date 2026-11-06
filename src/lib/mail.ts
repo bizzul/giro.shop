@@ -21,6 +21,7 @@ export interface Mail {
   subject: string;
   text: string;
   html: string;
+  headers?: Record<string, string>;
 }
 
 /** Manda un'email. Restituisce false (senza eccezioni) se l'invio non è configurato o non riesce. */
@@ -39,20 +40,23 @@ export async function sendMail(mail: Mail): Promise<boolean> {
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
 
 /** Email semplice e leggibile anche senza immagini: titolo, testo, un bottone, il link agli avvisi. */
-export function noticeMail(input: { to: string; title: string; body: string; url: string; origin: string }): Mail {
+export function noticeMail(input: { to: string; title: string; body: string; url: string; origin: string; unsubscribe: string | null }): Mail {
   const link = `${input.origin}${input.url}`;
   const manage = `${input.origin}/avvisi`;
+  const stop = input.unsubscribe;
   return {
     to: input.to,
     subject: input.title,
-    text: `${input.title}\n\n${input.body}\n\nApri: ${link}\n\n— giro.shop\nTutti i tuoi avvisi: ${manage}`,
+    // Disiscrizione con un clic dal programma di posta (RFC 8058)
+    headers: stop ? { 'List-Unsubscribe': `<${stop}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : undefined,
+    text: `${input.title}\n\n${input.body}\n\nApri: ${link}\n\n— giro.shop\nTutti i tuoi avvisi: ${manage}${stop ? `\nNon voglio più email degli avvisi: ${stop}` : ''}`,
     html: `<!doctype html><html lang="it"><body style="margin:0;padding:24px;background:#f6f6f4;font-family:Helvetica,Arial,sans-serif;color:#111">
 <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:8px;padding:28px">
 <p style="margin:0 0 20px;font-size:13px;color:#6b6b68">giro.shop</p>
 <h1 style="margin:0 0 12px;font-size:20px;font-weight:500;line-height:1.3">${escape(input.title)}</h1>
 <p style="margin:0 0 24px;font-size:15px;line-height:1.5;color:#333">${escape(input.body)}</p>
 <a href="${escape(link)}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:12px 18px;border-radius:2px;font-size:13px;letter-spacing:.06em;text-transform:uppercase">Apri</a>
-<p style="margin:28px 0 0;font-size:12px;color:#6b6b68">Ricevi questa email per un avviso che hai attivato. <a href="${escape(manage)}" style="color:#6b6b68">Tutti i tuoi avvisi</a></p>
+<p style="margin:28px 0 0;font-size:12px;color:#6b6b68">Ricevi questa email per un avviso che hai attivato. <a href="${escape(manage)}" style="color:#6b6b68">Tutti i tuoi avvisi</a>${stop ? ` · <a href="${escape(stop)}" style="color:#6b6b68">Non voglio più email</a>` : ''}</p>
 </div></body></html>`,
   };
 }

@@ -3,7 +3,7 @@ import * as z from 'zod/v4';
 import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
 import type { SearchFilters, SearchHit } from '../core/types.ts';
 import { parseQuery } from '../core/query.ts';
-import { searchWithFilters } from '../core/search.ts';
+import { search, searchWithFilters } from '../core/search.ts';
 import { estimatePrice } from '../core/price.ts';
 import { createDraft, DraftError } from '../core/draft.ts';
 import { getListing, getPhoto, refreshListings } from '../core/store.ts';
@@ -25,6 +25,7 @@ const INSTRUCTIONS = `giro.shop è un mercatino dell'usato del Canton Ticino (pr
 - get_listing restituisce la scheda completa di un annuncio.
 - estimate_price stima una fascia di prezzo dagli annunci simili, pubblicati e venduti.
 - create_draft prepara la bozza di un annuncio da una descrizione (ciò che vedi nelle foto e ciò che dice chi vende). Non pubblica nulla.
+- save_search prepara un avviso per una ricerca e restituisce un link: la persona lo apre, accede e conferma. Mostra sempre il link alla persona.
 ${UNTRUSTED_NOTE}`;
 
 /** Descrizioni brevi degli strumenti, riusate anche nella pagina /connetti. */
@@ -33,6 +34,7 @@ export const TOOL_DOCS = [
   { name: 'get_listing', summary: 'Scheda completa di un annuncio, con stima del prezzo.' },
   { name: 'estimate_price', summary: 'Fascia di prezzo da una descrizione, con gli annunci simili usati come prova.' },
   { name: 'create_draft', summary: 'Prepara una bozza da descrizione e foto. Non pubblica nulla.' },
+  { name: 'save_search', summary: 'Prepara un avviso per una ricerca: restituisce il link che la persona apre per confermarlo.' },
 ] as const;
 
 function text(value: unknown) {
@@ -242,6 +244,30 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
         if (error instanceof DraftError) return errorResult(error.message);
         throw error;
       }
+    },
+  );
+
+  server.registerTool(
+    'save_search',
+    {
+      title: 'Avviso per una ricerca',
+      description:
+        "Prepara un avviso: giro.shop scriverà alla persona (nel sito e per email) quando arriva un annuncio che corrisponde. Il connettore non conosce l'account della persona, quindi non salva nulla: restituisce un link di conferma da mostrare alla persona, che lo apre, accede se serve e conferma con un tocco.",
+      inputSchema: z.object({
+        query: z.string().min(2).max(200).describe('La ricerca come frase: "bici da corsa sotto i 500 franchi vicino a Bellinzona"'),
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async ({ query }) => {
+      await refreshListings();
+      const q = query.trim();
+      const { chips, total } = search(q, { limit: 1 });
+      return text({
+        confirm_url: `${baseUrl}/salvati/nuova?q=${encodeURIComponent(q)}`,
+        understood_as: chips.map((c) => `${c.key}: ${c.value}`),
+        matching_now: total,
+        next_step: "Mostra il link alla persona: l'avviso si attiva solo quando lo conferma su giro.shop.",
+      });
     },
   );
 
