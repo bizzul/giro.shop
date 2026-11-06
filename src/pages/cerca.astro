@@ -50,8 +50,8 @@ const browse = result ? [] : latestListings(48);
     {
       result && result.hits.length > 0 && (
         <div class="cards">
-          {result.hits.map((h) => (
-            <ListingCard listing={h.listing} distanceKm={h.distanceKm} reasons={h.reasons} verdict={h.verdict} />
+          {result.hits.map((h, i) => (
+            <ListingCard listing={h.listing} distanceKm={h.distanceKm} reasons={h.reasons} verdict={h.verdict} eager={i < 4} />
           ))}
         </div>
       )

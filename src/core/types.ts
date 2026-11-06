@@ -64,6 +64,22 @@ export interface Listing {
   seller: { name: string; verified: boolean };
 }
 
+/** Foto di un annuncio, in due misure, con i crediti richiesti dalla licenza. */
+export interface Photo {
+  src: string;
+  srcSmall: string;
+  width: number;
+  height: number;
+  credit: {
+    author: string | null;
+    authorUrl: string | null;
+    license: string;
+    licenseUrl: string | null;
+    source: string;
+    sourceUrl: string;
+  };
+}
+
 /** Un gruppo di parole equivalenti: basta che l'annuncio ne contenga una. */
 export interface TermGroup {
   term: string;

@@ -6,7 +6,7 @@ import { parseQuery } from '../core/query.ts';
 import { searchWithFilters } from '../core/search.ts';
 import { estimatePrice } from '../core/price.ts';
 import { createDraft, DraftError } from '../core/draft.ts';
-import { getListing } from '../core/store.ts';
+import { getListing, getPhoto } from '../core/store.ts';
 import { getComune, resolveComune } from '../core/comuni.ts';
 import { getCategory } from '../core/categories.ts';
 import { CONDITION_LABEL, VERDICT_LABEL } from '../core/format.ts';
@@ -60,7 +60,13 @@ function hitToJson(hit: SearchHit, baseUrl: string) {
     published_at: l.publishedAt,
     seller_verified: l.seller.verified,
     url: `${baseUrl}/annuncio/${l.id}`,
+    photo_url: photoUrl(l.id, baseUrl),
   };
+}
+
+function photoUrl(id: string, baseUrl: string): string | null {
+  const photo = getPhoto(id);
+  return photo ? `${baseUrl}${photo.src}` : null;
 }
 
 export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
@@ -141,6 +147,13 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
         published_at: l.publishedAt,
         market_estimate_chf: estimate ? { low: estimate.low, mid: estimate.mid, high: estimate.high, based_on: estimate.comparables } : null,
         url: `${baseUrl}/annuncio/${l.id}`,
+        photo: getPhoto(l.id)
+          ? {
+              url: photoUrl(l.id, baseUrl),
+              credit: getPhoto(l.id)!.credit,
+              note: 'Foto di esempio del prototipo, non dell\'oggetto reale.',
+            }
+          : null,
         note: UNTRUSTED_NOTE,
       });
     },

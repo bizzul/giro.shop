@@ -2,7 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import CategoryIcon from '../../components/CategoryIcon.astro';
 import ListingCard from '../../components/ListingCard.astro';
-import { getListing } from '../../core/store.ts';
+import { getListing, getPhoto, sourceName } from '../../core/store.ts';
 import { getComune } from '../../core/comuni.ts';
 import { getCategory } from '../../core/categories.ts';
 import { estimatePrice, priceVerdict } from '../../core/price.ts';
@@ -15,6 +15,7 @@ if (!listing || listing.status !== 'pubblicato') {
 }
 
 const comune = getComune(listing.comuneId);
+const photo = getPhoto(listing.id);
 const category = getCategory(listing.category);
 const verdict = priceVerdict(listing);
 const estimate = estimatePrice({
@@ -31,10 +32,48 @@ const attributes = Object.entries(listing.attributes);
   <section class="wrap band">
     <p class="crumbs muted"><a href="/cerca">Annunci</a> · {category.name}</p>
     <div class="detail">
-      <div class="photo">
-        <CategoryIcon category={listing.category} />
-        <span class="label">Foto in arrivo con la Fase 1</span>
-      </div>
+      {
+        photo ? (
+          <figure class="gallery">
+            <img
+              class="hero-photo"
+              src={photo.src}
+              width={photo.width}
+              height={photo.height}
+              alt={listing.title}
+              fetchpriority="high"
+              decoding="async"
+            />
+            <figcaption class="credit">
+              Foto di esempio:{' '}
+              {photo.credit.authorUrl ? (
+                <a href={photo.credit.authorUrl} target="_blank" rel="noopener">
+                  {photo.credit.author ?? 'autore'}
+                </a>
+              ) : (
+                (photo.credit.author ?? 'autore sconosciuto')
+              )}{' '}
+              ·{' '}
+              {photo.credit.licenseUrl ? (
+                <a href={photo.credit.licenseUrl} target="_blank" rel="noopener license">
+                  {photo.credit.license}
+                </a>
+              ) : (
+                photo.credit.license
+              )}{' '}
+              ·{' '}
+              <a href={photo.credit.sourceUrl} target="_blank" rel="noopener">
+                {sourceName(photo.credit.source)}
+              </a>
+            </figcaption>
+          </figure>
+        ) : (
+          <div class="photo">
+            <CategoryIcon category={listing.category} />
+            <span class="label">Nessuna foto</span>
+          </div>
+        )
+      }
 
       <div class="info">
         <h1 class="title">{listing.title}</h1>
@@ -103,6 +142,10 @@ const attributes = Object.entries(listing.attributes);
   @media (max-width: 860px) { .detail { grid-template-columns: 1fr; } }
   .photo { aspect-ratio: 4 / 3; border-radius: 18px; border: 1px solid var(--line); background: linear-gradient(140deg, var(--line-soft), var(--surface)); display: grid; place-items: center; align-content: center; gap: 12px; color: var(--muted); max-width: 100%; }
   .photo svg { width: 34%; height: auto; }
+  .gallery { display: grid; gap: 8px; }
+  .hero-photo { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); display: block; }
+  .credit { font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .credit a { color: inherit; text-underline-offset: 2px; }
   .info { display: grid; gap: 16px; }
   .title { font-size: clamp(26px, 3vw, 36px); line-height: 1.1; }
   .price-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

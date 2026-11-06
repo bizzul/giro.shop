@@ -1,5 +1,6 @@
-import type { Listing } from './types.ts';
+import type { Listing, Photo } from './types.ts';
 import { LISTINGS } from '../data/listings.ts';
+import { PHOTOS } from '../data/photos.ts';
 
 /**
  * Accesso agli annunci. Nel prototipo legge i dati di prova in memoria;
@@ -15,6 +16,17 @@ export function publishedListings(): Listing[] {
 
 export function getListing(id: string): Listing | undefined {
   return LISTINGS.find((l) => l.id === id);
+}
+
+/** Foto di esempio dell'annuncio (nel prototipo vengono da Openverse, con crediti). */
+export function getPhoto(listingId: string): Photo | undefined {
+  return PHOTOS[listingId];
+}
+
+const SOURCE_NAMES: Record<string, string> = { flickr: 'Flickr', wikimedia: 'Wikimedia Commons' };
+
+export function sourceName(source: string): string {
+  return SOURCE_NAMES[source] ?? source.charAt(0).toUpperCase() + source.slice(1);
 }
 
 export function latestListings(limit = 8): Listing[] {

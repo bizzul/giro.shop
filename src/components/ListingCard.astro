@@ -2,6 +2,7 @@
 import type { Listing, PriceVerdict } from '../core/types.ts';
 import CategoryIcon from './CategoryIcon.astro';
 import { getComune } from '../core/comuni.ts';
+import { getPhoto } from '../core/store.ts';
 import { formatChf, formatKm, isNew, VERDICT_LABEL } from '../core/format.ts';
 
 interface Props {
@@ -9,10 +10,13 @@ interface Props {
   distanceKm?: number;
   reasons?: string[];
   verdict?: PriceVerdict;
+  /** Le prime card visibili si caricano subito, le altre quando servono. */
+  eager?: boolean;
 }
 
-const { listing, distanceKm, reasons = [], verdict } = Astro.props;
+const { listing, distanceKm, reasons = [], verdict, eager = false } = Astro.props;
 const comune = getComune(listing.comuneId);
+const photo = getPhoto(listing.id);
 const verdictClass = verdict === 'sotto_mercato' ? 'ok' : verdict === 'sopra_mercato' ? 'bad' : 'ok';
 ---
 
@@ -24,7 +28,22 @@ const verdictClass = verdict === 'sotto_mercato' ? 'ok' : verdict === 'sopra_mer
       {listing.priceChf === 0 && <span class="badge volt">Regalo</span>}
       {listing.negotiable && <span class="badge plain">Trattabile</span>}
     </div>
-    <CategoryIcon category={listing.category} />
+    {
+      photo ? (
+        <img
+          src={photo.srcSmall}
+          srcset={`${photo.srcSmall} 480w, ${photo.src} ${photo.width}w`}
+          sizes="(max-width: 560px) 100vw, 300px"
+          width="480"
+          height="360"
+          alt={listing.title}
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+        />
+      ) : (
+        <CategoryIcon category={listing.category} />
+      )
+    }
   </div>
   <div class="lb">
     <span class="lprice">{formatChf(listing.priceChf)}</span>

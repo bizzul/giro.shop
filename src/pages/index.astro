@@ -32,7 +32,7 @@ const examples = [
       <a class="muted" href="/cerca">Tutti gli annunci →</a>
     </div>
     <div class="cards">
-      {latest.map((l) => <ListingCard listing={l} verdict={priceVerdict(l)} />)}
+      {latest.map((l, i) => <ListingCard listing={l} verdict={priceVerdict(l)} eager={i < 4} />)}
     </div>
   </section>
 
