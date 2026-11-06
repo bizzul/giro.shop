@@ -53,7 +53,7 @@ const { value = '', autofocus = false, target, mode = 'cerca' } = Astro.props;
         shown = q;
         if (mode === 'cerca') {
           history.replaceState(null, '', q ? `/cerca?q=${encodeURIComponent(q)}` : '/cerca');
-          document.title = q ? `${q} · Piazza` : 'Cerca · Piazza';
+          document.title = q ? `${q} · giro.shop` : 'Cerca · giro.shop';
         }
         if (status) status.textContent = target.querySelector('[data-status]')?.textContent?.trim() ?? '';
       } catch (error) {

@@ -8,7 +8,7 @@ const projectDir = import.meta.env.DEV ? process.cwd() : '/percorso/del/progetto
 const desktopConfig = JSON.stringify(
   {
     mcpServers: {
-      piazza: {
+      giro: {
         command: 'node',
         args: [`${projectDir}/src/mcp/stdio.ts`],
         env: {
@@ -25,13 +25,13 @@ const desktopConfig = JSON.stringify(
 );
 ---
 
-<Layout title="Assistente AI · Piazza" description="Collega Piazza a Claude o a un altro client MCP.">
+<Layout title="Assistente AI · giro.shop" description="Collega giro a Claude o a un altro client MCP.">
   <section class="wrap band connect">
     <div class="intro">
       <p class="eyebrow">Connettore MCP</p>
-      <h1>Piazza dentro il tuo assistente AI.</h1>
+      <h1>giro dentro il tuo assistente AI.</h1>
       <p class="muted">
-        MCP è lo standard aperto con cui gli assistenti AI usano servizi esterni. Collegando Piazza puoi cercare annunci,
+        MCP è lo standard aperto con cui gli assistenti AI usano servizi esterni. Collegando giro puoi cercare annunci,
         stimare prezzi e preparare bozze parlando con il tuo assistente. Nessuno strumento pubblica o contatta qualcuno: in questo
         prototipo si legge e si preparano bozze.
       </p>
@@ -46,7 +46,7 @@ const desktopConfig = JSON.stringify(
     <div class="grid">
       <div class="panel block">
         <h3>Claude Code</h3>
-        <pre class="code"><code>claude mcp add --transport http piazza {endpoint}</code></pre>
+        <pre class="code"><code>claude mcp add --transport http giro {endpoint}</code></pre>
       </div>
       <div class="panel block">
         <h3>MCP Inspector</h3>

@@ -13,7 +13,7 @@ const emailError = result?.error && isInputError(result.error) ? result.error.fi
 const linkFailed = Astro.url.searchParams.has('errore');
 ---
 
-<Layout title="Accedi · Piazza" description="Entra in Piazza con un link via email, senza password.">
+<Layout title="Accedi · giro.shop" description="Entra in giro.shop con un link via email, senza password.">
   <section class="wrap band auth">
     {
       result?.data ? (

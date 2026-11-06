@@ -1,4 +1,4 @@
-/* Piazza · direzione grafica "Granito elettrico" (design system v2)
+/* giro.shop · direzione grafica "Granito elettrico" (design system "giro")
    Bianco ampio, inchiostro per testo e dati, azione primaria nera.
    Il blu elettrico (volt) compare solo dove lavora l'AI: anello AiMark e marchio. */
 :root {
@@ -105,9 +105,9 @@ h3 { font-size: 18px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01e
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .mark { width: 26px; height: 26px; flex: none; }
 .mark rect { fill: var(--volt); }
-.mark .ring { fill: none; stroke: var(--volt-ink); stroke-width: 2.4; }
-.mark .dot { fill: var(--volt-ink); }
+.mark .arrow { fill: none; stroke: var(--volt-ink); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .wordmark { font: 500 22px/1 var(--f-display); letter-spacing: -0.045em; }
+.wordmark .tld { color: var(--muted); }
 .top nav { display: flex; align-items: center; gap: 28px; }
 .top nav a:not(.btn) { font: 500 11px/1 var(--f-body); letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; color: var(--ink); padding-block: 6px; }
 .top nav a:not(.btn):hover, .top nav a[aria-current='page']:not(.btn) { text-decoration: underline; text-underline-offset: 8px; text-decoration-thickness: 1px; }
