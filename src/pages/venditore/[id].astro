@@ -11,7 +11,7 @@ import { replyTime, sellerProfile } from '../../lib/sellers.ts';
 const id = Astro.params.id ?? '';
 const valid = /^[0-9a-f-]{36}$/i.test(id);
 const { stats, ratings } = valid ? await sellerProfile(id) : { stats: null, ratings: [] };
-if (!stats) return new Response('Profilo non trovato', { status: 404 });
+if (!stats || stats.suspended) return new Response('Profilo non trovato', { status: 404 });
 
 Astro.cache.set({ tags: [LISTINGS_TAG] });
 const mine = allListings().filter((l) => l.sellerId === id);
@@ -28,6 +28,7 @@ const memberSince = new Date(stats.memberSince).toLocaleDateString('it-CH', { mo
         <p class="badges">
           {stats.phoneVerified && <span class="badge ok">Cellulare verificato</span>}
           <span class="muted small">Su giro.shop da {memberSince}</span>
+          <a class="report small" href={`/segnala?utente=${id}`}>Segnala questo utente</a>
         </p>
       </div>
     </header>
@@ -95,4 +96,5 @@ const memberSince = new Date(stats.memberSince).toLocaleDateString('it-CH', { mo
   .facts b { font: 400 24px/1.1 var(--f-display); letter-spacing: -0.02em; }
   @media (max-width: 640px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   #valutazioni { max-width: 760px; }
+  .report { color: var(--muted); text-underline-offset: 3px; }
 </style>

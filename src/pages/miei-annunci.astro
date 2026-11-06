@@ -44,7 +44,11 @@ const notice = renewResult?.data
         ? 'Cellulare verificato: lo vedono anche gli acquirenti.'
         : null;
 
-const { data: profile } = await supabase.from('profiles').select('display_name, phone_verified_at, notify_email, is_moderator').eq('id', user.id).single();
+const { data: profile } = await supabase
+  .from('profiles')
+  .select('display_name, phone_verified_at, notify_email, is_moderator, suspended_at, suspended_reason')
+  .eq('id', user.id)
+  .single();
 const { data: rows } = await supabase
   .from('listings')
   .select('id, title, price_chf, status, published_at, created_at, expires_at, sold_price_chf, hidden_at, hidden_reason, photos:listing_photos(storage_path, position)')
@@ -99,6 +103,17 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
       </div>
     </header>
 
+    {
+      profile?.suspended_at && (
+        <div class="suspended" role="alert">
+          <b>Il tuo account è sospeso.</b>
+          <span>
+            {profile.suspended_reason && profile.suspended_reason !== 'moderazione' ? `${profile.suspended_reason} ` : ''}I tuoi annunci non sono
+            visibili e non puoi pubblicare né scrivere. Se pensi sia un errore, rispondi all'email che ti abbiamo mandato.
+          </span>
+        </div>
+      )
+    }
     {notice && <p class="notice" role="status">{notice}</p>}
     {error && <p class="error" role="alert">{error}</p>}
 
@@ -311,6 +326,8 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
   .inline { display: flex; gap: 6px; align-items: center; }
   .sold { width: 84px; font: 400 14px/1.2 var(--f-mono); padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); color: var(--ink); }
   .soon { color: var(--bad); }
+  .suspended { display: grid; gap: 4px; background: var(--bad-soft); border-radius: 4px; padding: 14px 16px; font-size: 14.5px; }
+  .suspended b { font-weight: 500; }
   .hidden-note { grid-column: 1 / -1; background: var(--bad-soft); border-radius: 4px; padding: 8px 12px; color: var(--ink); }
   .buyer { max-width: 160px; font: 400 14px/1.2 var(--f-body); padding: 9px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); color: var(--ink); }
   .danger summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 10px 4px; }

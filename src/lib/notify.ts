@@ -17,7 +17,7 @@ export interface Notice {
 
 /** Indirizzo pubblico del sito per i link nelle email. */
 export function siteOrigin(fallback: string): string {
-  return import.meta.env.PIAZZA_BASE_URL ?? process.env.PIAZZA_BASE_URL ?? fallback;
+  return import.meta.env?.PIAZZA_BASE_URL ?? process.env.PIAZZA_BASE_URL ?? fallback;
 }
 
 /**

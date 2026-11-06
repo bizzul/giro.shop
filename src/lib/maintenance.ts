@@ -2,6 +2,8 @@ import { refreshListings } from '../core/store.ts';
 import { adminClient } from './admin.ts';
 import { notify, siteOrigin, type Notice } from './notify.ts';
 import { formatDay } from '../core/format.ts';
+import { claudeKey } from './claude.ts';
+import { moderateWithAgent, pendingTargets } from './moderation-agent.ts';
 
 /**
  * Lavori periodici del server, senza un programmatore esterno: partono al massimo ogni 15 minuti,
@@ -72,6 +74,13 @@ export async function runMaintenance(origin: string, invalidate: () => Promise<v
     );
     await refreshListings(true);
     await invalidate();
+  }
+  // Segnalazioni che l'agente non ha ancora esaminato (server spento, errore, chiave aggiunta dopo)
+  if (claudeKey()) {
+    for (const target of await pendingTargets(admin)) {
+      const outcome = await moderateWithAgent(target, origin);
+      if (!('skipped' in outcome)) await invalidate();
+    }
   }
   return { reminded: reminders.length, expired: expired?.length ?? 0 };
 }

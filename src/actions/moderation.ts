@@ -1,9 +1,10 @@
 import { ActionError, defineAction, type ActionAPIContext } from 'astro:actions';
 import { z } from 'astro/zod';
-import { refreshListings } from '../core/store.ts';
 import { adminClient } from '../lib/admin.ts';
 import { invalidateListingPages } from '../lib/cache.ts';
-import { notify, siteOrigin, type Notice } from '../lib/notify.ts';
+import { applyDecision, ModerationError, undoAction } from '../lib/moderation.ts';
+import { moderateWithAgent } from '../lib/moderation-agent.ts';
+import { siteOrigin } from '../lib/notify.ts';
 import { requireUser } from './account.ts';
 
 /** Solo chi ha is_moderator nel profilo (lo assegna chi gestisce il database). */
@@ -15,78 +16,65 @@ export async function requireModerator(context: ActionAPIContext) {
   return { user, admin };
 }
 
-/** "annuncio:l-001", "domanda:<uuid>", "valutazione:<uuid>" */
-const TARGET = /^(annuncio|domanda|valutazione):(.+)$/;
+const TARGET = /^(annuncio|domanda|valutazione|utente|conversazione):.+$/;
+const asActionError = (error: unknown) =>
+  error instanceof ModerationError ? new ActionError({ code: 'BAD_REQUEST', message: error.message }) : error;
 
+/** Decisioni delle persone che moderano; quelle dell'agente passano dagli stessi passi (lib/moderation.ts). */
 export const moderation = {
   decide: defineAction({
     accept: 'form',
     input: z.object({
       target: z.string().regex(TARGET),
-      decision: z.enum(['nascondi', 'respingi']),
+      decision: z.enum(['nascondi', 'respingi', 'sospendi']),
       message: z.string().trim().max(300).nullish(),
     }),
     handler: async ({ target, decision, message }, context) => {
-      const { admin } = await requireModerator(context);
-      const [, kind, id] = target.match(TARGET)!;
-      const { data: open } = await admin.from('reports').select('reporter_id, listing_id').eq('target', target).eq('status', 'aperta');
-      if (!open?.length) throw new ActionError({ code: 'NOT_FOUND', message: 'Nessuna segnalazione aperta su questo contenuto.' });
-      const listingId = open[0].listing_id as string;
-      const { data: listing } = await admin.from('listings').select('id, title, seller_id, hidden_at, hidden_reason').eq('id', listingId).maybeSingle();
-      const table = kind === 'annuncio' ? 'listings' : kind === 'domanda' ? 'questions' : 'ratings';
-      const now = new Date().toISOString();
-      const notices: Notice[] = [];
-      const reporters = [...new Set(open.map((r) => r.reporter_id as string))];
-      const what = kind === 'annuncio' ? `l'annuncio «${listing?.title}»` : kind === 'domanda' ? `la domanda su «${listing?.title}»` : `la valutazione su «${listing?.title}»`;
-
-      if (decision === 'nascondi') {
-        const patch = kind === 'annuncio' ? { hidden_at: now, hidden_reason: message || 'moderazione' } : { hidden_at: now };
-        const { error } = await admin.from(table).update(patch).eq('id', id);
-        if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Non nascosto: ${error.message}` });
-        notices.push(
-          ...reporters.map((userId) => ({
-            userId,
-            kind: 'segnalazione' as const,
-            title: `Abbiamo tolto ${what}`,
-            body: 'Grazie della segnalazione: aiuta tutti a comprare e vendere tranquilli.',
-            url: '/avvisi',
-            listingId,
-          })),
-        );
-        if (kind === 'annuncio' && listing?.seller_id) {
-          notices.push({
-            userId: listing.seller_id,
-            kind: 'segnalazione',
-            title: `«${listing.title}» è stato nascosto`,
-            body: message || 'Non rispetta le regole di giro.shop. Se pensi sia un errore, scrivici rispondendo a questa email.',
-            url: `/miei-annunci#a-${listing.id}`,
-            listingId,
-          });
-        }
-      } else {
-        // Respinta: se era nascosto solo per le segnalazioni, torna visibile
-        if (kind === 'annuncio' && listing?.hidden_at && listing.hidden_reason === 'segnalazioni') {
-          await admin.from('listings').update({ hidden_at: null, hidden_reason: null }).eq('id', id);
-          if (listing.seller_id) {
-            notices.push({
-              userId: listing.seller_id,
-              kind: 'segnalazione',
-              title: `«${listing.title}» è di nuovo visibile`,
-              body: "L'abbiamo controllato: è tutto a posto.",
-              url: `/annuncio/${listing.id}`,
-              listingId,
-            });
-          }
-        } else if (kind !== 'annuncio') {
-          await admin.from(table).update({ hidden_at: null }).eq('id', id);
-        }
+      const { user, admin } = await requireModerator(context);
+      try {
+        await applyDecision({
+          admin,
+          target,
+          decision,
+          actor: 'persona',
+          moderatorId: user.id,
+          message: message || null,
+          origin: siteOrigin(context.url.origin),
+        });
+      } catch (error) {
+        throw asActionError(error);
       }
-
-      await admin.from('reports').update({ status: decision === 'nascondi' ? 'accolta' : 'respinta', handled_at: now }).eq('target', target).eq('status', 'aperta');
-      await notify(notices, siteOrigin(context.url.origin));
-      await refreshListings(true);
       await invalidateListingPages(context);
       return { target, decision };
+    },
+  }),
+
+  /** Annulla una decisione, dell'agente o di una persona. */
+  undo: defineAction({
+    accept: 'form',
+    input: z.object({ actionId: z.string().uuid() }),
+    handler: async ({ actionId }, context) => {
+      const { user, admin } = await requireModerator(context);
+      try {
+        await undoAction(admin, actionId, user.id, siteOrigin(context.url.origin));
+      } catch (error) {
+        throw asActionError(error);
+      }
+      await invalidateListingPages(context);
+      return { actionId };
+    },
+  }),
+
+  /** Chiede all'agente di esaminare un contenuto (per esempio dopo aver aggiunto la chiave di Claude). */
+  askAgent: defineAction({
+    accept: 'form',
+    input: z.object({ target: z.string().regex(TARGET) }),
+    handler: async ({ target }, context) => {
+      await requireModerator(context);
+      const outcome = await moderateWithAgent(target, siteOrigin(context.url.origin));
+      if ('skipped' in outcome) throw new ActionError({ code: 'BAD_REQUEST', message: outcome.skipped });
+      await invalidateListingPages(context);
+      return { target, action: outcome.action };
     },
   }),
 };

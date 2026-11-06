@@ -62,7 +62,10 @@ const STATUS: Record<string, string> = { pubblicato: 'In vendita', in_trattativa
         }
         <button class="btn primary" type="submit">Invia</button>
       </div>
-      <p class="small">Non pagare in anticipo a sconosciuti e non condividere codici ricevuti per SMS.</p>
+      <p class="small">
+        Non pagare in anticipo a sconosciuti e non condividere codici ricevuti per SMS. Qualcosa non va?{' '}
+        <a href={`/segnala?conversazione=${conversation.id}`}>Segnala la conversazione</a>
+      </p>
     </form>
   </section>
 </Layout>

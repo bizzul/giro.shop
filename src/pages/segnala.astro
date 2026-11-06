@@ -1,15 +1,24 @@
 ---
-/** Segnalare un annuncio, una domanda o una valutazione. Serve l'accesso: le segnalazioni anonime si abusano facilmente. */
+/**
+ * Segnalare un annuncio, una domanda, una valutazione, un utente o una conversazione privata.
+ * Serve l'accesso: le segnalazioni anonime si abusano facilmente.
+ */
 import Layout from '../layouts/Layout.astro';
 import { actions } from 'astro:actions';
 import { getListing } from '../core/store.ts';
-import { REPORT_REASONS } from '../actions/reports.ts';
+import { REPORT_REASONS } from '../core/rules.ts';
+import { claudeKey } from '../lib/claude.ts';
 
 const params = Astro.url.searchParams;
 const listingId = params.get('annuncio') ?? '';
 const questionId = params.get('domanda') ?? '';
 const ratingId = params.get('valutazione') ?? '';
-const here = `/segnala?${new URLSearchParams(Object.entries({ annuncio: listingId, domanda: questionId, valutazione: ratingId }).filter(([, v]) => v)).toString()}`;
+const userId = params.get('utente') ?? '';
+const conversationId = params.get('conversazione') ?? '';
+const query = new URLSearchParams(
+  Object.entries({ annuncio: listingId, domanda: questionId, valutazione: ratingId, utente: userId, conversazione: conversationId }).filter(([, v]) => v),
+).toString();
+const here = `/segnala?${query}`;
 
 const { user, supabase } = Astro.locals;
 if (!user || !supabase) return Astro.redirect(`/accedi?next=${encodeURIComponent(here)}`);
@@ -17,15 +26,43 @@ if (!user || !supabase) return Astro.redirect(`/accedi?next=${encodeURIComponent
 const result = Astro.getActionResult(actions.reports.create);
 if (result?.data) return Astro.redirect(`${here}&fatto=1`, 303);
 const done = params.get('fatto') === '1';
+const agent = Boolean(claudeKey());
 
-const listing = getListing(listingId);
+const kind = conversationId ? 'conversazione' : userId ? 'utente' : questionId ? 'domanda' : ratingId ? 'valutazione' : 'annuncio';
+const listing = listingId ? getListing(listingId) : undefined;
 const question = questionId ? listing?.questions?.find((q) => q.id === questionId) : undefined;
 const { data: rating } = ratingId
   ? await supabase.from('ratings').select('stars, comment').eq('id', ratingId).eq('listing_id', listingId).maybeSingle()
   : { data: null };
-const found = Boolean(listing) && (!questionId || question) && (!ratingId || rating);
-const what = questionId ? 'questa domanda' : ratingId ? 'questa valutazione' : 'questo annuncio';
-const back = listing ? `/annuncio/${listing.id}${questionId ? '#domande' : ratingId ? '#valutazioni' : ''}` : '/cerca';
+const { data: person } = userId ? await supabase.from('profiles').select('display_name, created_at').eq('id', userId).maybeSingle() : { data: null };
+// La conversazione si legge con le regole dell'utente: la trova solo chi ne fa parte
+const { data: conversation } = conversationId
+  ? await supabase
+      .from('conversations')
+      .select('listing_id, buyer_id, seller_id, buyer:profiles!conversations_buyer_id_fkey(display_name), seller:profiles!conversations_seller_id_fkey(display_name)')
+      .eq('id', conversationId)
+      .maybeSingle()
+  : { data: null };
+const conv = conversation as unknown as { listing_id: string; buyer_id: string; seller_id: string; buyer: { display_name: string } | null; seller: { display_name: string } | null } | null;
+const otherName = conv ? (conv.buyer_id === user.id ? conv.seller?.display_name : conv.buyer?.display_name) ?? 'Utente' : null;
+const convListing = conv ? getListing(conv.listing_id) : undefined;
+
+const found =
+  kind === 'conversazione' ? Boolean(conv) : kind === 'utente' ? Boolean(person) && userId !== user.id : Boolean(listing) && (!questionId || question) && (!ratingId || rating);
+const what = { annuncio: 'questo annuncio', domanda: 'questa domanda', valutazione: 'questa valutazione', utente: 'questo utente', conversazione: 'questa conversazione' }[kind];
+const back =
+  kind === 'conversazione'
+    ? `/messaggi/${conversationId}`
+    : kind === 'utente'
+      ? `/venditore/${userId}`
+      : listing
+        ? `/annuncio/${listing.id}${questionId ? '#domande' : ratingId ? '#valutazioni' : ''}`
+        : '/cerca';
+// Per utenti e conversazioni alcuni motivi non hanno senso
+const reasons = Object.entries(REPORT_REASONS).filter(([k]) =>
+  kind === 'annuncio' ? true : kind === 'utente' ? k !== 'vietato' : kind === 'conversazione' ? !['vietato', 'falso'].includes(k) : !['vietato', 'falso'].includes(k),
+);
+const title = kind === 'conversazione' ? `Conversazione con ${otherName}` : kind === 'utente' ? person?.display_name : listing?.title;
 ---
 
 <Layout title="Segnala · giro.shop">
@@ -33,8 +70,8 @@ const back = listing ? `/annuncio/${listing.id}${questionId ? '#domande' : ratin
     {
       !found ? (
         <div class="panel">
-          <h1>Contenuto non trovato.</h1>
-          <p class="muted">Forse è già stato tolto.</p>
+          <h1>Non c'è niente da segnalare qui.</h1>
+          <p class="muted">Forse il contenuto è già stato tolto, oppure non fa parte delle tue conversazioni.</p>
           <a class="btn" href="/cerca">Cerca annunci</a>
         </div>
       ) : done ? (
@@ -42,42 +79,57 @@ const back = listing ? `/annuncio/${listing.id}${questionId ? '#domande' : ratin
           <span class="label">Segnalazione inviata</span>
           <h1>Grazie, la controlliamo.</h1>
           <p class="muted">
-            Se più persone segnalano lo stesso contenuto, lo nascondiamo subito in attesa di verifica. Ti avvisiamo quando abbiamo deciso.
+            {agent
+              ? "L'agente di moderazione la esamina subito; nei casi dubbi decide una persona. Ti avvisiamo quando abbiamo deciso."
+              : 'Chi modera la esamina il prima possibile. Ti avvisiamo quando abbiamo deciso.'}
           </p>
-          <a class="btn" href={back}>Torna all'annuncio</a>
+          <a class="btn" href={back}>Torna indietro</a>
         </div>
       ) : (
         <form class="panel" method="POST" action={`${here}${actions.reports.create.toString().replace('?', '&')}`}>
           <span class="label">Segnala {what}</span>
-          <h1>{listing!.title}</h1>
-          {question && <blockquote>«{question.body}»{question.answer && <span class="muted"> — {question.answer}</span>}</blockquote>}
+          <h1>{title}</h1>
+          {kind === 'conversazione' && convListing && <p class="muted small">Annuncio: {convListing.title}</p>}
+          {question && (
+            <blockquote>
+              «{question.body}»{question.answer && <span class="muted"> — {question.answer}</span>}
+            </blockquote>
+          )}
           {rating && (
             <blockquote>
               {'★'.repeat(rating.stars)} {rating.comment ? `«${rating.comment}»` : ''}
             </blockquote>
           )}
+          {kind === 'conversazione' && (
+            <p class="privacy small">
+              Per decidere, {agent ? "l'agente di moderazione e " : ''}chi modera leggeranno i messaggi di questa conversazione. Le altre
+              conversazioni restano private.
+            </p>
+          )}
 
           {result?.error && <p class="error" role="alert">{result.error.message}</p>}
 
-          <input type="hidden" name="listingId" value={listingId} />
+          <input type="hidden" name="listingId" value={kind === 'conversazione' || kind === 'utente' ? '' : listingId} />
           <input type="hidden" name="questionId" value={questionId} />
           <input type="hidden" name="ratingId" value={ratingId} />
+          <input type="hidden" name="reportedUserId" value={userId} />
+          <input type="hidden" name="conversationId" value={conversationId} />
 
           <fieldset>
             <legend>Perché?</legend>
-            {Object.entries(REPORT_REASONS)
-              .filter(([k]) => !(questionId || ratingId) || !['vietato', 'falso'].includes(k))
-              .map(([value, label]) => (
-                <label class="reason">
-                  <input type="radio" name="reason" value={value} required />
-                  <span>{label}</span>
-                </label>
-              ))}
+            {reasons.map(([value, label]) => (
+              <label class="reason">
+                <input type="radio" name="reason" value={value} required />
+                <span>{label}</span>
+              </label>
+            ))}
           </fieldset>
 
           <label class="fld">
-            <span class="label">Cosa hai notato? <span class="muted">(facoltativo, lo legge solo chi modera)</span></span>
-            <textarea name="note" rows="3" maxlength="500" placeholder="Per esempio: chiede di pagare in anticipo con un link"></textarea>
+            <span class="label">
+              Cosa hai notato? <span class="muted">(facoltativo, lo legge solo chi modera)</span>
+            </span>
+            <textarea name="note" rows="3" maxlength="500" placeholder="Per esempio: chiede di pagare in anticipo con un link" />
           </label>
 
           <div class="row">
@@ -95,6 +147,7 @@ const back = listing ? `/annuncio/${listing.id}${questionId ? '#domande' : ratin
   .report-page { max-width: 640px; }
   .report-page h1 { font-size: clamp(24px, 3vw, 32px); overflow-wrap: anywhere; }
   blockquote { margin: 0; padding: 10px 14px; border-left: 2px solid var(--line-strong); background: var(--surface-2); color: var(--ink); overflow-wrap: anywhere; }
+  .privacy { background: var(--surface-2); border-radius: 4px; padding: 10px 12px; color: var(--ink); }
   fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
   legend { font-weight: 500; margin-bottom: 8px; }
   .reason { display: flex; align-items: center; gap: 10px; font-size: 15px; cursor: pointer; }

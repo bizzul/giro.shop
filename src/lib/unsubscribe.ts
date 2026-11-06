@@ -5,7 +5,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * con la chiave segreta del server, così nessuno può spegnere le email di altri.
  */
 function secret(): string | undefined {
-  return import.meta.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SECRET_KEY;
+  return import.meta.env?.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SECRET_KEY;
 }
 
 export function unsubscribeToken(userId: string): string | null {

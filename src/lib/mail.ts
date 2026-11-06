@@ -4,16 +4,16 @@ let transport: Transporter | null | undefined;
 
 function transporter(): Transporter | null {
   if (transport !== undefined) return transport;
-  const host = import.meta.env.SMTP_HOST ?? process.env.SMTP_HOST;
-  const port = Number(import.meta.env.SMTP_PORT ?? process.env.SMTP_PORT ?? 587);
-  const user = import.meta.env.SMTP_USER ?? process.env.SMTP_USER;
-  const pass = import.meta.env.SMTP_PASS ?? process.env.SMTP_PASS;
+  const host = import.meta.env?.SMTP_HOST ?? process.env.SMTP_HOST;
+  const port = Number(import.meta.env?.SMTP_PORT ?? process.env.SMTP_PORT ?? 587);
+  const user = import.meta.env?.SMTP_USER ?? process.env.SMTP_USER;
+  const pass = import.meta.env?.SMTP_PASS ?? process.env.SMTP_PASS;
   transport = host ? nodemailer.createTransport({ host, port, secure: port === 465, auth: user ? { user, pass } : undefined }) : null;
   return transport;
 }
 
 export function mailFrom(): string {
-  return import.meta.env.MAIL_FROM ?? process.env.MAIL_FROM ?? 'giro.shop <avvisi@giro.shop>';
+  return import.meta.env?.MAIL_FROM ?? process.env.MAIL_FROM ?? 'giro.shop <avvisi@giro.shop>';
 }
 
 export interface Mail {

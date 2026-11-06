@@ -9,7 +9,7 @@ let admin: SupabaseClient | null | undefined;
  */
 export function adminClient(): SupabaseClient | null {
   if (admin !== undefined) return admin;
-  const key = import.meta.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SECRET_KEY;
+  const key = import.meta.env?.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SECRET_KEY;
   admin = SUPABASE_URL && key ? createClient(SUPABASE_URL, key, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
   if (!admin) console.warn('[giro] SUPABASE_SECRET_KEY mancante: avvisi, email e traduzioni sono spenti.');
   return admin;

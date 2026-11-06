@@ -1,8 +1,8 @@
 import { createServerClient, parseCookieHeader } from '@supabase/ssr';
 import type { AstroCookies } from 'astro';
 
-export const SUPABASE_URL: string | undefined = import.meta.env.PUBLIC_SUPABASE_URL;
-export const SUPABASE_KEY: string | undefined = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+export const SUPABASE_URL: string | undefined = import.meta.env?.PUBLIC_SUPABASE_URL ?? process.env.PUBLIC_SUPABASE_URL;
+export const SUPABASE_KEY: string | undefined = import.meta.env?.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 export function supabaseConfigured(): boolean {
   return Boolean(SUPABASE_URL && SUPABASE_KEY);

@@ -1,6 +1,6 @@
 /** La chiave API di Claude, se c'è: le funzioni AI del sito si accendono solo con questa. */
 export function claudeKey(): string | undefined {
-  return import.meta.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || undefined;
+  return import.meta.env?.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || undefined;
 }
 
 /** Limite semplice per indirizzo IP, in memoria: protegge le funzioni che costano (foto, traduzioni). */

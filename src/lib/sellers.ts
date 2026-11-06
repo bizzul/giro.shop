@@ -6,6 +6,7 @@ const anon = () => (client ??= SUPABASE_URL && SUPABASE_KEY ? createClient(SUPAB
 
 export interface SellerStats {
   name: string;
+  suspended: boolean;
   memberSince: string;
   phoneVerified: boolean;
   sold: number;
@@ -38,12 +39,13 @@ export async function sellerProfile(sellerId: string): Promise<{ stats: SellerSt
       .eq('rated_id', sellerId)
       .order('created_at', { ascending: false })
       .limit(50),
-    c.from('profiles').select('display_name').eq('id', sellerId).maybeSingle(),
+    c.from('profiles').select('display_name, suspended_at').eq('id', sellerId).maybeSingle(),
   ]);
   const r = (rows as Array<Record<string, unknown>> | null)?.[0];
   const stats: SellerStats | null = r
     ? {
         name: profile?.display_name ?? 'Utente',
+        suspended: Boolean(profile?.suspended_at),
         memberSince: String(r.member_since),
         phoneVerified: Boolean(r.phone_verified),
         sold: Number(r.sold ?? 0),
