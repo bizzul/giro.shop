@@ -66,12 +66,13 @@ const featured = [...listings]
   @media (prefers-color-scheme: dark) {
     .ticino-map { --map-topo: #1c1c1f; --map-major: #2a2a2e; --map-edge: #46464b; }
   }
-  /* Schermi medi e piccoli: più piccola, tenue e senza etichette, per non disturbare il titolo */
+  /* Schermi medi: più piccola, tenue e senza etichette, per non disturbare il titolo */
   @media (max-width: 1199px) {
     .ticino-map { width: 340px; height: 400px; top: 24px; opacity: 0.55; }
   }
+  /* Su mobile si incrocerebbe con titolo e testi: niente cartina (e niente animazione) */
   @media (max-width: 760px) {
-    .ticino-map { width: 220px; height: 260px; top: 4px; opacity: 0.5; }
+    .ticino-map { display: none; }
   }
 </style>
 
@@ -168,7 +169,10 @@ const featured = [...listings]
       const r = cv.getBoundingClientRect();
       W = Math.round(r.width);
       H = Math.round(r.height);
-      if (!W || !H) return;
+      if (!W || !H) {
+        cache = null; // nascosta (mobile): niente da disegnare
+        return;
+      }
       dpr = Math.min(2, devicePixelRatio || 1);
       cv.width = W * dpr;
       cv.height = H * dpr;
@@ -369,7 +373,7 @@ const featured = [...listings]
     }
     function run() {
       cancelAnimationFrame(raf);
-      if (still.matches || !visible || document.hidden) frame(0);
+      if (still.matches || !visible || document.hidden || !cache) frame(0);
       else raf = requestAnimationFrame(loop);
     }
     function rebuild() {
