@@ -21,7 +21,6 @@ const verdictTone = verdict === 'sopra_mercato' ? 'bad' : 'ok';
 // Al massimo due badge sulla foto, in ordine di importanza.
 const badges = [
   listing.priceChf === 0 && { tone: 'volt', label: 'Regalo' },
-  listing.negotiating && { tone: 'sun', label: 'In trattativa' },
   isNew(listing.publishedAt) && { tone: 'sun', label: 'Nuovo oggi' },
   verdict && listing.priceChf > 0 && { tone: verdictTone, label: VERDICT_LABEL[verdict] },
   listing.negotiable && { tone: 'plain', label: 'Trattabile' },
@@ -59,7 +58,18 @@ const badges = [
     }
   </div>
   <div class="lb">
-    <span class="lprice">{formatChf(listing.priceChf)}</span>
+    <span class="lrow">
+      <span class="lprice">{formatChf(listing.priceChf)}</span>
+      {
+        listing.negotiating ? (
+          <span class="lstate sun">In trattativa</span>
+        ) : (
+          <span class="lstate ok" title="Disponibile">
+            <span class="sr">Disponibile</span>
+          </span>
+        )
+      }
+    </span>
     <span class="ltitle">{listing.title}</span>
     <span class="lmeta">
       {comune?.name}{distanceKm != null && ` · ${formatKm(distanceKm)}`}

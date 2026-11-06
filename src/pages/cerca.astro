@@ -2,8 +2,12 @@
 import Layout from '../layouts/Layout.astro';
 import SearchForm from '../components/SearchForm.astro';
 import SearchResults from '../components/SearchResults.astro';
+import { parseSort } from '../core/search.ts';
 
-const q = Astro.url.searchParams.get('q')?.trim().slice(0, 200) ?? '';
+const params = Astro.url.searchParams;
+const q = params.get('q')?.trim().slice(0, 200) ?? '';
+const sort = parseSort(params.get('ordine'));
+const n = Number(params.get('n')) || undefined;
 ---
 
 <Layout title={q ? `${q} · giro.shop` : 'Cerca · giro.shop'}>
@@ -13,7 +17,7 @@ const q = Astro.url.searchParams.get('q')?.trim().slice(0, 200) ?? '';
     </div>
     <p id="risultati-stato" class="sr" aria-live="polite"></p>
     <div id="risultati" class="results">
-      <SearchResults q={q} mode="cerca" />
+      <SearchResults q={q} mode="cerca" sort={sort} n={n} />
     </div>
   </section>
 </Layout>

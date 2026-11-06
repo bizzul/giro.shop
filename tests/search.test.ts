@@ -73,3 +73,25 @@ describe('createDraft senza Claude', () => {
     await expect(createDraft({})).rejects.toBeInstanceOf(DraftError);
   });
 });
+
+describe('ordinamento e conteggio', () => {
+  it('conta tutti i risultati anche se ne restituisce solo una parte', () => {
+    const all = search('bici');
+    const page = search('bici', { limit: 2 });
+    expect(page.hits).toHaveLength(2);
+    expect(page.total).toBe(all.total);
+    expect(all.total).toBeGreaterThan(2);
+  });
+
+  it('ordina per prezzo, crescente e decrescente', () => {
+    const up = search('bici', { sort: 'prezzo' }).hits.map((h) => h.listing.priceChf);
+    const down = search('bici', { sort: 'prezzo-desc' }).hits.map((h) => h.listing.priceChf);
+    expect(up).toEqual([...up].sort((a, b) => a - b));
+    expect(down).toEqual([...down].sort((a, b) => b - a));
+  });
+
+  it('ordina per distanza quando la frase nomina un luogo', () => {
+    const km = search('scrivania vicino a Lugano', { sort: 'vicini' }).hits.map((h) => h.distanceKm ?? Infinity);
+    expect(km).toEqual([...km].sort((a, b) => a - b));
+  });
+});

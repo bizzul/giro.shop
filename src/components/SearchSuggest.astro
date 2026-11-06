@@ -1,0 +1,276 @@
+---
+/**
+ * Tendina sotto il campo di ricerca (sopra, su telefono, dove la barra è in basso):
+ * - a campo vuoto le ricerche recenti, salvate solo in questo browser;
+ * - mentre scrivi i completamenti dell'ultima parola, da /suggerimenti.
+ * Frecce per scegliere, Invio per usare, Esc per chiudere (schema "combobox" ARIA).
+ * Va messa dentro il form della ricerca, dopo il campo.
+ */
+---
+
+<div class="suggest" data-suggest hidden>
+  <div class="sg-head" hidden>
+    <span class="label">Ricerche recenti</span>
+    <button type="button" class="sg-clear">Cancella</button>
+  </div>
+  <ul class="sg-list" id="q-suggest" role="listbox" aria-label="Suggerimenti"></ul>
+</div>
+
+<script>
+  const KEY = 'giro:ricerche';
+  const MAX_RECENT = 6;
+
+  // Il browser può negare l'accesso al salvataggio (navigazione privata): la tendina funziona lo stesso
+  const readRecent = (): string[] => {
+    try {
+      const value = JSON.parse(localStorage.getItem(KEY) ?? '[]');
+      return Array.isArray(value) ? value.filter((v) => typeof v === 'string').slice(0, MAX_RECENT) : [];
+    } catch {
+      return [];
+    }
+  };
+  const saveRecent = (text: string) => {
+    const q = text.trim().replace(/\s+/g, ' ');
+    if (q.length < 3) return;
+    try {
+      const list = [q, ...readRecent().filter((v) => v.toLowerCase() !== q.toLowerCase())].slice(0, MAX_RECENT);
+      localStorage.setItem(KEY, JSON.stringify(list));
+    } catch {
+      /* niente da fare */
+    }
+  };
+  const clearRecent = () => {
+    try {
+      localStorage.removeItem(KEY);
+    } catch {
+      /* niente da fare */
+    }
+  };
+
+  const svg = (paths: string) => {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    el.setAttribute('viewBox', '0 0 16 16');
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = paths;
+    return el;
+  };
+  const CLOCK = '<circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/>';
+  const LENS = '<circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/>';
+
+  for (const box of document.querySelectorAll<HTMLElement>('[data-suggest]')) {
+    const form = box.closest('form');
+    const input = form?.querySelector<HTMLInputElement>('input[name="q"]');
+    const list = box.querySelector<HTMLUListElement>('.sg-list');
+    const head = box.querySelector<HTMLElement>('.sg-head');
+    const clear = box.querySelector<HTMLButtonElement>('.sg-clear');
+    if (!form || !input || !list || !head || !clear) continue;
+
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-controls', list.id);
+    input.setAttribute('aria-expanded', 'false');
+
+    let items: string[] = [];
+    let kind: 'recent' | 'complete' = 'complete';
+    let active = -1;
+    let typed = '';
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let controller: AbortController | undefined;
+    const cache = new Map<string, string[]>();
+
+    const render = () => {
+      list.replaceChildren(
+        ...items.map((text, i) => {
+          const li = document.createElement('li');
+          li.id = `${list.id}-${i}`;
+          li.setAttribute('role', 'option');
+          li.setAttribute('aria-selected', String(i === active));
+          li.dataset.index = String(i);
+          li.append(svg(kind === 'recent' ? CLOCK : LENS));
+          const label = document.createElement('span');
+          label.className = 'sg-text';
+          // Quello che hai scritto resta normale, il completamento in grassetto (sempre testo, mai HTML)
+          if (kind === 'complete' && text.toLowerCase().startsWith(typed.toLowerCase())) {
+            const bold = document.createElement('b');
+            bold.textContent = text.slice(typed.length);
+            label.append(text.slice(0, typed.length), bold);
+          } else {
+            label.textContent = text;
+          }
+          li.append(label);
+          return li;
+        }),
+      );
+      head.hidden = kind !== 'recent' || items.length === 0;
+      const open = items.length > 0;
+      box.hidden = !open;
+      input.setAttribute('aria-expanded', String(open));
+      if (active >= 0) {
+        input.setAttribute('aria-activedescendant', `${list.id}-${active}`);
+        document.getElementById(`${list.id}-${active}`)?.scrollIntoView({ block: 'nearest' });
+      } else {
+        input.removeAttribute('aria-activedescendant');
+      }
+    };
+
+    const close = () => {
+      items = [];
+      active = -1;
+      render();
+    };
+
+    const showRecent = () => {
+      items = readRecent();
+      kind = 'recent';
+      active = -1;
+      render();
+    };
+
+    const refresh = async () => {
+      const q = input.value;
+      if (!q.trim()) {
+        if (document.activeElement === input) showRecent();
+        else close();
+        return;
+      }
+      if (/\s$/.test(q) || q.trim().length < 2) {
+        close();
+        return;
+      }
+      let found = cache.get(q);
+      if (!found) {
+        controller?.abort();
+        controller = new AbortController();
+        try {
+          const res = await fetch(`/suggerimenti?q=${encodeURIComponent(q)}`, { signal: controller.signal });
+          found = res.ok ? ((await res.json()) as string[]) : [];
+        } catch {
+          return;
+        }
+        cache.set(q, found);
+      }
+      // Nel frattempo la persona ha scritto altro o è uscita dal campo
+      if (input.value !== q || document.activeElement !== input) return;
+      items = found;
+      typed = q;
+      kind = 'complete';
+      active = -1;
+      render();
+    };
+
+    const pick = (index: number) => {
+      const text = items[index];
+      if (text == null) return;
+      if (kind === 'recent') {
+        // Una ricerca recente è già completa: si cerca subito
+        input.value = text;
+        close();
+        form.requestSubmit();
+        return;
+      }
+      // Un completamento: si può continuare a scrivere dopo lo spazio
+      input.value = `${text} `;
+      close();
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(refresh, 120);
+    });
+    input.addEventListener('focus', () => {
+      clearTimeout(timer);
+      refresh();
+    });
+    input.addEventListener('blur', () => {
+      clearTimeout(timer);
+      close();
+    });
+
+    input.addEventListener('keydown', (event) => {
+      const open = !box.hidden;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (!open) {
+          refresh();
+          return;
+        }
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        active = active < 0 && step < 0 ? items.length - 1 : (active + step + items.length + 1) % (items.length + 1);
+        // Un passo oltre l'ultima voce torna al campo, come fanno i browser
+        if (active === items.length) active = -1;
+        render();
+      } else if (event.key === 'Enter' && open && active >= 0) {
+        event.preventDefault();
+        pick(active);
+      } else if (event.key === 'Escape' && open) {
+        event.preventDefault();
+        close();
+      } else if (event.key === 'Tab') {
+        close();
+      }
+    });
+
+    // Toccare la tendina non deve togliere il fuoco al campo (si chiuderebbe prima del clic)
+    box.addEventListener('pointerdown', (event) => event.preventDefault());
+    list.addEventListener('click', (event) => {
+      const li = (event.target as Element).closest<HTMLElement>('li[data-index]');
+      if (li) pick(Number(li.dataset.index));
+    });
+    clear.addEventListener('click', () => {
+      clearRecent();
+      close();
+    });
+
+    // Si ricorda una ricerca quando la persona la conferma: Invio, oppure apre un annuncio trovato
+    form.addEventListener('submit', () => {
+      saveRecent(input.value.trim() || input.dataset.current || '');
+      close();
+    });
+    document.addEventListener('click', (event) => {
+      if ((event.target as Element).closest('.results a.lcard')) saveRecent(input.value);
+    });
+  }
+</script>
+
+<style is:global>
+  /* Le voci della tendina nascono dallo script: stili globali, con prefisso sg- */
+  .search { position: relative; }
+  .suggest {
+    position: absolute;
+    z-index: 45;
+    left: 0;
+    right: 0;
+    top: calc(100% + 8px);
+    padding: 6px 0;
+    max-height: min(380px, 60vh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    text-align: left;
+    color: var(--ink);
+    background: var(--surface-2);
+    border-radius: 8px;
+    box-shadow: 0 0 0 1px var(--line), var(--shadow-search);
+  }
+  .suggest[hidden], .sg-head[hidden] { display: none; }
+  .sg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px 6px; }
+  .sg-clear { border: 0; background: none; padding: 4px 0; font: 400 13px/1 var(--f-body); color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .sg-clear:hover { color: var(--ink); }
+  .sg-list li { display: flex; align-items: center; gap: 12px; padding: 11px 20px; font: 400 15px/1.35 var(--f-body); cursor: pointer; }
+  .sg-list li[aria-selected='true'], .sg-list li:hover { background: var(--surface); }
+  .sg-list svg { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; }
+  .sg-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sg-text b { font-weight: 600; }
+
+  /* Telefono: la ricerca è in basso, la tendina si apre sopra e resta sopra la tastiera */
+  @media (max-width: 760px) {
+    .search.dock .suggest {
+      top: auto;
+      bottom: calc(100% + 8px);
+      max-height: min(340px, calc(100dvh - var(--kb, 0px) - 140px));
+    }
+    .search.dock .sg-list li { padding-block: 13px; font-size: 16px; }
+  }
+</style>

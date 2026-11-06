@@ -117,6 +117,8 @@ export interface SearchFilters {
 export interface Chip {
   key: string;
   value: string;
+  /** La frase senza questo filtro, se si può togliere. */
+  without?: string;
 }
 
 export type PriceVerdict = 'sotto_mercato' | 'prezzo_giusto' | 'sopra_mercato';
@@ -146,4 +148,6 @@ export interface SearchResult {
   filters: SearchFilters;
   chips: Chip[];
   hits: SearchHit[];
+  /** Quanti annunci corrispondono in tutto (hits può esserne solo una parte). */
+  total: number;
 }

@@ -3,6 +3,7 @@ import { normalize, stem } from './text.ts';
 import { detectCategory } from './categories.ts';
 import { findComuneIn } from './comuni.ts';
 import { formatChf, formatChfRange } from './format.ts';
+import { MATERIAL_LEAD, PICKUP_LEAD, PLACE_LEAD, removeFragments } from './refine.ts';
 
 /** Parole equivalenti, per radice. */
 const SYNONYMS: Record<string, string[]> = {
@@ -66,6 +67,12 @@ export function parseQuery(raw: string): ParsedQuery {
   const filters: SearchFilters = { raw, groups: [] };
   const chips: Chip[] = [];
 
+  // I pezzi di frase riconosciuti: servono per togliere un filtro senza riscrivere la frase
+  const priceParts: string[] = [];
+  let radiusPart: string | undefined;
+  let yearPart: string | undefined;
+  let conditionPart: string | undefined;
+
   const take = (re: RegExp): RegExpMatchArray | null => {
     const m = n.match(re);
     if (m) n = n.replace(m[0], ' ');
@@ -77,25 +84,38 @@ export function parseQuery(raw: string): ParsedQuery {
   if (m) {
     filters.minPrice = Number(m[1]);
     filters.maxPrice = Number(m[2]);
+    priceParts.push(m[0]);
   }
 
   // Raggio esplicito
   m = take(/\b(?:entro|nel\s+raggio\s+di|raggio\s+di|raggio)\s+(\d+)\s*km\b/);
-  if (m) filters.radiusKm = Number(m[1]);
+  if (m) {
+    filters.radiusKm = Number(m[1]);
+    radiusPart = m[0];
+  }
 
   if (filters.maxPrice == null) {
     m = take(
       /\b(?:sotto(?:\s+(?:i|ai|a))?|meno\s+di|al\s+massimo|massimo|max|fino\s+a(?:i)?|non\s+oltre|budget(?:\s+di)?)\s+(\d+)(?:\s*(?:franchi|franco|chf|fr))?\b/,
     );
-    if (m) filters.maxPrice = Number(m[1]);
+    if (m) {
+      filters.maxPrice = Number(m[1]);
+      priceParts.push(m[0]);
+    }
   }
   if (filters.minPrice == null) {
     m = take(/\b(?:sopra(?:\s+(?:i|ai))?|almeno|piu\s+di|minimo)\s+(\d+)(?:\s*(?:franchi|chf|fr))?\b/);
-    if (m) filters.minPrice = Number(m[1]);
+    if (m) {
+      filters.minPrice = Number(m[1]);
+      priceParts.push(m[0]);
+    }
   }
   if (filters.maxPrice == null) {
     m = take(/\b(\d+)\s*(?:franchi|chf|fr)\b/);
-    if (m) filters.maxPrice = Number(m[1]);
+    if (m) {
+      filters.maxPrice = Number(m[1]);
+      priceParts.push(m[0]);
+    }
   }
 
   // Decennio ("anni 80") o anno ("del 1984")
@@ -104,23 +124,31 @@ export function parseQuery(raw: string): ParsedQuery {
     const d = Number(m[1]);
     filters.yearFrom = (d >= 3 ? 1900 : 2000) + d * 10;
     filters.yearTo = filters.yearFrom + 9;
+    yearPart = m[0];
   } else {
     m = take(/\b(?:del|dal|anno)\s+((?:19|20)\d\d)\b/);
-    if (m) filters.yearFrom = Number(m[1]);
+    if (m) {
+      filters.yearFrom = Number(m[1]);
+      yearPart = m[0];
+    }
   }
 
   // Età di un bambino ("di 6 anni"): serve per le bici
   const ageMatch = take(/\b(?:di\s+)?(\d{1,2})\s+anni\b/);
 
   // Condizione
-  if (take(/\b(?:anche\s+)?da\s+(?:riparare|sistemare|restaurare|aggiustare)\b|\banche\s+rott[oa]\b|\bper\s+pezzi\b/)) {
+  if ((m = take(/\b(?:anche\s+)?da\s+(?:riparare|sistemare|restaurare|aggiustare)\b|\banche\s+rott[oa]\b|\bper\s+pezzi\b/))) {
     filters.includeBroken = true;
-  } else if (take(/\bcome\s+nuov[oaie]\b|\bpari\s+al\s+nuovo\b/)) {
+    conditionPart = m[0];
+  } else if ((m = take(/\bcome\s+nuov[oaie]\b|\bpari\s+al\s+nuovo\b/))) {
     filters.conditions = ['nuovo', 'come_nuovo'];
-  } else if (take(/\b(?:in\s+)?buon[oae]?\s+(?:stato|condizioni)\b/)) {
+    conditionPart = m[0];
+  } else if ((m = take(/\b(?:in\s+)?buon[oae]?\s+(?:stato|condizioni)\b/))) {
     filters.conditions = ['nuovo', 'come_nuovo', 'buono'];
-  } else if (take(/\bnuov[oaie]\b/)) {
+    conditionPart = m[0];
+  } else if ((m = take(/\bnuov[oaie]\b/))) {
     filters.conditions = ['nuovo'];
+    conditionPart = m[0];
   }
 
   // Ritiro
@@ -169,32 +197,44 @@ export function parseQuery(raw: string): ParsedQuery {
     filters.groups.push(group);
   });
 
-  // Chip: come il sistema ha capito la frase
+  // Chip: come il sistema ha capito la frase. Quelli con "without" si possono togliere:
+  // "without" è la frase senza quel pezzo, pronta da cercare.
+  const without = (...parts: Array<{ fragment: string; leading?: ReadonlySet<string> }>) =>
+    removeFragments(raw, parts) ?? undefined;
   if (filters.categoryLabel) chips.push({ key: 'Categoria', value: filters.categoryLabel });
-  if (filters.wheelRange) {
+  if (filters.wheelRange && ageMatch) {
     const [a, b] = filters.wheelRange;
-    chips.push({ key: 'Ruote', value: a === b ? `${a}″` : `${a}–${b}″` });
+    chips.push({ key: 'Ruote', value: a === b ? `${a}″` : `${a}–${b}″`, without: without({ fragment: ageMatch[0] }) });
   }
+  const priceWithout = priceParts.length ? without(...priceParts.map((fragment) => ({ fragment }))) : undefined;
   if (filters.minPrice != null && filters.maxPrice != null) {
-    chips.push({ key: 'Prezzo', value: formatChfRange(filters.minPrice, filters.maxPrice) });
+    chips.push({ key: 'Prezzo', value: formatChfRange(filters.minPrice, filters.maxPrice), without: priceWithout });
   } else if (filters.maxPrice != null) {
-    chips.push({ key: 'Prezzo', value: `≤ ${formatChf(filters.maxPrice)}` });
+    chips.push({ key: 'Prezzo', value: `≤ ${formatChf(filters.maxPrice)}`, without: priceWithout });
   } else if (filters.minPrice != null) {
-    chips.push({ key: 'Prezzo', value: `≥ ${formatChf(filters.minPrice)}` });
+    chips.push({ key: 'Prezzo', value: `≥ ${formatChf(filters.minPrice)}`, without: priceWithout });
   }
-  if (place) chips.push({ key: 'Zona', value: `${place.comune.name} + ${filters.radiusKm} km` });
+  if (place) {
+    const parts = [{ fragment: place.needle, leading: PLACE_LEAD }];
+    if (radiusPart) parts.unshift({ fragment: radiusPart, leading: new Set<string>() });
+    chips.push({ key: 'Zona', value: `${place.comune.name} + ${filters.radiusKm} km`, without: without(...parts) });
+  }
   for (const g of filters.groups) {
-    if (g.kind === 'materiale') chips.push({ key: 'Materiale', value: g.term });
+    if (g.kind === 'materiale') {
+      chips.push({ key: 'Materiale', value: g.term, without: without({ fragment: g.term, leading: MATERIAL_LEAD }) });
+    }
   }
   if (filters.yearFrom) {
     chips.push({
       key: 'Anno',
       value: filters.yearTo ? `${filters.yearFrom}–${filters.yearTo}` : `dal ${filters.yearFrom}`,
+      without: yearPart ? without({ fragment: yearPart }) : undefined,
     });
   }
-  if (filters.includeBroken) chips.push({ key: 'Stato', value: 'anche da riparare' });
-  if (filters.conditions) chips.push({ key: 'Stato', value: conditionsLabel(filters.conditions) });
-  if (filters.pickup) chips.push({ key: 'Consegna', value: 'ritiro' });
+  const conditionWithout = conditionPart ? without({ fragment: conditionPart }) : undefined;
+  if (filters.includeBroken) chips.push({ key: 'Stato', value: 'anche da riparare', without: conditionWithout });
+  if (filters.conditions) chips.push({ key: 'Stato', value: conditionsLabel(filters.conditions), without: conditionWithout });
+  if (filters.pickup) chips.push({ key: 'Consegna', value: 'ritiro', without: without({ fragment: 'ritiro', leading: PICKUP_LEAD }) });
   const words = filters.groups.filter((g) => g.kind === 'parola').map((g) => g.term);
   if (words.length) chips.push({ key: 'Parole', value: words.join(', ') });
 

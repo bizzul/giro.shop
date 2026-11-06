@@ -1,4 +1,6 @@
 ---
+import SearchSuggest from './SearchSuggest.astro';
+
 interface Props {
   value?: string;
   autofocus?: boolean;
@@ -24,7 +26,7 @@ const SUGGESTIONS = [
 const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUGGESTIONS } = Astro.props;
 ---
 
-<form class="search dock" action="/cerca" method="get" role="search" data-live={target ? '' : undefined} data-target={target} data-mode={mode}>
+<form id="ricerca" class="search dock" action="/cerca" method="get" role="search" data-live={target ? '' : undefined} data-target={target} data-mode={mode}>
   <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5"></circle><path d="M11 11l3.5 3.5"></path></svg>
   <label class="sr" for="q">Cosa cerchi</label>
   <input
@@ -38,11 +40,13 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUG
     autofocus={autofocus}
     data-suggestions={suggestions?.length ? JSON.stringify(suggestions) : undefined}
   />
+  <SearchSuggest />
 </form>
 
 <script>
   // Ricerca dal vivo: mentre scrivi, il server rimanda solo la griglia dei risultati.
   // Senza JavaScript il form continua a funzionare: Invio apre /cerca?q=…
+  // Il menu "Ordina per" sta nei risultati ma appartiene a questo form (attributo form="ricerca").
   for (const form of document.querySelectorAll<HTMLFormElement>('form[data-live]')) {
     const input = form.querySelector<HTMLInputElement>('input[name="q"]');
     const target = document.getElementById(form.dataset.target ?? '');
@@ -52,29 +56,41 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUG
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     let controller: AbortController | undefined;
-    let shown = input.value.trim();
+
+    // q e ordine, senza i valori vuoti: è anche l'indirizzo di /cerca
+    const query = () => {
+      const params = new URLSearchParams();
+      for (const [key, value] of new FormData(form)) {
+        const text = String(value).trim();
+        if (text) params.set(key, text);
+      }
+      return params;
+    };
+    let shown = query().toString();
 
     const update = async () => {
-      const q = input.value.trim();
-      if (q === shown) return;
+      const params = query();
+      const key = params.toString();
+      if (key === shown) return;
+      const q = params.get('q') ?? '';
       controller?.abort();
       controller = new AbortController();
       target.setAttribute('aria-busy', 'true');
       try {
-        const params = new URLSearchParams({ vista: mode, q });
-        const res = await fetch(`/risultati?${params}`, { signal: controller.signal });
+        const res = await fetch(`/risultati?vista=${mode}&${key}`, { signal: controller.signal });
         if (!res.ok) throw new Error(String(res.status));
         target.innerHTML = await res.text();
-        shown = q;
+        shown = key;
         if (mode === 'cerca') {
-          history.replaceState(null, '', q ? `/cerca?q=${encodeURIComponent(q)}` : '/cerca');
+          history.replaceState(null, '', key ? `/cerca?${key}` : '/cerca');
           document.title = q ? `${q} · giro.shop` : 'Cerca · giro.shop';
         }
         if (status) status.textContent = target.querySelector('[data-status]')?.textContent?.trim() ?? '';
+        target.dispatchEvent(new CustomEvent('results:update', { bubbles: true }));
       } catch (error) {
         if ((error as Error).name === 'AbortError') return;
         // Se la ricerca dal vivo non risponde, si passa alla pagina dei risultati.
-        location.href = `/cerca?q=${encodeURIComponent(q)}`;
+        location.href = key ? `/cerca?${key}` : '/cerca';
       } finally {
         if (!controller.signal.aborted) target.removeAttribute('aria-busy');
       }
@@ -83,6 +99,14 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUG
     input.addEventListener('input', () => {
       clearTimeout(timer);
       timer = setTimeout(update, 180);
+    });
+
+    // Cambio di ordine: subito, senza aspettare
+    document.addEventListener('change', (event) => {
+      const field = event.target as HTMLSelectElement;
+      if (field.form !== form || field === (input as unknown)) return;
+      clearTimeout(timer);
+      update();
     });
 
     form.addEventListener('submit', (event) => {

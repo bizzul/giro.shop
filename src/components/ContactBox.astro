@@ -18,9 +18,11 @@ const listing = getListing(listingId);
 const isOwner = Boolean(user && listing?.sellerId === user.id);
 const existing = user && supabase && !isOwner ? await findConversation(supabase, user.id, listingId) : null;
 const startAction = `/messaggi/nuovo${actions.messages.start}`;
+// Lo legge la barra fissa della scheda su telefono, per mostrare il bottone giusto
+const state = !supabase ? 'off' : !user ? 'login' : isOwner ? 'owner' : existing ? 'open' : 'form';
 ---
 
-<div class="contact-box">
+<div class="contact-box" data-state={state}>
   {
     !supabase ? (
       <p class="small">I messaggi richiedono Supabase.</p>

@@ -1,4 +1,4 @@
-import type { SearchFilters, SearchHit, SearchResult } from './types.ts';
+import type { Listing, SearchFilters, SearchHit, SearchResult } from './types.ts';
 import { publishedListings } from './store.ts';
 import { parseQuery } from './query.ts';
 import { findAlt } from './match.ts';
@@ -11,14 +11,62 @@ function wheelInches(value: string | undefined): number | null {
   return m ? Number(m[1]) : null;
 }
 
+/** Ordini possibili dei risultati. "vicini" vale solo se la frase nomina un luogo. */
+export const SORT_ORDERS = ['pertinenza', 'recenti', 'prezzo', 'prezzo-desc', 'vicini'] as const;
+export type SortOrder = (typeof SORT_ORDERS)[number];
+
+export function parseSort(value: string | null | undefined): SortOrder | undefined {
+  return SORT_ORDERS.find((o) => o === value);
+}
+
+const byDate = (a: Listing, b: Listing) => b.publishedAt.localeCompare(a.publishedAt);
+
+/** Riordina i risultati; a parità resta l'ordine di pertinenza. */
+export function sortHits(hits: SearchHit[], order: SortOrder = 'pertinenza'): SearchHit[] {
+  const ranked = [...hits];
+  switch (order) {
+    case 'recenti':
+      return ranked.sort((a, b) => byDate(a.listing, b.listing));
+    case 'prezzo':
+      return ranked.sort((a, b) => a.listing.priceChf - b.listing.priceChf);
+    case 'prezzo-desc':
+      return ranked.sort((a, b) => b.listing.priceChf - a.listing.priceChf);
+    case 'vicini':
+      return ranked.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+    default:
+      return ranked;
+  }
+}
+
+export interface SearchOptions {
+  /** Quanti risultati restituire (gli altri si contano in total). */
+  limit?: number;
+  sort?: SortOrder;
+}
+
 /** Cerca con una frase in linguaggio naturale. */
-export function search(query: string, limit = 30): SearchResult {
+export function search(query: string, options: SearchOptions = {}): SearchResult {
   const { filters, chips } = parseQuery(query);
-  return { filters, chips, hits: searchWithFilters(filters, limit) };
+  const all = sortHits(rankAll(filters), options.sort);
+  return { filters, chips, total: all.length, hits: all.slice(0, options.limit ?? 30) };
 }
 
 /** Cerca con filtri già strutturati (usato anche dagli strumenti MCP). */
 export function searchWithFilters(filters: SearchFilters, limit = 30): SearchHit[] {
+  return rankAll(filters).slice(0, limit);
+}
+
+/** Tutti gli annunci pubblicati, senza frase: dal più recente, o per prezzo. */
+export function browseListings(order: SortOrder = 'recenti', limit = 24): { total: number; listings: Listing[] } {
+  const all = [...publishedListings()];
+  if (order === 'prezzo') all.sort((a, b) => a.priceChf - b.priceChf || byDate(a, b));
+  else if (order === 'prezzo-desc') all.sort((a, b) => b.priceChf - a.priceChf || byDate(a, b));
+  else all.sort(byDate);
+  return { total: all.length, listings: all.slice(0, limit) };
+}
+
+/** Tutti i risultati che corrispondono ai filtri, dal più pertinente. */
+function rankAll(filters: SearchFilters): SearchHit[] {
   const origin = filters.comuneId ? getComune(filters.comuneId) : undefined;
   const now = Date.now();
   const hits: SearchHit[] = [];
@@ -88,7 +136,7 @@ export function searchWithFilters(filters: SearchFilters, limit = 30): SearchHit
     });
   }
 
-  return hits.sort((a, b) => b.score - a.score).slice(0, limit);
+  return hits.sort((a, b) => b.score - a.score);
 }
 
 /** Annunci simili a uno dato, per la scheda annuncio. */

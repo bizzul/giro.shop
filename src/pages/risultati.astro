@@ -1,14 +1,18 @@
 ---
 /**
  * Solo la griglia dei risultati, senza layout: la usa la ricerca dal vivo.
- * GET /risultati?vista=home|cerca&q=…
+ * GET /risultati?vista=home|cerca&q=…&ordine=prezzo&n=48
  */
 import SearchResults from '../components/SearchResults.astro';
+import { parseSort } from '../core/search.ts';
 
 export const partial = true;
 
-const q = Astro.url.searchParams.get('q')?.trim().slice(0, 200) ?? '';
-const mode = Astro.url.searchParams.get('vista') === 'home' ? 'home' : 'cerca';
+const params = Astro.url.searchParams;
+const q = params.get('q')?.trim().slice(0, 200) ?? '';
+const mode = params.get('vista') === 'home' ? 'home' : 'cerca';
+const sort = parseSort(params.get('ordine'));
+const n = Number(params.get('n')) || undefined;
 ---
 
-<SearchResults q={q} mode={mode} />
+<SearchResults q={q} mode={mode} sort={sort} n={n} />

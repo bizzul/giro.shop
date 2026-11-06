@@ -31,6 +31,13 @@ const estimate = estimatePrice({
 });
 const similar = similarTo(listing.id, listing.title);
 const attributes = Object.entries(listing.attributes);
+// Gli annunci usati per la stima, come prova: dal più economico al più caro
+const comparables = (estimate?.comparableIds ?? [])
+  .map((id) => getListing(id))
+  .filter((l): l is NonNullable<typeof l> => Boolean(l))
+  .map((l) => ({ l, price: l.status === 'venduto' && l.soldPriceChf ? l.soldPriceChf : l.priceChf }))
+  .sort((a, b) => a.price - b.price);
+const factCount = 3 + attributes.length;
 ---
 
 <Layout title={`${listing.title} · giro.shop`} description={listing.description}>
@@ -103,7 +110,7 @@ const attributes = Object.entries(listing.attributes);
 
         {
           estimate && (
-            <div class="estimate">
+            <a class="estimate" href="#prezzo">
               <span class="ai-mark sm" />
               <span>
                 Annunci simili: <b class="mono">{formatChfRange(estimate.low, estimate.high)}</b>
@@ -112,20 +119,13 @@ const attributes = Object.entries(listing.attributes);
                   ({estimate.comparables} annunci, {estimate.soldComparables} venduti)
                 </span>
               </span>
-            </div>
+            </a>
           )
         }
 
-        <dl class="facts">
-          <div><dt>Condizione</dt><dd>{CONDITION_LABEL[listing.condition]}</dd></div>
-          <div><dt>Ritiro</dt><dd>{comune ? `${comune.cap} ${comune.name} · distretto di ${comune.district}` : '—'}</dd></div>
-          {attributes.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}
-          <div><dt>Pubblicato</dt><dd>{formatAge(listing.publishedAt)}</dd></div>
-        </dl>
-
         <p class="desc">{listing.description}</p>
 
-        <div class="seller panel">
+        <div id="contatta" class="seller panel">
           <div>
             <span class="label">Pubblicato da</span>
             <p class="name">
@@ -141,9 +141,88 @@ const attributes = Object.entries(listing.attributes);
             )
           }
         </div>
+
+        <div class="blocks">
+          <details id="dettagli" open>
+            <summary>
+              <h2>Dettagli</h2>
+              <span class="count">{factCount}</span>
+            </summary>
+            <dl class="facts">
+              <div><dt>Condizione</dt><dd>{CONDITION_LABEL[listing.condition]}</dd></div>
+              <div><dt>Ritiro</dt><dd>{comune ? `${comune.cap} ${comune.name} · distretto di ${comune.district}` : '—'}</dd></div>
+              {attributes.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}
+              <div><dt>Pubblicato</dt><dd>{formatAge(listing.publishedAt)}</dd></div>
+            </dl>
+          </details>
+
+          {
+            estimate && comparables.length > 0 && (
+              <details id="prezzo">
+                <summary>
+                  <h2>Come stimiamo il prezzo</h2>
+                  <span class="count">{comparables.length}</span>
+                </summary>
+                <div class="block-body">
+                  <div class="range">
+                    <span class="label">Fascia per questo annuncio</span>
+                    <b class="mono">{formatChfRange(estimate.low, estimate.high)}</b>
+                  </div>
+                  <p class="muted">
+                    Confrontiamo gli annunci di oggetti simili, anche quelli già venduti, e li riportiamo alla stessa condizione.
+                  </p>
+                  <ul class="comps">
+                    {comparables.map(({ l, price }) => (
+                      <li>
+                        <a href={`/annuncio/${l.id}`}>{l.title}</a>
+                        <span class="muted">
+                          {CONDITION_LABEL[l.condition]}
+                          {l.status === 'venduto' && ' · venduto'}
+                        </span>
+                        <span class="mono">{formatChf(price)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </details>
+            )
+          }
+
+          <details id="sicurezza">
+            <summary>
+              <h2>Comprare in sicurezza</h2>
+            </summary>
+            <ul class="block-body tips">
+              <li>Fissa l'incontro in un luogo pubblico e guarda l'oggetto prima di pagare.</li>
+              <li>Non pagare in anticipo a chi non conosci e non condividere codici ricevuti per SMS.</li>
+              <li>Diffida di chi vuole spostare la conversazione su WhatsApp o ti manda link per pagare.</li>
+              <li>Per gli oggetti di valore chiedi lo scontrino o il certificato di garanzia.</li>
+            </ul>
+          </details>
+        </div>
       </div>
     </div>
   </section>
+
+  {
+    !sold && (
+      <div class="buybar" data-buybar>
+        {photo && <img src={photo.srcSmall} alt="" width="56" height="42" decoding="async" />}
+        <span class="bb-info">
+          <span class="bb-price mono">{formatChf(listing.priceChf)}</span>
+          <span class="bb-title">{listing.title}</span>
+        </span>
+        {listing.priceChf > 0 && (
+          <a class="btn bb-offer" href="#contatta" data-focus="contact-offer">
+            Offerta
+          </a>
+        )}
+        <a class="btn primary bb-main" href="#contatta" data-focus="contact-body">
+          Scrivi
+        </a>
+      </div>
+    )
+  }
 
   {
     similar.length > 0 && (
@@ -158,6 +237,72 @@ const attributes = Object.entries(listing.attributes);
     )
   }
 </Layout>
+
+<script>
+  // Sezioni a fisarmonica: il link con #dettagli, #prezzo o #sicurezza apre quella giusta,
+  // e aprirne una mette il suo indirizzo nella barra, così si può condividere.
+  const openFromHash = () => {
+    const el = location.hash ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+    if (el instanceof HTMLDetailsElement) {
+      el.open = true;
+      el.scrollIntoView({ block: 'start' });
+    }
+  };
+  openFromHash();
+  window.addEventListener('hashchange', openFromHash);
+  for (const summary of document.querySelectorAll<HTMLElement>('.blocks summary')) {
+    summary.addEventListener('click', () => {
+      const details = summary.parentElement as HTMLDetailsElement;
+      requestAnimationFrame(() => {
+        const here = `#${details.id}`;
+        if (details.open) history.replaceState(null, '', here);
+        else if (location.hash === here) history.replaceState(null, '', location.pathname + location.search);
+      });
+    });
+  }
+
+  // Barra fissa su telefono: sparisce quando il riquadro per scrivere è in vista
+  // e mostra il bottone giusto quando arriva il riquadro (server island).
+  const bar = document.querySelector<HTMLElement>('[data-buybar]');
+  const panel = document.getElementById('contatta');
+  if (bar && panel) {
+    new IntersectionObserver(([entry]) => bar.classList.toggle('away', entry.isIntersecting), {
+      rootMargin: '0px 0px -40px 0px',
+    }).observe(panel);
+
+    const main = bar.querySelector<HTMLAnchorElement>('.bb-main');
+    const offer = bar.querySelector<HTMLAnchorElement>('.bb-offer');
+    const adapt = () => {
+      const box = panel.querySelector<HTMLElement>('.contact-box[data-state]');
+      if (!box || !main) return false;
+      const state = box.dataset.state;
+      const link = box.querySelector<HTMLAnchorElement>('a.btn.primary');
+      if (state === 'owner' || state === 'off') {
+        bar.remove();
+      } else if ((state === 'open' || state === 'login') && link) {
+        main.href = link.href;
+        main.textContent = state === 'open' ? 'Apri la chat' : 'Accedi per scrivere';
+        delete main.dataset.focus;
+        offer?.remove();
+      }
+      return true;
+    };
+    if (!adapt()) {
+      const watch = new MutationObserver(() => adapt() && watch.disconnect());
+      watch.observe(panel, { childList: true, subtree: true });
+    }
+
+    bar.addEventListener('click', (event) => {
+      const link = (event.target as Element).closest<HTMLAnchorElement>('a[data-focus]');
+      const field = link ? document.getElementById(link.dataset.focus ?? '') : null;
+      if (!(field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement)) return;
+      event.preventDefault();
+      field.focus({ preventScroll: true });
+      field.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      if (field instanceof HTMLTextAreaElement) field.setSelectionRange(field.value.length, field.value.length);
+    });
+  }
+</script>
 
 <style>
   .crumbs { font-size: 13px; margin-bottom: 24px; }
@@ -176,9 +321,30 @@ const attributes = Object.entries(listing.attributes);
   .title { font-size: clamp(28px, 3.4vw, 40px); line-height: 1.1; }
   .price-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: -8px; }
   .price { font-size: 24px; font-weight: 500; line-height: 1; }
-  .estimate { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 4px; background: var(--surface); font-size: 14px; }
+  .estimate { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 4px; background: var(--surface); font-size: 14px; text-decoration: none; }
+  .estimate:hover { text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--line-strong); }
   .estimate b { font-weight: 500; }
-  .facts { display: grid; border-top: 1px solid var(--line); }
+
+  /* Sezioni a fisarmonica, con il numero di voci accanto al titolo */
+  .blocks { border-top: 1px solid var(--line); }
+  .blocks details { border-bottom: 1px solid var(--line); scroll-margin-top: 16px; }
+  .blocks summary { display: flex; align-items: center; gap: 10px; padding-block: 18px; cursor: pointer; list-style: none; }
+  .blocks summary::-webkit-details-marker { display: none; }
+  .blocks summary::after { content: ''; width: 8px; height: 8px; margin-left: auto; margin-right: 4px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform 0.15s; }
+  .blocks details[open] > summary::after { transform: translateY(2px) rotate(-135deg); }
+  .blocks summary h2 { font: 500 16px/1.3 var(--f-body); letter-spacing: 0; }
+  .blocks .count { min-width: 22px; height: 20px; border-radius: 10px; padding-inline: 7px; background: var(--surface); color: var(--muted); font: 500 11.5px/20px var(--f-body); text-align: center; }
+  .block-body { display: grid; gap: 14px; padding-bottom: 20px; font-size: 14.5px; }
+  .block-body b { font-weight: 500; color: var(--ink); }
+  .range { display: grid; gap: 6px; padding: 14px 16px; border-radius: 4px; background: var(--surface); }
+  .range b { font-size: 20px; line-height: 1.2; white-space: nowrap; }
+  .comps { display: grid; }
+  .comps li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 16px; padding-block: 10px; border-top: 1px solid var(--line); }
+  .comps a { text-underline-offset: 4px; text-decoration-color: var(--line-strong); overflow-wrap: anywhere; }
+  .comps .muted { grid-column: 1; font-size: 13px; }
+  .comps .mono { grid-column: 2; grid-row: 1; font-size: 13px; }
+  .tips { list-style: disc; padding-left: 20px; gap: 8px; }
+  .facts { display: grid; border-top: 1px solid var(--line); margin-bottom: 20px; }
   .facts > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding-block: 12px; border-bottom: 1px solid var(--line); font-size: 15px; }
   .facts dt { font: 500 11px/2 var(--f-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
   .desc { font-size: 16px; line-height: 1.6; max-width: 62ch; }
@@ -187,4 +353,34 @@ const attributes = Object.entries(listing.attributes);
   .contact-ghost { min-height: 52px; }
   .contact { display: grid; gap: 6px; justify-items: end; }
   @media (max-width: 480px) { .contact { justify-items: stretch; width: 100%; } }
+
+  /* Barra fissa in basso, solo su telefono: prezzo sempre in vista e un tocco per scrivere */
+  .buybar { display: none; }
+  @media (max-width: 760px) {
+    .buybar {
+      position: fixed;
+      z-index: 40;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+      background: var(--bg);
+      border-top: 1px solid var(--line);
+      box-shadow: 0 -8px 24px -16px rgba(17, 17, 17, 0.3);
+      transition: transform 0.2s ease-out;
+    }
+    .buybar.away { transform: translateY(110%); }
+    .buybar img { width: 56px; height: 42px; object-fit: cover; border-radius: 4px; flex: none; }
+    .bb-info { display: grid; gap: 2px; min-width: 0; flex: 1; }
+    .bb-price { font-size: 14px; font-weight: 500; }
+    .bb-title { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .buybar .btn { padding: 13px 14px; flex: none; }
+    :global(body:has(.buybar)) { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  }
+  @media (max-width: 360px) {
+    .buybar img { display: none; }
+  }
 </style>

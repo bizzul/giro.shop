@@ -51,3 +51,35 @@ describe('formatChf', () => {
     expect(formatChf(0)).toBe('Regalo');
   });
 });
+
+describe('chip che si possono togliere', () => {
+  const without = (q: string) => Object.fromEntries(parseQuery(q).chips.map((c) => [c.key, c.without]));
+
+  it('toglie un filtro lasciando il resto della frase com’era', () => {
+    const w = without('Scrivania in legno sotto i 150 franchi vicino a Lugano');
+    expect(w.Prezzo).toBe('Scrivania in legno vicino a Lugano');
+    expect(w.Zona).toBe('Scrivania in legno sotto i 150 franchi');
+    expect(w.Materiale).toBe('Scrivania sotto i 150 franchi vicino a Lugano');
+    // L'oggetto cercato non si toglie
+    expect(w.Categoria).toBeUndefined();
+  });
+
+  it('toglie età, ritiro e luogo senza lasciare virgole orfane', () => {
+    const w = without('bici per una bimba di 6 anni, ritiro a Bellinzona');
+    expect(w.Ruote).toBe('bici per una bimba, ritiro a Bellinzona');
+    expect(w.Zona).toBe('bici per una bimba di 6 anni, ritiro');
+    expect(w.Consegna).toBe('bici per una bimba di 6 anni, a Bellinzona');
+  });
+
+  it('riconosce i pezzi anche con apostrofi e numeri svizzeri', () => {
+    const w = without("Vespa anni '80 anche da sistemare, massimo 2'000");
+    expect(w.Anno).toBe('Vespa anche da sistemare, massimo 2\'000');
+    expect(w.Stato).toBe("Vespa anni '80, massimo 2'000");
+    expect(w.Prezzo).toBe("Vespa anni '80 anche da sistemare");
+  });
+
+  it('toglie insieme il raggio e il luogo', () => {
+    expect(without('sci entro 20 km da Airolo').Zona).toBe('sci');
+    expect(without('sotto 150 franchi').Prezzo).toBe('');
+  });
+});
