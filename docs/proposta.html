@@ -1,0 +1,1137 @@
+<title>Progetto Piazza</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Instrument+Sans:wght@400..700&family=Martian+Mono:wght@400..600&display=swap">
+<style>
+/* Layout: griglia svizzera a bande orizzontali, contenuto max 1192px; hero su curve di livello generate; mockup in cornici device */
+:root{
+  --bg:#E8EBEE; --surface:#F2F4F6; --surface-2:#FFFFFF; --ink:#0D1120; --muted:#596173;
+  --line:#CBD1D9; --line-soft:#DDE2E8; --topo:#C4CBD4; --shadow:rgba(13,17,32,.30);
+  --volt:#3043FF; --volt-ink:#FFFFFF; --volt-soft:#E2E5FF;
+  --sun:#FFB01F; --sun-ink:#1F1600; --sun-soft:#FFF1D4;
+  --ok:#08704C; --ok-soft:#DCF2E8; --bad:#B42633; --bad-soft:#F9E1E3;
+  --code-bg:#0D1120; --code-fg:#E7EAF3; --code-dim:#7C849A; --code-key:#9AA5FF; --code-str:#FFC04D;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
+  --f-mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A0D16; --surface:#0F1320; --surface-2:#151B2C; --ink:#E7EAF3; --muted:#959DB1;
+    --line:#283049; --line-soft:#1C2235; --topo:#1E2640; --shadow:rgba(0,0,0,.65);
+    --volt:#7584FF; --volt-ink:#0A0D16; --volt-soft:#1D2350;
+    --sun:#FFC04D; --sun-ink:#1F1600; --sun-soft:#382A0C;
+    --ok:#3CCB95; --ok-soft:#0E2C22; --bad:#FF6B76; --bad-soft:#3A161B;
+    --code-bg:#05070E; --code-fg:#E7EAF3; --code-dim:#6E7790; --code-key:#9AA5FF; --code-str:#FFC04D;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A0D16; --surface:#0F1320; --surface-2:#151B2C; --ink:#E7EAF3; --muted:#959DB1;
+  --line:#283049; --line-soft:#1C2235; --topo:#1E2640; --shadow:rgba(0,0,0,.65);
+  --volt:#7584FF; --volt-ink:#0A0D16; --volt-soft:#1D2350;
+  --sun:#FFC04D; --sun-ink:#1F1600; --sun-soft:#382A0C;
+  --ok:#3CCB95; --ok-soft:#0E2C22; --bad:#FF6B76; --bad-soft:#3A161B;
+  --code-bg:#05070E; --code-fg:#E7EAF3; --code-dim:#6E7790; --code-key:#9AA5FF; --code-str:#FFC04D;
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16.5px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,ul,ol,dl,dd,figure{margin:0}
+ul,ol{padding:0;list-style:none}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--volt);outline-offset:3px;border-radius:4px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}*,*::before,*::after{animation:none!important;transition:none!important}}
+
+.wrap{max-width:1192px;margin-inline:auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+@media (min-width:760px){.wrap{padding-left:max(32px,env(safe-area-inset-left,0px));padding-right:max(32px,env(safe-area-inset-right,0px))}}
+
+h1,h2,h3,h4{font-family:var(--f-display);text-wrap:balance}
+h1{font-size:clamp(38px,5.8vw,78px);font-stretch:112%;font-weight:780;line-height:.98;letter-spacing:-.03em}
+h1 em{font-style:normal;color:var(--volt)}
+h2{font-size:clamp(28px,3.4vw,44px);font-stretch:108%;font-weight:720;line-height:1.05;letter-spacing:-.02em}
+h3{font-size:19px;font-weight:680;line-height:1.25;letter-spacing:-.005em}
+h4{font-size:16px;font-weight:660;line-height:1.3}
+.lead{font-size:clamp(17px,1.5vw,19px);color:var(--muted);max-width:62ch;line-height:1.55}
+.label{font:500 10.5px/1.35 var(--f-mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* AI mark: anello blu = scritto dall'assistente */
+.ai-mark{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--volt);position:relative;flex:none}
+.ai-mark::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--volt)}
+.ai-mark.sm{width:11px;height:11px;border-width:1.5px}
+.ai-mark.sm::after{inset:2px}
+.ai-mark.live::before{content:"";position:absolute;inset:-7px;border-radius:50%;border:1.5px solid var(--volt);opacity:0;animation:ping 2.4s ease-out infinite}
+@keyframes ping{0%{transform:scale(.55);opacity:.8}100%{transform:scale(1.5);opacity:0}}
+
+/* ---------- header ---------- */
+.top{border-bottom:1px solid var(--line-soft);background:var(--bg);position:relative;z-index:3}
+.top-in{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:14px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.mark{width:30px;height:30px;flex:none}
+.mark rect{fill:var(--volt)}
+.mark .ring{fill:none;stroke:var(--volt-ink);stroke-width:2.4}
+.mark .dot{fill:var(--volt-ink)}
+.wordmark{font:760 23px/1 var(--f-display);font-stretch:120%;letter-spacing:-.035em}
+.tag{font:500 9px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 7px;white-space:nowrap}
+.top nav{display:flex;gap:2px}
+.top nav a{font-size:14px;font-weight:560;text-decoration:none;padding:6px 11px;border-radius:999px;color:var(--muted)}
+.top nav a:hover{color:var(--ink);background:var(--surface-2)}
+@media (max-width:760px){.top nav{display:none}}
+
+/* ---------- hero ---------- */
+.hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line-soft)}
+#topo{position:absolute;inset:0;display:block}
+.hero-fade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,var(--bg) 0%,color-mix(in srgb,var(--bg) 86%,transparent) 40%,transparent 68%)}
+@media (max-width:860px){.hero-fade{background:color-mix(in srgb,var(--bg) 80%,transparent)}}
+.hero .wrap{position:relative;z-index:1;padding-block:clamp(48px,8vw,104px) clamp(48px,7vw,88px)}
+.hero-copy{max-width:700px;display:grid;gap:24px}
+.demo{position:relative;background:var(--surface-2);border:1px solid var(--line);border-radius:20px;padding:12px;display:grid;gap:12px;box-shadow:0 34px 64px -40px var(--shadow);max-width:640px}
+.demo-tag{position:absolute;top:-10px;right:16px;background:var(--sun);color:var(--sun-ink);font:600 9px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;padding:5px 8px;border-radius:999px}
+.demo-bar{display:flex;align-items:flex-start;gap:12px;padding:12px 10px 12px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--line-soft);font-size:17px;line-height:1.4}
+.demo-bar .ai-mark{margin-top:4px}
+.demo-q{flex:1;min-width:0;min-height:1.4em}
+.caret{display:inline-block;width:2px;height:1.05em;background:var(--volt);vertical-align:-2px;margin-left:2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.demo-go{flex:none;background:var(--volt);color:var(--volt-ink);font-weight:620;font-size:14px;border-radius:10px;padding:7px 13px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:baseline;gap:7px;padding:5px 10px;border-radius:999px;background:var(--surface-2);border:1px solid color-mix(in srgb,var(--volt) 40%,var(--line));font-size:13.5px;white-space:nowrap}
+.chip .k{font:500 9px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.chip.new{animation:pop .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d,0ms)}
+@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.demo-meta{font:500 10.5px/1.4 var(--f-mono);color:var(--muted);padding-inline:4px}
+.fade{opacity:.35;transition:opacity .2s}
+.promises{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;padding-top:4px}
+.promises li{display:grid;gap:4px;align-content:start;border-top:1px solid var(--line);padding-top:12px}
+.promises b{font:680 15.5px/1.3 var(--f-display);font-stretch:106%}
+.promises span{font-size:14px;color:var(--muted);line-height:1.45}
+@media (max-width:640px){.promises{grid-template-columns:1fr;gap:12px}}
+
+/* ---------- sections ---------- */
+.band{padding-block:clamp(56px,8vw,104px)}
+.band.alt{background:var(--surface);border-block:1px solid var(--line-soft)}
+.sh{display:grid;gap:14px;max-width:800px;margin-bottom:clamp(28px,4vw,52px)}
+.eyebrow{display:flex;align-items:center;gap:10px;font:500 11px/1.3 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--volt)}
+.eyebrow::before{content:"";width:20px;height:2px;background:currentColor}
+.sub{margin-top:clamp(44px,6vw,72px)}
+.sub-h{display:grid;gap:6px;margin-bottom:20px;max-width:720px}
+.sub-h p{color:var(--muted);font-size:15.5px}
+
+/* ---------- analisi ---------- */
+.split{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:clamp(28px,4vw,56px);align-items:start}
+@media (max-width:920px){.split{grid-template-columns:1fr}}
+.facts{display:grid;border-top:1px solid var(--line)}
+.facts > div{display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;padding-block:11px;border-bottom:1px solid var(--line-soft)}
+.facts dt{font:500 10px/1.6 var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding-top:3px}
+.facts dd{font-size:15.5px;line-height:1.5}
+.facts code{font:500 12px var(--f-mono);background:var(--surface-2);border:1px solid var(--line-soft);border-radius:5px;padding:1px 5px}
+@media (max-width:520px){.facts > div{grid-template-columns:1fr;gap:2px}}
+.annot{display:grid;gap:14px}
+.card{background:var(--surface-2);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:12px}
+.pill{justify-self:start;font:500 9.5px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.07em;padding:5px 8px;border-radius:999px;background:var(--surface);border:1px solid var(--line-soft);color:var(--muted)}
+.raw-t{font-weight:700;font-size:15px;line-height:1.35;letter-spacing:.01em}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px 16px;font-size:14px;line-height:1.4}
+.kv dt{color:var(--muted)}
+.kv dd{font-variant-numeric:tabular-nums}
+.m{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--bad);color:var(--surface-2);font:600 9.5px/1 var(--f-mono);margin-left:6px;vertical-align:1px}
+.notes{display:grid;gap:8px}
+.notes li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;font-size:14px;line-height:1.45;color:var(--muted)}
+.notes .m{margin:1px 0 0}
+.card.fixed{border-color:color-mix(in srgb,var(--ok) 55%,var(--line))}
+.fixed-h{display:flex;align-items:center;gap:8px;font:500 10px/1.3 var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ok)}
+.fixed-t{font:680 17px/1.3 var(--f-display)}
+.fixed ul{display:grid;gap:4px;font-size:14px}
+.fixed .price{font:600 15px/1.2 var(--f-mono);font-variant-numeric:tabular-nums}
+.badges{display:flex;flex-wrap:wrap;gap:6px}
+.badge{display:inline-flex;align-items:center;gap:5px;font:600 9px/1 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;padding:5px 7px;border-radius:999px;white-space:nowrap}
+.badge.ok{background:var(--ok-soft);color:var(--ok)}
+.badge.sun{background:var(--sun);color:var(--sun-ink)}
+.badge.volt{background:var(--volt-soft);color:var(--volt)}
+.badge.bad{background:var(--bad-soft);color:var(--bad)}
+.kc{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(28px,4vw,56px);margin-top:clamp(40px,5vw,64px)}
+@media (max-width:860px){.kc{grid-template-columns:1fr}}
+.kc h3{margin-bottom:14px}
+.keep{display:grid;gap:0;border-top:1px solid var(--line)}
+.keep li{font-size:15px;padding:10px 0 10px 24px;position:relative;border-bottom:1px solid var(--line-soft)}
+.keep li::before{content:"";position:absolute;left:2px;top:1.05em;width:9px;height:5px;border-left:2px solid var(--ok);border-bottom:2px solid var(--ok);transform:rotate(-45deg)}
+.change{display:grid;border-top:1px solid var(--line)}
+.change li{display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1.15fr);gap:8px;align-items:baseline;padding-block:10px;border-bottom:1px solid var(--line-soft);font-size:15px}
+.change .from{color:var(--muted);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--muted) 50%,transparent)}
+.change .arr{color:var(--volt);font-family:var(--f-mono);font-size:13px}
+.change .to{font-weight:600}
+
+/* ---------- concept ---------- */
+.doors{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.door{background:var(--surface-2);border:1px solid var(--line);border-radius:16px;padding:20px;display:grid;gap:8px;align-content:start;position:relative}
+.door::after{content:"";position:absolute;left:50%;top:100%;height:26px;border-left:2px dashed color-mix(in srgb,var(--volt) 50%,var(--line))}
+.door .label{color:var(--volt)}
+.door p:last-child{font-size:15px;color:var(--muted);line-height:1.5}
+.core{margin-top:26px;border:1.5px solid var(--volt);border-radius:20px;padding:clamp(20px,3vw,32px);background:color-mix(in srgb,var(--volt) 5%,var(--surface-2));display:grid;gap:12px}
+.core > p{max-width:70ch;color:var(--muted);font-size:15.5px}
+.life{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-top:12px}
+.life li{border-top:2px solid var(--volt);padding-top:14px;display:grid;gap:4px;align-content:start;position:relative}
+.life li::before{content:"";position:absolute;top:-6px;left:0;width:10px;height:10px;border-radius:50%;background:var(--volt)}
+.life b{font:660 15px/1.3 var(--f-display)}
+.life span{font-size:13.5px;color:var(--muted);line-height:1.45}
+@media (max-width:860px){.doors{grid-template-columns:1fr}.door::after{display:none}.core{margin-top:16px}.life{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:480px){.life{grid-template-columns:1fr}}
+.feat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(32px,4vw,52px) clamp(28px,4vw,56px)}
+@media (max-width:760px){.feat-grid{grid-template-columns:1fr}}
+.fgroup h3{padding-bottom:12px;border-bottom:1px solid var(--line)}
+.feat{padding-block:13px;border-bottom:1px solid var(--line-soft);display:grid;gap:3px}
+.feat b{font-weight:650;font-size:15.5px}
+.feat p{font-size:14.5px;color:var(--muted);line-height:1.5}
+
+/* ---------- grafica ---------- */
+.dir{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(32px,4vw,56px);align-items:start}
+@media (max-width:900px){.dir{grid-template-columns:1fr}}
+.dir h3{margin-bottom:16px}
+.swatches{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 14px}
+@media (max-width:560px){.swatches{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.sw{display:grid;gap:7px;align-content:start}
+.sw-c{height:64px;border-radius:12px;border:1px solid var(--line);background:linear-gradient(90deg,var(--c) 0 50%,var(--cd) 50% 100%);max-width:100%}
+.sw b{font-size:14px;line-height:1.2}
+.sw span{font-size:12.5px;color:var(--muted);line-height:1.35}
+.sw code{font:500 9.5px/1.4 var(--f-mono);color:var(--muted)}
+.sw-note{font-size:13px;color:var(--muted);margin-top:14px}
+.types{display:grid;border-top:1px solid var(--line)}
+.type-row{display:grid;gap:6px;padding-block:16px;border-bottom:1px solid var(--line-soft)}
+.t-disp{font-family:var(--f-display);font-size:clamp(26px,3vw,38px);font-weight:760;font-stretch:120%;line-height:1.05;letter-spacing:-.03em}
+.t-body{font-size:16.5px;line-height:1.5}
+.t-mono{font:500 12.5px/1.6 var(--f-mono)}
+.principles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-top:clamp(40px,5vw,56px);border-top:1px solid var(--line);padding-top:24px}
+@media (max-width:960px){.principles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.principles{grid-template-columns:1fr}}
+.principles li{display:grid;gap:6px;align-content:start}
+.principles h4{display:flex;align-items:center;gap:8px}
+.principles p{font-size:14.5px;color:var(--muted);line-height:1.5}
+
+.mocks{display:grid;gap:clamp(40px,5vw,56px);margin-top:clamp(44px,6vw,72px)}
+.mock{display:grid;gap:14px;min-width:0}
+.cap{display:grid;gap:4px;max-width:62ch}
+.cap p{font-size:14.5px;color:var(--muted);line-height:1.5}
+.frame{background:var(--surface-2);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 40px 80px -52px var(--shadow)}
+.fbar{display:flex;align-items:center;gap:7px;padding:10px 14px;border-bottom:1px solid var(--line-soft);background:var(--surface)}
+.fbar i{width:9px;height:9px;border-radius:50%;background:var(--line);display:block}
+.fbar span{margin-left:8px;font:500 10px/1 var(--f-mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* mock A — ricerca */
+.mA{padding:clamp(14px,2.4vw,24px);display:grid;gap:16px}
+.sbar{display:flex;align-items:center;gap:12px;border:1.5px solid var(--volt);border-radius:14px;padding:12px 14px;font-size:16px;line-height:1.35;background:var(--surface-2)}
+.sbar span:nth-child(2){flex:1;min-width:0}
+.mA-body{display:grid;grid-template-columns:minmax(0,1fr) 264px;gap:18px;align-items:start}
+@media (max-width:900px){.mA-body{grid-template-columns:1fr}}
+.rescount{font-size:13.5px;color:var(--muted);margin-bottom:10px}
+.rescount b{color:var(--ink)}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:640px){.cards{grid-template-columns:1fr}}
+.lcard{border:1px solid var(--line);border-radius:14px;overflow:hidden;display:grid;align-content:start;background:var(--surface-2)}
+.lph{aspect-ratio:4/3;max-width:100%;display:grid;place-items:center;background:linear-gradient(140deg,var(--line-soft),var(--surface));color:var(--muted);position:relative}
+.lph svg{width:42%;height:auto}
+.lph .badge{position:absolute;top:8px;left:8px}
+.ico{fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.lb{padding:12px;display:grid;gap:4px}
+.lprice{font:600 15px/1.2 var(--f-mono);font-variant-numeric:tabular-nums}
+.ltitle{font-weight:620;font-size:14.5px;line-height:1.3}
+.lmeta{font-size:13px;color:var(--muted)}
+.lwhy{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--volt);margin-top:4px;line-height:1.3}
+.side{display:grid;gap:12px;align-content:start}
+.minimap{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
+.minimap svg{display:block;width:100%;height:auto}
+.mm-topo{fill:none;stroke:var(--topo);stroke-width:1.2}
+.mm-topo.idx{stroke:var(--line);stroke-width:1.8}
+.mm-r{fill:color-mix(in srgb,var(--volt) 7%,transparent);stroke:var(--volt);stroke-width:1.2;stroke-dasharray:4 4}
+.mm-pin{fill:var(--volt)}
+.mm-me{fill:var(--ink)}
+.mm-t{fill:var(--muted);font:500 8.5px var(--f-mono)}
+.mm-t.ink{fill:var(--ink)}
+.alertbox{border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:8px;font-size:13.5px;line-height:1.45;background:var(--surface-2)}
+.alertbox p{color:var(--muted)}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:640}
+.tg{width:34px;height:20px;border-radius:999px;background:var(--volt);position:relative;flex:none}
+.tg::after{content:"";position:absolute;right:3px;top:3px;width:14px;height:14px;border-radius:50%;background:var(--volt-ink)}
+
+/* phones */
+.phones{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(36px,4vw,48px);align-items:start}
+@media (max-width:780px){.phones{grid-template-columns:1fr}}
+.phone{width:min(330px,100%);justify-self:center;border:1px solid var(--line);border-radius:40px;padding:9px;background:var(--surface);box-shadow:0 40px 80px -48px var(--shadow)}
+.screen{border-radius:32px;background:var(--surface-2);border:1px solid var(--line-soft);overflow:hidden;display:grid;gap:12px;padding:12px 14px 18px}
+.island{width:86px;height:22px;border-radius:999px;background:var(--ink);justify-self:center}
+.ph-top{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:660;font-size:15px}
+.ph-top small{font:500 9.5px/1 var(--f-mono);color:var(--muted);font-weight:500}
+.shots{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.shot{aspect-ratio:1;max-width:100%;border-radius:10px;background:linear-gradient(140deg,var(--line-soft),var(--surface));display:grid;place-items:center;color:var(--muted)}
+.shot svg{width:68%;height:auto}
+.shot.add{border:1.5px dashed var(--line);background:none;font:400 20px/1 var(--f-body)}
+.recog{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:var(--volt-soft)}
+.recog b{display:block;font-size:14px;line-height:1.3}
+.recog span{font-size:11.5px;color:var(--muted)}
+.fld{display:grid;gap:3px;padding-bottom:10px;border-bottom:1px solid var(--line-soft)}
+.fld .label{display:flex;align-items:center;gap:6px;font-size:9px}
+.fld p{font-size:14px;line-height:1.35}
+.fld small{font-size:11.5px;color:var(--muted);line-height:1.35}
+.pband{display:grid;gap:7px;margin-top:2px}
+.pb-big{font:650 22px/1 var(--f-mono);font-variant-numeric:tabular-nums}
+.pb-track{position:relative;height:8px;border-radius:999px;background:var(--line-soft);margin-top:4px}
+.pb-range{position:absolute;top:0;bottom:0;left:26.7%;right:26.7%;border-radius:999px;background:color-mix(in srgb,var(--volt) 32%,transparent)}
+.pb-dot{position:absolute;top:50%;left:50%;width:16px;height:16px;border-radius:50%;background:var(--volt);border:3px solid var(--surface-2);transform:translate(-50%,-50%)}
+.pb-scale{display:flex;justify-content:space-between;margin-inline:calc(26.7% - 12px);font:500 9.5px/1 var(--f-mono);color:var(--muted)}
+.langs{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.lang{font:600 9.5px/1 var(--f-mono);padding:5px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.lang.on{border-color:var(--volt);color:var(--volt)}
+.btn{display:flex;justify-content:center;align-items:center;gap:8px;border-radius:12px;padding:12px 14px;font-weight:650;font-size:14px;border:1px solid var(--line);text-align:center;line-height:1.2}
+.btn.primary{background:var(--volt);color:var(--volt-ink);border-color:var(--volt)}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chat-h{display:grid;gap:2px;padding-bottom:10px;border-bottom:1px solid var(--line-soft)}
+.chat-h b{font-size:14.5px}
+.chat-h span{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--volt)}
+.chat{display:flex;flex-direction:column;gap:8px}
+.msg{max-width:88%;padding:9px 12px;border-radius:16px;font-size:13.5px;line-height:1.45;display:grid;gap:3px}
+.msg.them{align-self:flex-start;background:var(--surface);border:1px solid var(--line-soft);border-bottom-left-radius:5px}
+.msg.agent{align-self:flex-end;background:var(--volt-soft);border-bottom-right-radius:5px}
+.who{font:500 8.5px/1.2 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;gap:5px;align-items:center}
+.offer{border:1.5px solid var(--volt);border-radius:14px;padding:12px;display:grid;gap:9px}
+.offer-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.offer-p{font:650 19px/1 var(--f-mono);font-variant-numeric:tabular-nums}
+.offer p{font-size:13px;color:var(--muted)}
+.rules{display:grid;gap:7px}
+.rules > div{display:flex;flex-wrap:wrap;gap:5px}
+.rule{font-size:11.5px;padding:4px 8px;border-radius:8px;background:var(--surface);border:1px solid var(--line-soft);line-height:1.3}
+
+/* ---------- MCP ---------- */
+.mcp-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);gap:clamp(28px,4vw,52px);align-items:start}
+@media (max-width:980px){.mcp-grid{grid-template-columns:1fr}}
+.mD{padding:18px;display:grid;gap:12px}
+.u-msg{justify-self:end;max-width:90%;background:var(--surface);border:1px solid var(--line-soft);border-radius:16px 16px 5px 16px;padding:10px 14px;font-size:14.5px;line-height:1.45;display:grid;gap:10px}
+.u-photos{display:flex;gap:6px}
+.u-photos span{width:46px;height:46px;border-radius:9px;background:linear-gradient(140deg,var(--line-soft),var(--surface-2));display:grid;place-items:center;color:var(--muted)}
+.u-photos svg{width:60%;height:auto}
+.tool{display:flex;align-items:center;gap:10px;font:500 11px/1.4 var(--f-mono);color:var(--muted);padding:8px 12px;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface)}
+.tool b{color:var(--ink);font-weight:600}
+.tool .okk{color:var(--ok);margin-left:auto}
+.a-msg{font-size:14.5px;line-height:1.5;display:grid;gap:12px}
+.scroll-x{overflow-x:auto;max-width:100%}
+.drafts{width:100%;border-collapse:collapse;font-size:13.5px;min-width:420px}
+.drafts th{font:500 9px/1.3 var(--f-mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+.drafts td{padding:9px 8px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.drafts td.p{font-family:var(--f-mono);font-size:12.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.drafts td.r{font-family:var(--f-mono);font-size:11px;color:var(--muted);white-space:nowrap}
+.confirm-note{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted)}
+.sec{display:grid;border-top:1px solid var(--line)}
+.sec li{display:grid;gap:3px;padding-block:13px;border-bottom:1px solid var(--line-soft)}
+.sec b{font-size:15.5px;font-weight:650}
+.sec p{font-size:14.5px;color:var(--muted);line-height:1.5}
+.code{background:var(--code-bg);color:var(--code-fg);border-radius:14px;padding:16px 18px;font:500 11.5px/1.75 var(--f-mono);overflow-x:auto;white-space:pre;margin:0;max-width:100%}
+.code .cd{color:var(--code-dim)}
+.code .ck{color:var(--code-key)}
+.code .cs{color:var(--code-str)}
+.tbl-wrap{border:1px solid var(--line);border-radius:16px;overflow-x:auto;background:var(--surface-2)}
+.tbl{width:100%;border-collapse:collapse;min-width:640px}
+.tbl th{font:500 9.5px/1.3 var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:left;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
+.tbl td{padding:12px 16px;border-bottom:1px solid var(--line-soft);font-size:14.5px;line-height:1.45;vertical-align:top}
+.tbl tr:last-child td{border-bottom:0}
+.tbl td:first-child{font:500 12px/1.6 var(--f-mono);white-space:nowrap;color:var(--volt)}
+.perm{display:inline-block;font:600 9px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.07em;padding:5px 8px;border-radius:999px;white-space:nowrap}
+.perm.pub{background:var(--surface);color:var(--muted);border:1px solid var(--line)}
+.perm.acc{background:var(--volt-soft);color:var(--volt)}
+.perm.cnf{background:var(--sun);color:var(--sun-ink)}
+.extras{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+@media (max-width:700px){.extras{grid-template-columns:1fr}}
+.extras > div{border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:8px;background:var(--surface-2)}
+.extras ul{display:flex;flex-wrap:wrap;gap:6px}
+.extras li{font:500 11px/1.3 var(--f-mono);padding:6px 9px;border-radius:8px;background:var(--surface);border:1px solid var(--line-soft)}
+
+/* ---------- piano ---------- */
+.gantt-box{border:1px solid var(--line);border-radius:16px;background:var(--surface-2);padding:18px 18px 14px;overflow-x:auto}
+.gantt{min-width:760px;display:grid;gap:10px}
+.g-row{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;align-items:center}
+.g-name{font-size:13.5px;font-weight:640;line-height:1.25}
+.g-name small{display:block;font:500 9px/1.5 var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:500}
+.g-track{position:relative;height:30px;border-radius:7px;background:repeating-linear-gradient(90deg,transparent 0 calc(100%/26 - 1px),var(--line-soft) calc(100%/26 - 1px) calc(100%/26))}
+.g-bar{position:absolute;top:3px;bottom:3px;border-radius:6px;display:flex;align-items:center;padding-inline:9px;font:600 9.5px/1 var(--f-mono);white-space:nowrap;overflow:hidden}
+.b0{background:var(--muted);color:var(--bg)}
+.b1{background:var(--volt);color:var(--volt-ink)}
+.b2{background:repeating-linear-gradient(135deg,var(--volt-soft) 0 6px,color-mix(in srgb,var(--volt) 22%,var(--volt-soft)) 6px 12px);color:var(--volt);box-shadow:inset 0 0 0 1.5px var(--volt)}
+.b3{background:var(--ink);color:var(--bg)}
+.b4{background:var(--sun);color:var(--sun-ink)}
+.g-head .g-track,.g-ms .g-track{background:none}
+.g-head .g-track{height:16px}
+.g-head span{position:absolute;top:0;font:500 9px/16px var(--f-mono);color:var(--muted)}
+.g-ms .g-track{height:44px}
+.ms{position:absolute;top:2px;display:grid;justify-items:center;gap:5px;transform:translateX(-50%)}
+.ms i{width:11px;height:11px;background:var(--ink);transform:rotate(45deg);display:block;border-radius:2px}
+.ms span{font-size:11.5px;font-weight:620;white-space:nowrap;line-height:1}
+.ms.first{transform:translateX(-6px);justify-items:start}
+.phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;margin-top:18px}
+.phase{border:1px solid var(--line);border-radius:16px;padding:18px;background:var(--surface-2);display:grid;gap:10px;align-content:start}
+.phase-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.phase-h .label{display:flex;align-items:center;gap:8px}
+.ph-sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+.phase ul{display:grid;gap:6px}
+.phase li{font-size:14px;padding-left:16px;position:relative;line-height:1.45}
+.phase li::before{content:"";position:absolute;left:0;top:.6em;width:6px;height:6px;border-radius:2px;background:var(--line)}
+.done{font-size:13.5px;line-height:1.45;border-top:1px dashed var(--line);padding-top:10px;color:var(--muted)}
+.done b{color:var(--ink);font-weight:640}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(32px,4vw,56px);align-items:start}
+@media (max-width:860px){.two{grid-template-columns:1fr}}
+.steps{display:grid;border-top:1px solid var(--line);counter-reset:n}
+.steps li{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;padding-block:12px;border-bottom:1px solid var(--line-soft);font-size:15px;line-height:1.5;counter-increment:n}
+.steps li::before{content:counter(n,decimal-leading-zero);font:600 11px/2 var(--f-mono);color:var(--volt)}
+.kpis{display:grid;border-top:1px solid var(--line)}
+.kpis li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:baseline;padding-block:12px;border-bottom:1px solid var(--line-soft);font-size:15px}
+.kpis b{font:600 13px/1.3 var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--volt)}
+.risks{display:grid;border-top:1px solid var(--line)}
+.risks li{display:grid;gap:3px;padding-block:12px;border-bottom:1px solid var(--line-soft)}
+.risks b{font-size:15px;font-weight:650}
+.risks p{font-size:14.5px;color:var(--muted);line-height:1.5}
+.decide{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px}
+.decide li{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:14.5px;line-height:1.4;background:var(--surface-2)}
+.decide li::before{content:"";width:14px;height:14px;border:1.5px solid var(--muted);border-radius:4px;flex:none;margin-top:2px}
+
+footer{border-top:1px solid var(--line-soft);padding-block:28px 40px;font-size:13.5px;color:var(--muted)}
+footer .wrap{display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between}
+</style>
+
+<header class="top">
+  <div class="wrap top-in">
+    <a class="brand" href="#top" aria-label="Piazza, torna all'inizio">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="9"/><circle class="ring" cx="16" cy="16" r="7.5"/><circle class="dot" cx="16" cy="16" r="2.8"/></svg>
+      <span class="wordmark">piazza</span>
+      <span class="tag">nome di lavoro</span>
+    </a>
+    <nav aria-label="Sezioni">
+      <a href="#analisi">Analisi</a><a href="#concept">Concept</a><a href="#grafica">Grafica</a><a href="#mcp">MCP</a><a href="#piano">Piano</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<section class="hero" id="top">
+  <canvas id="topo" aria-hidden="true"></canvas>
+  <div class="hero-fade"></div>
+  <div class="wrap">
+    <div class="hero-copy">
+      <p class="eyebrow">Proposta di progetto · 6.11.2026</p>
+      <h1>Il mercatino del Ticino che <em>lavora per te</em>.</h1>
+      <p class="lead">L'idea di mercatinoticino.ch, annunci locali e gratuiti, ricostruita attorno all'AI. L'annuncio nasce da una foto, la ricerca capisce le frasi, e un server MCP permette di comprare e vendere anche dal proprio assistente AI. Le decisioni restano sempre tue.</p>
+      <div class="demo">
+        <span class="demo-tag">Esempio</span>
+        <p class="sr">Esempio: una frase di ricerca viene trasformata in filtri strutturati.</p>
+        <div class="demo-bar" aria-hidden="true">
+          <span class="ai-mark live"></span>
+          <span class="demo-q"><span id="q-text">scrivania in legno sotto i 150 franchi vicino a Lugano</span><span class="caret"></span></span>
+          <span class="demo-go">Cerca</span>
+        </div>
+        <div class="chips" id="q-chips" aria-hidden="true">
+          <span class="chip"><span class="k">Categoria</span>Scrivanie</span>
+          <span class="chip"><span class="k">Prezzo</span>≤ CHF 150</span>
+          <span class="chip"><span class="k">Zona</span>Lugano + 15 km</span>
+          <span class="chip"><span class="k">Materiale</span>legno</span>
+        </div>
+        <p class="demo-meta" id="q-meta" aria-hidden="true">7 annunci · 2 nuovi da ieri · ordinati per distanza</p>
+      </div>
+      <ul class="promises">
+        <li><b>Da foto ad annuncio</b><span>L'assistente scrive titolo, testo e prezzo. Tu confermi.</span></li>
+        <li><b>Ricerca a parole tue</b><span>Prezzo, distanza e condizione capiti da una frase.</span></li>
+        <li><b>Connettore MCP</b><span>Cerchi, pubblichi e tratti dal tuo assistente AI.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ANALISI ================= -->
+<section class="band alt" id="analisi">
+  <div class="wrap">
+    <header class="sh">
+      <p class="eyebrow">Il punto di partenza</p>
+      <h2>Cosa fa oggi mercatinoticino.ch</h2>
+      <p class="lead">Visitati il 6 novembre 2026: home, elenco annunci, una scheda annuncio, Vetrina, Premium e Come funziona. È un sito ordinato e onesto, costruito come un portale di annunci classico: tutto passa da moduli e testo libero.</p>
+    </header>
+
+    <div class="split">
+      <dl class="facts">
+        <div><dt>Categorie</dt><dd>23, da Abbigliamento a Vini e gastronomia</dd></div>
+        <div><dt>Zone</dt><dd>8 distretti ticinesi, più Altri cantoni ed Estero</dd></div>
+        <div><dt>Ricerca</dt><dd>Parola chiave, categoria, zona. Ordinamento per data o prezzo. Nessun filtro per fascia di prezzo, distanza o condizione</dd></div>
+        <div><dt>Inserimento</dt><dd>Modulo manuale con registrazione obbligatoria, fino a 5 foto (12 con Premium)</dd></div>
+        <div><dt>Durata</dt><dd>90 giorni, rinnovabile. Gratis fino a 10 annunci attivi</dd></div>
+        <div><dt>Ricavi</dt><dd>Vetrina CHF 14.95 per 3 mesi · Premium aziende CHF 119.88 all'anno</dd></div>
+        <div><dt>Pagamenti</dt><dd>PayPal, carta, fattura QR. TWINT solo scrivendo al supporto</dd></div>
+        <div><dt>Contatto</dt><dd>Messaggi interni o telefono, se l'inserzionista lo mostra</dd></div>
+        <div><dt>Controllo</dt><dd>Un piccolo gruppo di volontari. Nessuna verifica di venditori o merce</dd></div>
+        <div><dt>Volume</dt><dd>8 annunci visibili al momento della visita</dd></div>
+      </dl>
+
+      <figure class="annot">
+        <p class="label">Un annuncio reale, così com'è</p>
+        <div class="card">
+          <span class="pill">Antiquariato</span>
+          <p class="raw-t">“DUE ELEGANTI POLTRONE VINTAGE – PEZZI DI INTERESSE PER AMANTI DELL'ANTIQUARIATO”<span class="m">1</span></p>
+          <dl class="kv">
+            <dt>Prezzo, campo</dt><dd>CHF 3'699.90<span class="m">2</span></dd>
+            <dt>Prezzo, nel testo</dt><dd>4'000 € la coppia</dd>
+            <dt>Zona, campo</dt><dd>Mendrisio<span class="m">3</span></dd>
+            <dt>Luogo, nel testo</dt><dd>Bodio Lomnago, provincia di Varese</dd>
+            <dt>Condizione</dt><dd>Usato</dd>
+          </dl>
+        </div>
+        <ol class="notes">
+          <li><span class="m">1</span><span>Titolo in maiuscolo di oltre 80 caratteri: si legge male e confonde la ricerca.</span></li>
+          <li><span class="m">2</span><span>Due prezzi diversi per lo stesso oggetto, in due valute.</span></li>
+          <li><span class="m">3</span><span>La zona dice Mendrisio, ma l'oggetto si trova in Italia.</span></li>
+        </ol>
+        <div class="card fixed">
+          <p class="fixed-h"><span class="ai-mark sm"></span>Lo stesso annuncio, dopo la pulizia automatica</p>
+          <p class="fixed-t">Coppia di poltrone Liberty, rivestimento rosso mattone</p>
+          <ul>
+            <li><span class="price">CHF 3'700.–</span> · prezzo originale 4'000 €, convertito</li>
+            <li>Bodio Lomnago (VA), Italia · ritiro sul posto</li>
+            <li>Usato · buono stato · 2 pezzi · stile Liberty</li>
+          </ul>
+          <div class="badges"><span class="badge sun">Fuori Ticino</span><span class="badge volt">Valuta convertita</span><span class="badge ok">Dati completi</span></div>
+        </div>
+      </figure>
+    </div>
+
+    <div class="kc">
+      <div>
+        <h3>Cosa teniamo</h3>
+        <ul class="keep">
+          <li>Il taglio locale, gratuito e senza fronzoli</li>
+          <li>Le zone per distretto e la lingua di casa, natel compreso</li>
+          <li>I consigli anti-truffa, scritti in modo chiaro</li>
+          <li>Ricavi semplici: vetrina e account per aziende</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Cosa cambiamo</h3>
+        <ul class="change">
+          <li><span class="from">Modulo da compilare</span><span class="arr">→</span><span class="to">Bozza scritta dall'AI a partire dalle foto</span></li>
+          <li><span class="from">Ricerca per parola esatta</span><span class="arr">→</span><span class="to">Ricerca per significato, prezzo e distanza</span></li>
+          <li><span class="from">Testo libero</span><span class="arr">→</span><span class="to">Dati strutturati e verificati</span></li>
+          <li><span class="from">Controllo solo umano</span><span class="arr">→</span><span class="to">L'AI segnala, i volontari decidono</span></li>
+          <li><span class="from">Sito chiuso</span><span class="arr">→</span><span class="to">Aperto agli assistenti AI via MCP</span></li>
+          <li><span class="from">Vetrina uguale per tutti</span><span class="arr">→</span><span class="to">Vetrina mostrata a chi cerca quell'oggetto</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CONCEPT ================= -->
+<section class="band" id="concept">
+  <div class="wrap">
+    <header class="sh">
+      <p class="eyebrow">Concept</p>
+      <h2>Tre porte, un solo mercato</h2>
+      <p class="lead">Le persone usano l'app, gli assistenti AI usano il connettore MCP, le aziende caricano i cataloghi. Tutti lavorano sugli stessi annunci strutturati, con le stesse regole di fiducia.</p>
+    </header>
+
+    <div class="doors">
+      <article class="door">
+        <p class="label">Persone</p>
+        <h3>L'app Piazza</h3>
+        <p>Web app installabile, pensata per il telefono. L'assistente è dentro ogni schermata: scrive l'annuncio, capisce la ricerca, risponde ai messaggi.</p>
+      </article>
+      <article class="door">
+        <p class="label">Assistenti AI</p>
+        <h3>Connettore MCP</h3>
+        <p>Chi usa Claude, ChatGPT o un altro client compatibile collega il proprio account una volta. Poi cerca, pubblica e tratta parlando.</p>
+      </article>
+      <article class="door">
+        <p class="label">Aziende</p>
+        <h3>Import e API Pro</h3>
+        <p>Negozi dell'usato, garage, agenzie: il catalogo entra da file, feed o sito e resta sincronizzato.</p>
+      </article>
+    </div>
+
+    <div class="core">
+      <p class="label">Il nucleo comune</p>
+      <h3>L'annuncio strutturato</h3>
+      <p>Ogni annuncio è un insieme di dati, non un testo libero: categoria con attributi propri (taglia, anno, materiale), prezzo in CHF, comune con CAP e coordinate, condizione su scala fissa, foto descritte dall'AI. Ricerca, avvisi, stime di prezzo e agenti lavorano tutti sugli stessi dati.</p>
+      <ol class="life" aria-label="Ciclo di vita di un annuncio">
+        <li><b>Bozza</b><span>L'AI la prepara dalle foto, tu la confermi.</span></li>
+        <li><b>Pubblicato</b><span>Chi ha un avviso compatibile riceve subito una notifica.</span></li>
+        <li><b>In trattativa</b><span>L'assistente risponde e filtra le offerte secondo le tue regole.</span></li>
+        <li><b>Venduto</b><span>Conferma da entrambe le parti e un breve giudizio.</span></li>
+        <li><b>Archiviato</b><span>Il prezzo finale migliora le stime per i prossimi annunci.</span></li>
+      </ol>
+    </div>
+
+    <div class="sub">
+      <div class="sub-h">
+        <h3>Le funzioni smart</h3>
+        <p>Raggruppate per chi le usa. Ognuna risparmia un passaggio che oggi è manuale.</p>
+      </div>
+      <div class="feat-grid">
+        <div class="fgroup">
+          <h3>Chi vende</h3>
+          <div class="feat"><b>Scatta e vendi</b><p>Da una a cinque foto, o un messaggio vocale. L'assistente riconosce l'oggetto, scrive titolo e descrizione, propone categoria, attributi e una fascia di prezzo.</p></div>
+          <div class="feat"><b>Prezzo che si muove da solo</b><p>Una regola di ribasso, per esempio −10% ogni 14 giorni ma mai sotto CHF 300.</p></div>
+          <div class="feat"><b>Assistente venditore</b><p>Risponde alle domande ripetitive, scarta le offerte sotto il tuo minimo, propone orari di ritiro. Accettare resta una tua decisione.</p></div>
+          <div class="feat"><b>Ciclo di vita automatico</b><p>Rinnovo, domanda “l'hai venduto?” dopo il ritiro, ripubblicazione con un tocco.</p></div>
+        </div>
+        <div class="fgroup">
+          <h3>Chi compra</h3>
+          <div class="feat"><b>Cerchi come parli</b><p>Una frase diventa filtri veri e modificabili: prezzo, km dal tuo comune, condizione, taglia.</p></div>
+          <div class="feat"><b>Cerca con una foto</b><p>Fotografi una lampada che ti piace e trovi quelle simili in vendita vicino a te.</p></div>
+          <div class="feat"><b>Avvisi intelligenti</b><p>Una ricerca salvata che capisce i sinonimi: bici, bicicletta e MTB sono la stessa cosa.</p></div>
+          <div class="feat"><b>Offerte strutturate</b><p>Prezzo e orario di ritiro in un solo messaggio, accettabili con un tocco.</p></div>
+        </div>
+        <div class="fgroup">
+          <h3>Fiducia e sicurezza</h3>
+          <div class="feat"><b>Annunci puliti in automatico</b><p>Prezzo in CHF con conversione dall'euro, comune vero con CAP, condizione su scala fissa, titoli leggibili.</p></div>
+          <div class="feat"><b>Rischio truffa su ogni annuncio e messaggio</b><p>Prezzi anomali, testi copiati, link esterni, richieste di pagamento anticipato. I volontari vedono prima i casi a rischio.</p></div>
+          <div class="feat"><b>Profili verificati e pagamento protetto</b><p>Verifica del natel, poi identità facoltativa. Pagamento con TWINT trattenuto fino al ritiro.</p></div>
+        </div>
+        <div class="fgroup">
+          <h3>Aziende Pro</h3>
+          <div class="feat"><b>Import del catalogo</b><p>Da file, feed o sito. L'AI uniforma categorie, attributi e prezzi.</p></div>
+          <div class="feat"><b>Modifiche in blocco a parole</b><p>“Tutti gli sci −20% fino a domenica” e il listino si aggiorna.</p></div>
+          <div class="feat"><b>Vetrina mirata</b><p>L'annuncio in evidenza compare a chi ha un avviso compatibile, non a tutti.</p></div>
+          <div class="feat"><b>Statistiche utili</b><p>Viste, contatti, tempo alla vendita, prezzo rispetto al mercato.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= GRAFICA ================= -->
+<section class="band alt" id="grafica">
+  <div class="wrap">
+    <header class="sh">
+      <p class="eyebrow">Direzione grafica</p>
+      <h2>Granito elettrico</h2>
+      <p class="lead">Il granito delle valli, le curve di livello delle carte svizzere e un blu elettrico che segnala dove lavora l'AI. Sobrio come un orario FFS, vivo come un'interfaccia che ragiona. Questa pagina è già disegnata in questa direzione, chiaro e scuro compresi.</p>
+    </header>
+
+    <div class="dir">
+      <div>
+        <h3>Colori</h3>
+        <div class="swatches">
+          <div class="sw"><div class="sw-c" style="--c:#E8EBEE;--cd:#0A0D16"></div><b>Granito</b><span>Sfondo</span><code>#E8EBEE · #0A0D16</code></div>
+          <div class="sw"><div class="sw-c" style="--c:#0D1120;--cd:#E7EAF3"></div><b>Inchiostro</b><span>Testo e dati</span><code>#0D1120 · #E7EAF3</code></div>
+          <div class="sw"><div class="sw-c" style="--c:#3043FF;--cd:#7584FF"></div><b>Blu elettrico</b><span>Azioni e lavoro dell'AI</span><code>#3043FF · #7584FF</code></div>
+          <div class="sw"><div class="sw-c" style="--c:#FFB01F;--cd:#FFC04D"></div><b>Sole di Locarno</b><span>Novità, evidenza</span><code>#FFB01F · #FFC04D</code></div>
+          <div class="sw"><div class="sw-c" style="--c:#08704C;--cd:#3CCB95"></div><b>Verde fidato</b><span>Verificato, prezzo giusto</span><code>#08704C · #3CCB95</code></div>
+          <div class="sw"><div class="sw-c" style="--c:#B42633;--cd:#FF6B76"></div><b>Rosso allerta</b><span>Rischio, segnalazioni</span><code>#B42633 · #FF6B76</code></div>
+        </div>
+        <p class="sw-note">Ogni campione mostra la versione chiara a sinistra e quella scura a destra.</p>
+      </div>
+      <div>
+        <h3>Caratteri</h3>
+        <div class="types">
+          <div class="type-row"><span class="label">Archivo espanso · titoli e cifre grandi</span><span class="t-disp">Bici elettrica, Locarno</span></div>
+          <div class="type-row"><span class="label">Instrument Sans · testo</span><span class="t-body">Telaio in alluminio, batteria nuova a marzo. Ritiro a Muralto, anche di sera.</span></div>
+          <div class="type-row"><span class="label">Martian Mono · prezzi, dati, codice</span><span class="t-mono">CHF 1'450.– · LOCARNO + 10 KM · search_listings()</span></div>
+        </div>
+      </div>
+    </div>
+
+    <ul class="principles">
+      <li><h4>Il dato prima della decorazione</h4><p>Prezzo, distanza e stato si leggono a colpo d'occhio, in caratteri a larghezza fissa.</p></li>
+      <li><h4><span class="ai-mark"></span>L'AI si vede, non comanda</h4><p>L'anello blu segna ciò che ha scritto o deciso l'assistente. Tutto resta modificabile.</p></li>
+      <li><h4>Il territorio come sfondo</h4><p>Curve di livello e nomi di comune al posto di foto di paesaggio.</p></li>
+      <li><h4>Telefono prima di tutto</h4><p>Si pubblica con il pollice. Il desktop è la versione larga, non il contrario.</p></li>
+    </ul>
+
+    <div class="mocks">
+      <!-- Mock A -->
+      <div class="mock">
+        <div class="cap">
+          <p class="label">Mockup · Ricerca</p>
+          <p>La frase diventa filtri modificabili. Ogni risultato dice perché è pertinente e se il prezzo è in linea con il mercato.</p>
+        </div>
+        <div class="frame">
+          <div class="fbar"><i></i><i></i><i></i><span>piazza · cerca</span></div>
+          <div class="mA">
+            <div class="sbar"><span class="ai-mark"></span><span>scrivania in legno sotto i 150 franchi vicino a Lugano</span></div>
+            <div class="chips">
+              <span class="chip"><span class="k">Categoria</span>Scrivanie</span>
+              <span class="chip"><span class="k">Prezzo</span>≤ CHF 150</span>
+              <span class="chip"><span class="k">Zona</span>Lugano + 15 km</span>
+              <span class="chip"><span class="k">Materiale</span>legno</span>
+              <span class="chip"><span class="k">Condizione</span>qualsiasi</span>
+            </div>
+            <div class="mA-body">
+              <div>
+                <p class="rescount"><b>7 annunci</b> · ordinati per pertinenza e distanza</p>
+                <div class="cards">
+                  <article class="lcard">
+                    <div class="lph"><span class="badge ok">Prezzo giusto</span>
+                      <svg class="ico" viewBox="0 0 64 64" aria-hidden="true"><path d="M6 24h52M10 24v26M54 24v26M36 24v13h18M41 30.5h8"/></svg></div>
+                    <div class="lb"><span class="lprice">CHF 140.–</span><span class="ltitle">Scrivania in noce massello, 120×60</span><span class="lmeta">Massagno · 2,1 km</span><span class="lwhy"><span class="ai-mark sm"></span>legno massello · sotto budget</span></div>
+                  </article>
+                  <article class="lcard">
+                    <div class="lph"><span class="badge sun">Nuovo oggi</span>
+                      <svg class="ico" viewBox="0 0 64 64" aria-hidden="true"><path d="M6 24h52M10 24v26M54 24v26M10 32h18v18M10 41h18M17 36.5h4M17 45.5h4"/></svg></div>
+                    <div class="lb"><span class="lprice">CHF 95.–</span><span class="ltitle">Scrivania vintage con 3 cassetti</span><span class="lmeta">Viganello · 2,8 km</span><span class="lwhy"><span class="ai-mark sm"></span>abete · ritiro sabato</span></div>
+                  </article>
+                  <article class="lcard">
+                    <div class="lph"><span class="badge volt">Trattabile</span>
+                      <svg class="ico" viewBox="0 0 64 64" aria-hidden="true"><path d="M8 22h48M32 22v20M24 42h16M20 52h24M32 42v10"/></svg></div>
+                    <div class="lb"><span class="lprice">CHF 150.–</span><span class="ltitle">Scrivania regolabile in rovere</span><span class="lmeta">Canobbio · 5,2 km</span><span class="lwhy"><span class="ai-mark sm"></span>rovere · al limite del budget</span></div>
+                  </article>
+                </div>
+              </div>
+              <aside class="side">
+                <div class="minimap">
+                  <svg viewBox="0 0 264 170" role="img" aria-label="Mappa dei risultati attorno a Lugano">
+                    <ellipse class="mm-topo" cx="58" cy="44" rx="22" ry="14"/><ellipse class="mm-topo" cx="58" cy="44" rx="40" ry="26"/><ellipse class="mm-topo idx" cx="58" cy="44" rx="60" ry="40"/><ellipse class="mm-topo" cx="58" cy="44" rx="82" ry="56"/>
+                    <ellipse class="mm-topo" cx="214" cy="132" rx="18" ry="12"/><ellipse class="mm-topo" cx="214" cy="132" rx="36" ry="24"/><ellipse class="mm-topo idx" cx="214" cy="132" rx="56" ry="38"/>
+                    <circle class="mm-r" cx="134" cy="92" r="58"/>
+                    <circle class="mm-me" cx="134" cy="92" r="4.5"/><text class="mm-t ink" x="142" y="95">Lugano</text>
+                    <circle class="mm-pin" cx="114" cy="70" r="4"/><text class="mm-t" x="72" y="62">Massagno</text>
+                    <circle class="mm-pin" cx="156" cy="80" r="4"/><text class="mm-t" x="163" y="74">Viganello</text>
+                    <circle class="mm-pin" cx="162" cy="48" r="4"/><text class="mm-t" x="170" y="45">Canobbio</text>
+                    <text class="mm-t" x="150" y="160">raggio 15 km</text>
+                  </svg>
+                </div>
+                <div class="alertbox">
+                  <div class="toggle"><span>Avviso attivo</span><span class="tg" aria-hidden="true"></span></div>
+                  <p>Scrivanie in legno fino a CHF 150, Lugano + 15 km. Ti scriviamo appena ne arriva una.</p>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mock B + C -->
+      <div class="phones">
+        <div class="mock">
+          <div class="cap">
+            <p class="label">Mockup · Scatta e vendi</p>
+            <p>Tre foto e nessun campo da compilare. I campi con l'anello blu li ha scritti l'assistente.</p>
+          </div>
+          <div class="phone"><div class="screen">
+            <span class="island"></span>
+            <div class="ph-top"><span>Nuovo annuncio</span><small>BOZZA</small></div>
+            <div class="shots">
+              <span class="shot"><svg class="ico" viewBox="0 0 64 64" aria-hidden="true"><circle cx="16" cy="42" r="10"/><circle cx="48" cy="42" r="10"/><path d="M16 42l9-17h17l6 17M25 25l7 17 10-17M22 20h8M42 25l-2-6h6"/></svg></span>
+              <span class="shot"><svg class="ico" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="14"/><circle cx="32" cy="32" r="4"/><path d="M32 18v10M32 36v10M18 32h10M36 32h10"/></svg></span>
+              <span class="shot"><svg class="ico" viewBox="0 0 64 64" aria-hidden="true"><path d="M10 40l18-18 8 8 18-10M40 20h14v12"/></svg></span>
+              <span class="shot add" aria-hidden="true">+</span>
+            </div>
+            <div class="recog"><span class="ai-mark live"></span><div><b>Bicicletta da corsa</b><span>Riconosciuta da 3 foto · affidabilità 94%</span></div></div>
+            <div class="fld"><span class="label"><span class="ai-mark sm"></span>Titolo</span><p>Bici da corsa Bianchi Via Nirone 7, telaio 55</p></div>
+            <div class="fld"><span class="label"><span class="ai-mark sm"></span>Categoria</span><p>Sport › Ciclismo › Bici da corsa</p></div>
+            <div class="fld"><span class="label"><span class="ai-mark sm"></span>Condizione</span><p>Buona</p><small>Graffi leggeri sul telaio, visibili nella foto 3</small></div>
+            <div class="fld"><span class="label"><span class="ai-mark sm"></span>Prezzo suggerito</span>
+              <div class="pband">
+                <span class="pb-big">CHF 450.–</span>
+                <div class="pb-track"><span class="pb-range"></span><span class="pb-dot"></span></div>
+                <div class="pb-scale"><span>380</span><span>450</span><span>520</span></div>
+              </div>
+              <small>Su 23 bici simili vendute in Svizzera negli ultimi 6 mesi</small>
+            </div>
+            <div class="fld"><span class="label">Ritiro</span><p>6500 Bellinzona</p></div>
+            <div class="langs"><span class="label">Tradotto in</span><span class="lang on">IT</span><span class="lang on">DE</span><span class="lang on">FR</span></div>
+            <span class="btn primary">Pubblica annuncio</span>
+          </div></div>
+        </div>
+
+        <div class="mock">
+          <div class="cap">
+            <p class="label">Mockup · Assistente venditore</p>
+            <p>Risponde secondo le regole fissate da chi vende e chiede conferma prima di accettare qualsiasi offerta.</p>
+          </div>
+          <div class="phone"><div class="screen">
+            <span class="island"></span>
+            <div class="chat-h"><b>Luca · Bici da corsa Bianchi</b><span><span class="ai-mark sm"></span>L'assistente risponde per Marta</span></div>
+            <div class="chat">
+              <div class="msg them"><span class="who">Luca</span>Ciao! È ancora disponibile? Faresti 350?</div>
+              <div class="msg agent"><span class="who"><span class="ai-mark sm"></span>Assistente di Marta</span>Ciao Luca, sì, è disponibile. Marta valuta offerte da CHF 400. Se ti va bene posso proporti il ritiro sabato tra le 9 e le 12 a Bellinzona.</div>
+              <div class="msg them"><span class="who">Luca</span>Ok, 400 e sabato alle 10.</div>
+            </div>
+            <div class="offer">
+              <div class="offer-h"><span class="offer-p">CHF 400.–</span><span class="badge sun">Serve la tua conferma</span></div>
+              <p>Ritiro sabato 14.11 alle 10:00 · Bellinzona · pagamento TWINT</p>
+              <div class="btn-row"><span class="btn primary">Accetta</span><span class="btn">Controproponi</span></div>
+            </div>
+            <div class="rules">
+              <span class="label">Regole dell'assistente</span>
+              <div><span class="rule">Minimo CHF 400</span><span class="rule">Ritiro sab 9–12</span><span class="rule">TWINT o contanti</span><span class="rule">Indirizzo solo dopo conferma</span></div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MCP ================= -->
+<section class="band" id="mcp">
+  <div class="wrap">
+    <header class="sh">
+      <p class="eyebrow">Il connettore MCP</p>
+      <h2>Piazza dentro il tuo assistente AI</h2>
+      <p class="lead">MCP (Model Context Protocol) è lo standard aperto con cui gli assistenti AI usano servizi esterni. Con un server MCP, Piazza si usa anche senza aprire il sito: da Claude, ChatGPT o da qualsiasi client compatibile.</p>
+    </header>
+
+    <div class="mcp-grid">
+      <div class="mock">
+        <div class="frame">
+          <div class="fbar"><i></i><i></i><i></i><span>assistente AI · connettore Piazza attivo</span></div>
+          <div class="mD">
+            <div class="u-msg">
+              <span>In cantina ho sci, scarponi e un casco. Ti mando le foto: mettili in vendita su Piazza a prezzi onesti, ritiro a Locarno.</span>
+              <div class="u-photos" aria-hidden="true">
+                <span><svg class="ico" viewBox="0 0 64 64"><path d="M14 54L44 8M22 56L52 10"/></svg></span>
+                <span><svg class="ico" viewBox="0 0 64 64"><path d="M20 10h16v22l14 8v12H14V40l6-8z"/></svg></span>
+                <span><svg class="ico" viewBox="0 0 64 64"><path d="M12 40a20 20 0 0140 0v6H12zM20 46v6M44 46v6"/></svg></span>
+              </div>
+            </div>
+            <div class="tool"><span class="ai-mark sm"></span><span><b>piazza.create_draft</b> × 3</span><span class="okk">✓ fatto</span></div>
+            <div class="tool"><span class="ai-mark sm"></span><span><b>piazza.estimate_price</b> × 3</span><span class="okk">✓ fatto</span></div>
+            <div class="a-msg">
+              <p>Ho riconosciuto 3 oggetti e preparato le bozze. Prezzi basati su 41 annunci simili in Svizzera:</p>
+              <div class="scroll-x">
+                <table class="drafts">
+                  <thead><tr><th>Oggetto</th><th>Stato</th><th>Prezzo</th><th>Fascia</th></tr></thead>
+                  <tbody>
+                    <tr><td>Sci Atomic Redster, 170 cm</td><td>Buono</td><td class="p">CHF 180</td><td class="r">150–210</td></tr>
+                    <tr><td>Scarponi Lange, 27.5</td><td>Come nuovi</td><td class="p">CHF 120</td><td class="r">100–140</td></tr>
+                    <tr><td>Casco Uvex, taglia M</td><td>Buono</td><td class="p">CHF 35</td><td class="r">25–45</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p>Ritiro a Locarno per tutti e tre. Li pubblico?</p>
+              <div class="btn-row"><span class="btn primary">Pubblica 3 annunci</span><span class="btn">Cambia i prezzi</span></div>
+              <p class="confirm-note"><span class="badge sun">Conferma</span>publish_listing parte solo dopo il tuo sì.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mock">
+        <h3>Regole di sicurezza</h3>
+        <ul class="sec">
+          <li><b>Accesso con OAuth 2.1</b><p>Chi usa l'assistente collega il proprio account e sceglie i permessi: solo lettura, annunci, messaggi, offerte. Revoca con un clic dal profilo.</p></li>
+          <li><b>Lettura libera, scrittura confermata</b><p>Pubblicare, modificare, rispondere e offrire passano da una conferma esplicita: nel client tramite elicitation MCP, oppure con una notifica nell'app.</p></li>
+          <li><b>Il testo degli annunci è un dato, non un ordine</b><p>Le descrizioni arrivano all'agente marcate come contenuto non fidato. La moderazione blocca i testi scritti per manipolare gli assistenti.</p></li>
+          <li><b>Tutto tracciato</b><p>Limiti di frequenza per account e per client, registro di ogni azione fatta da un agente.</p></li>
+        </ul>
+        <pre class="code"><span class="cd">// L'assistente chiama uno strumento</span>
+search_listings({
+  <span class="ck">"query"</span>: <span class="cs">"scrivania in legno"</span>,
+  <span class="ck">"max_price_chf"</span>: 150,
+  <span class="ck">"near"</span>: <span class="cs">"Lugano"</span>,
+  <span class="ck">"radius_km"</span>: 15,
+  <span class="ck">"condition"</span>: [<span class="cs">"come nuovo"</span>, <span class="cs">"buono"</span>]
+})
+<span class="cd">// Risposta: 7 annunci, ognuno con id, titolo,</span>
+<span class="cd">// prezzo_chf, comune, distanza_km, condizione,</span>
+<span class="cd">// foto e motivo della pertinenza</span></pre>
+      </div>
+    </div>
+
+    <div class="sub">
+      <div class="sub-h">
+        <h3>Strumenti esposti dal server</h3>
+        <p>Nove strumenti coprono tutto il ciclo di vita dell'annuncio. Il permesso indica cosa serve per usarli.</p>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Strumento</th><th>Cosa fa</th><th>Permesso</th></tr></thead>
+          <tbody>
+            <tr><td>search_listings</td><td>Cerca con una frase o con filtri: categoria, prezzo, comune, raggio in km, condizione.</td><td><span class="perm pub">Pubblico</span></td></tr>
+            <tr><td>get_listing</td><td>Scheda completa: foto, attributi, venditore, storico del prezzo.</td><td><span class="perm pub">Pubblico</span></td></tr>
+            <tr><td>estimate_price</td><td>Fascia di prezzo da descrizione o foto, con gli annunci simili usati come prova.</td><td><span class="perm pub">Pubblico</span></td></tr>
+            <tr><td>create_draft</td><td>Crea una bozza da foto e note e restituisce i campi strutturati da rivedere.</td><td><span class="perm acc">Account</span></td></tr>
+            <tr><td>publish_listing</td><td>Pubblica una bozza.</td><td><span class="perm cnf">Conferma</span></td></tr>
+            <tr><td>update_listing</td><td>Cambia prezzo, testo o stato: in pausa, venduto.</td><td><span class="perm cnf">Conferma</span></td></tr>
+            <tr><td>create_alert</td><td>Salva una ricerca e notifica i nuovi annunci compatibili.</td><td><span class="perm acc">Account</span></td></tr>
+            <tr><td>list_conversations</td><td>Legge i messaggi e le offerte ricevute.</td><td><span class="perm acc">Account</span></td></tr>
+            <tr><td>send_message · make_offer</td><td>Risponde a un messaggio o fa un'offerta su un annuncio.</td><td><span class="perm cnf">Conferma</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="extras">
+        <div><span class="label">Risorse</span><ul><li>categorie e attributi</li><li>comuni ticinesi con CAP</li><li>i miei annunci</li><li>i miei avvisi</li></ul></div>
+        <div><span class="label">Prompt pronti</span><ul><li>Vendi un oggetto</li><li>Trova un affare</li><li>Svuota la cantina</li></ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PIANO ================= -->
+<section class="band alt" id="piano">
+  <div class="wrap">
+    <header class="sh">
+      <p class="eyebrow">Piano di attacco</p>
+      <h2>Sei mesi fino al lancio in Ticino</h2>
+      <p class="lead">Cinque fasi, alcune in parallelo. Stime per un team di due sviluppatori e un designer, da rivedere alla fine della Fase 0.</p>
+    </header>
+
+    <div class="gantt-box">
+      <div class="gantt">
+        <div class="g-row g-head"><span class="label">Settimana</span><div class="g-track">
+          <span style="left:0%">1</span><span style="left:15.385%">5</span><span style="left:30.769%">9</span><span style="left:46.154%">13</span><span style="left:61.538%">17</span><span style="left:76.923%">21</span><span style="left:92.308%">25</span>
+        </div></div>
+        <div class="g-row"><span class="g-name"><small>Fase 0</small>Scoperta e identità</span><div class="g-track"><span class="g-bar b0" style="left:0%;width:11.538%">1–3</span></div></div>
+        <div class="g-row"><span class="g-name"><small>Fase 1</small>MVP: annunci, ricerca, chat</span><div class="g-track"><span class="g-bar b1" style="left:11.538%;width:38.462%">sett. 4–13</span></div></div>
+        <div class="g-row"><span class="g-name"><small>Fase 2</small>MCP e assistente venditore</span><div class="g-track"><span class="g-bar b2" style="left:38.462%;width:26.923%">sett. 11–17</span></div></div>
+        <div class="g-row"><span class="g-name"><small>Fase 3</small>Fiducia e pagamenti</span><div class="g-track"><span class="g-bar b3" style="left:53.846%;width:26.923%">sett. 15–21</span></div></div>
+        <div class="g-row"><span class="g-name"><small>Fase 4</small>Lancio in Ticino</span><div class="g-track"><span class="g-bar b4" style="left:73.077%;width:26.923%">sett. 20–26</span></div></div>
+        <div class="g-row g-ms"><span class="label">Traguardi</span><div class="g-track">
+          <span class="ms first" style="left:11.538%"><i></i><span>Prototipo AI</span></span>
+          <span class="ms" style="left:50%"><i></i><span>Beta chiusa</span></span>
+          <span class="ms" style="left:65.385%"><i></i><span>MCP pubblico</span></span>
+          <span class="ms" style="left:84.615%"><i></i><span>Lancio pubblico</span></span>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="phases">
+      <article class="phase">
+        <div class="phase-h"><span class="label"><span class="ph-sw b0"></span>Fase 0</span><span class="label">sett. 1–3</span></div>
+        <h3>Scoperta e identità</h3>
+        <ul>
+          <li>10 interviste: privati, negozi dell'usato, garage, agenzie</li>
+          <li>Nome, marchio e design system in Figma da questa direzione</li>
+          <li>Prova di “Scatta e vendi” su 50 oggetti reali: qualità e costo per annuncio</li>
+          <li>Modello dati: categorie con attributi, comuni ticinesi, stati dell'annuncio</li>
+        </ul>
+        <p class="done"><b>Fatto quando</b> almeno 7 bozze su 10 sono accettabili senza modifiche importanti.</p>
+      </article>
+      <article class="phase">
+        <div class="phase-h"><span class="label"><span class="ph-sw b1"></span>Fase 1</span><span class="label">sett. 4–13</span></div>
+        <h3>MVP</h3>
+        <ul>
+          <li>Progetto Astro e Supabase: account, annunci, foto, moderazione</li>
+          <li>Scatta e vendi: foto, bozza, pubblicazione</li>
+          <li>Ricerca per significato, filtri veri (prezzo, km, condizione) e mappa</li>
+          <li>Avvisi, chat interna, notifiche</li>
+          <li>Pannello volontari con punteggio di rischio</li>
+        </ul>
+        <p class="done"><b>Fatto quando</b> la beta chiusa ha 100 utenti e pubblicare richiede meno di un minuto (mediana).</p>
+      </article>
+      <article class="phase">
+        <div class="phase-h"><span class="label"><span class="ph-sw b2"></span>Fase 2</span><span class="label">sett. 11–17</span></div>
+        <h3>MCP e assistente venditore</h3>
+        <ul>
+          <li>Server MCP remoto con OAuth 2.1 e i nove strumenti</li>
+          <li>Assistente venditore con regole: prezzo minimo, orari, ritiro</li>
+          <li>Offerte strutturate e controproposte</li>
+          <li>Test con più client MCP e prove di prompt injection</li>
+        </ul>
+        <p class="done"><b>Fatto quando</b> un oggetto si vende dall'inizio alla fine da un assistente esterno, con l'utente che si limita a confermare.</p>
+      </article>
+      <article class="phase">
+        <div class="phase-h"><span class="label"><span class="ph-sw b3"></span>Fase 3</span><span class="label">sett. 15–21</span></div>
+        <h3>Fiducia e pagamenti</h3>
+        <ul>
+          <li>Profili verificati con il natel, poi identità facoltativa</li>
+          <li>TWINT e carte per vetrina e Pro, poi pagamento protetto tra privati</li>
+          <li>Account Pro: import del catalogo, modifiche in blocco, statistiche</li>
+          <li>Vetrina mirata a chi ha un avviso compatibile</li>
+        </ul>
+        <p class="done"><b>Fatto quando</b> arrivano il primo pagamento TWINT e i primi 10 account Pro.</p>
+      </article>
+      <article class="phase">
+        <div class="phase-h"><span class="label"><span class="ph-sw b4"></span>Fase 4</span><span class="label">sett. 20–26</span></div>
+        <h3>Lancio in Ticino</h3>
+        <ul>
+          <li>Riempire il mercato prima del lancio: negozi dell'usato e garage con Pro gratuito per 6 mesi</li>
+          <li>Import dei propri vecchi annunci: incolli testo e foto, l'AI li riordina</li>
+          <li>Traduzione automatica in tedesco e francese per chi cerca da Oltralpe</li>
+          <li>Presenza ai mercatini del sabato, sui social e nelle radio locali</li>
+        </ul>
+        <p class="done"><b>Fatto quando</b> ci sono 1'000 annunci attivi e la prima risposta arriva entro 2 ore (mediana).</p>
+      </article>
+    </div>
+
+    <div class="sub two">
+      <div>
+        <div class="sub-h"><h3>Stack: Astro e Supabase</h3><p>Astro manda al browser solo HTML, più il JavaScript delle poche parti interattive. Le schede annuncio si aprono subito anche con il natel in valle, e i motori di ricerca le leggono bene.</p></div>
+        <dl class="facts">
+          <div><dt>Frontend</dt><dd>Astro 7 con adapter Node o Vercel. Schede annuncio e categorie veloci e in cache, web app installabile</dd></div>
+          <div><dt>Interattività</dt><dd>Isole Preact solo per ricerca, chat e Scatta e vendi. Server island (<code>server:defer</code>) per le parti personali: preferiti, messaggi, avvisi</dd></div>
+          <div><dt>Logica</dt><dd>Astro Actions con validazione Zod per pubblicare, offrire, salvare avvisi. Le stesse funzioni servono app e server MCP</dd></div>
+          <div><dt>Dati</dt><dd>Supabase: Postgres, Auth, Storage per le foto, Realtime per la chat</dd></div>
+          <div><dt>Ricerca</dt><dd>pgvector per la ricerca per significato e “trova simili”, con embedding multilingue</dd></div>
+          <div><dt>AI</dt><dd>Claude Sonnet 5.5 per bozze da foto e assistente; Claude Haiku 5.5 per classificazione e moderazione di ogni annuncio</dd></div>
+          <div><dt>Geodati</dt><dd>Elenco ufficiale dei comuni e geocoding di swisstopo</dd></div>
+          <div><dt>Pagamenti</dt><dd>TWINT e carte tramite Stripe o Payrexx</dd></div>
+          <div><dt>MCP</dt><dd>Endpoint <code>/mcp</code> nello stesso progetto Astro: SDK TypeScript, trasporto Streamable HTTP, OAuth 2.1</dd></div>
+          <div><dt>Privacy</dt><dd>Dati ospitati in Svizzera o nell'UE, conformi alla nLPD</dd></div>
+        </dl>
+      </div>
+      <div>
+        <div class="sub-h"><h3>I primi 10 giorni</h3></div>
+        <ol class="steps">
+          <li>Decidere nome, dominio e posizionamento.</li>
+          <li>Fotografare 50 oggetti veri e provare la bozza automatica con Claude, misurando qualità e costo per annuncio.</li>
+          <li>Prototipo MCP con tre strumenti (search_listings, estimate_price, create_draft) su dati di prova, collegato a Claude Desktop.</li>
+          <li>Progetto Astro collegato a Supabase: schema dati (annunci, attributi per categoria, comuni, stati) e prima scheda annuncio.</li>
+          <li>Design system in Figma: colori, caratteri, card annuncio, chip e le tre schermate di questa proposta.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="sub two">
+      <div>
+        <div class="sub-h"><h3>Come misuriamo il successo</h3><p>Obiettivi per i primi tre mesi dopo il lancio.</p></div>
+        <ul class="kpis">
+          <li><span>Tempo per pubblicare un annuncio (mediana)</span><b>&lt; 60 s</b></li>
+          <li><span>Bozze AI accettate senza modifiche importanti</span><b>≥ 70%</b></li>
+          <li><span>Tempo alla prima risposta (mediana)</span><b>&lt; 2 h</b></li>
+          <li><span>Annunci venduti entro 30 giorni</span><b>≥ 40%</b></li>
+          <li><span>Segnalazioni di truffa ogni 1'000 annunci</span><b>in calo</b></li>
+        </ul>
+      </div>
+      <div>
+        <div class="sub-h"><h3>Rischi e contromisure</h3></div>
+        <ul class="risks">
+          <li><b>Mercato vuoto al lancio</b><p>Partner Pro gratuiti, import dei propri annunci, presenza nei mercatini fisici prima dell'apertura.</p></li>
+          <li><b>L'AI sbaglia oggetto o prezzo</b><p>Bozza sempre modificabile, fascia di prezzo invece di un numero secco, conferma obbligatoria.</p></li>
+          <li><b>Agenti manipolati dal testo degli annunci</b><p>Contenuti marcati come non fidati, scrittura solo con conferma, filtri in moderazione.</p></li>
+          <li><b>Costi AI per annuncio</b><p>Modello veloce per i compiti ripetitivi, modello avanzato solo per la bozza. Il costo reale si misura in Fase 0.</p></li>
+          <li><b>Privacy e responsabilità</b><p>Dati in Svizzera o UE, consenso esplicito per l'assistente venditore, registro delle azioni.</p></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="sub">
+      <div class="sub-h"><h3>Decisioni da prendere prima di partire</h3></div>
+      <ul class="decide">
+        <li>Nome e marchio definitivi</li>
+        <li>Marchio nuovo o proposta per un cliente esistente</li>
+        <li>Solo web app al lancio, o anche app native</li>
+        <li>Ricavi: vetrina e Pro come oggi, o commissione sul pagamento protetto</li>
+        <li>Budget e composizione del team</li>
+      </ul>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Progetto Piazza · proposta del 6 novembre 2026</span>
+    <span>Analisi basata su mercatinoticino.ch, visitato lo stesso giorno. Le schermate sono mockup: nomi, prezzi e numeri negli esempi sono illustrativi.</span>
+  </div>
+</footer>
+
+<script>
+/* Curve di livello generate + punti annuncio pulsanti */
+(function(){
+  var cv=document.getElementById('topo'); if(!cv||!cv.getContext) return;
+  var ctx=cv.getContext('2d'), hero=cv.parentElement;
+  var rm=window.matchMedia('(prefers-reduced-motion: reduce)');
+  var W=0,H=0,dpr=1,cache=null,pins=[],C={},running=false,raf=0,visible=true;
+  function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+  function readColors(){C={topo:css('--topo'),line:css('--line'),volt:css('--volt'),ink:css('--ink'),surf:css('--surface-2')};}
+  function hash(x,y){var h=Math.imul(x|0,374761393)^Math.imul(y|0,668265263);h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return (h>>>0)/4294967296;}
+  function sm(t){return t*t*(3-2*t);}
+  function vn(x,y){var xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi,a=hash(xi,yi),b=hash(xi+1,yi),c=hash(xi,yi+1),d=hash(xi+1,yi+1),u=sm(xf),v=sm(yf);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;}
+  function fbm(x,y){var s=0,a=1,f=1,n=0;for(var o=0;o<4;o++){s+=a*vn(x*f+o*17.3,y*f-o*9.1);n+=a;a*=.5;f*=2.03;}return s/n;}
+  var LABELS=[["E-bike · CHF 1'450",.64,.20],["Scrivania · CHF 140",.86,.34],["Vespa PX · CHF 1'900",.70,.56],["Passeggino · CHF 90",.90,.72],["Sci 170 cm · CHF 180",.60,.84]];
+  function build(){
+    var r=hero.getBoundingClientRect();
+    W=Math.max(1,Math.round(r.width));H=Math.max(1,Math.round(r.height));dpr=Math.min(2,window.devicePixelRatio||1);
+    cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';
+    readColors();
+    cache=document.createElement('canvas');cache.width=cv.width;cache.height=cv.height;
+    var c=cache.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);
+    var step=9,cols=Math.ceil(W/step)+2,rows=Math.ceil(H/step)+2,sc=1/230;
+    var g=new Float32Array(cols*rows),mn=9,mx=-9;
+    for(var j=0;j<rows;j++)for(var i=0;i<cols;i++){var v=fbm(i*step*sc+2.3,j*step*sc+5.7)+0.16*(1-j*step/H);g[j*cols+i]=v;if(v<mn)mn=v;if(v>mx)mx=v;}
+    var N=20;
+    for(var k=1;k<N;k++){
+      var L=mn+(mx-mn)*k/N,major=(k%5===0);
+      c.beginPath();
+      for(var jj=0;jj<rows-1;jj++)for(var ii=0;ii<cols-1;ii++){
+        var a=g[jj*cols+ii],b=g[jj*cols+ii+1],cc=g[(jj+1)*cols+ii+1],d=g[(jj+1)*cols+ii];
+        var idx=(a>L?8:0)|(b>L?4:0)|(cc>L?2:0)|(d>L?1:0);
+        if(idx===0||idx===15)continue;
+        var x0=ii*step,y0=jj*step;
+        var T=[x0+step*(L-a)/(b-a),y0],R=[x0+step,y0+step*(L-b)/(cc-b)],B=[x0+step*(L-d)/(cc-d),y0+step],Lf=[x0,y0+step*(L-a)/(d-a)];
+        switch(idx){
+          case 1:case 14:seg(c,Lf,B);break;
+          case 2:case 13:seg(c,B,R);break;
+          case 3:case 12:seg(c,Lf,R);break;
+          case 4:case 11:seg(c,T,R);break;
+          case 5:seg(c,Lf,T);seg(c,B,R);break;
+          case 6:case 9:seg(c,T,B);break;
+          case 7:case 8:seg(c,Lf,T);break;
+          case 10:seg(c,Lf,B);seg(c,T,R);break;
+        }
+      }
+      c.strokeStyle=major?C.line:C.topo;c.lineWidth=major?1.5:0.8;c.stroke();
+    }
+    pins=[];
+    var wide=W>860, xmin=wide?.5*W:.04*W;
+    for(var p=0;p<(wide?14:8);p++){pins.push({x:xmin+hash(p,11)*(W-xmin-30),y:30+hash(p,23)*(H-60),o:hash(p,5)});}
+    if(wide){LABELS.forEach(function(l,n){pins.push({x:l[1]*W,y:l[2]*H,o:n/5,label:l[0]});});}
+  }
+  function seg(c,p,q){c.moveTo(p[0],p[1]);c.lineTo(q[0],q[1]);}
+  function frame(t){
+    if(!cache) return;
+    ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);ctx.drawImage(cache,0,0);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    var still=rm.matches;
+    for(var i=0;i<pins.length;i++){
+      var p=pins[i];
+      if(!still){var ph=((t/1000)/2.8+p.o)%1;ctx.beginPath();ctx.arc(p.x,p.y,4+ph*16,0,Math.PI*2);ctx.strokeStyle=C.volt;ctx.globalAlpha=(1-ph)*.5;ctx.lineWidth=1.2;ctx.stroke();ctx.globalAlpha=1;}
+      ctx.beginPath();ctx.arc(p.x,p.y,p.label?4:3,0,Math.PI*2);ctx.fillStyle=C.volt;ctx.fill();
+      if(p.label){
+        ctx.font='500 10px "Martian Mono", ui-monospace, Menlo, monospace';
+        var tw=ctx.measureText(p.label).width,bw=tw+18,bh=24,lx=p.x+12,ly=p.y-bh/2;
+        if(lx+bw>W-8)lx=p.x-12-bw;
+        ctx.beginPath();if(ctx.roundRect)ctx.roundRect(lx,ly,bw,bh,12);else ctx.rect(lx,ly,bw,bh);
+        ctx.fillStyle=C.surf;ctx.fill();ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.stroke();
+        ctx.fillStyle=C.ink;ctx.textBaseline='middle';ctx.fillText(p.label,lx+9,p.y+.5);
+      }
+    }
+  }
+  function loop(t){frame(t);if(running)raf=requestAnimationFrame(loop);}
+  function start(){if(rm.matches||!visible){stop();frame(0);return;}if(!running){running=true;raf=requestAnimationFrame(loop);}}
+  function stop(){running=false;cancelAnimationFrame(raf);}
+  function rebuild(){build();frame(performance.now());start();}
+  rebuild();
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){frame(performance.now());});
+  var to;
+  if(window.ResizeObserver){new ResizeObserver(function(){clearTimeout(to);to=setTimeout(rebuild,120);}).observe(hero);}
+  else window.addEventListener('resize',function(){clearTimeout(to);to=setTimeout(rebuild,120);});
+  if(window.IntersectionObserver){new IntersectionObserver(function(e){visible=e[0].isIntersecting;start();}).observe(hero);}
+  var mq=window.matchMedia('(prefers-color-scheme: dark)');
+  function onTheme(){rebuild();}
+  if(mq.addEventListener)mq.addEventListener('change',onTheme);
+  if(rm.addEventListener)rm.addEventListener('change',start);
+  new MutationObserver(onTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+})();
+
+/* Ricerca dimostrativa: la frase diventa filtri */
+(function(){
+  var Q=[
+    {q:"scrivania in legno sotto i 150 franchi vicino a Lugano",chips:[["Categoria","Scrivanie"],["Prezzo","≤ CHF 150"],["Zona","Lugano + 15 km"],["Materiale","legno"]],meta:"7 annunci · 2 nuovi da ieri · ordinati per distanza"},
+    {q:"bici per una bimba di 6 anni, ritiro a Bellinzona",chips:[["Categoria","Bici bambini"],["Ruote","16–20″"],["Zona","Bellinzona + 10 km"],["Consegna","ritiro"]],meta:"4 annunci · puoi salvare un avviso"},
+    {q:"Vespa anni '80 anche da sistemare, massimo 2000",chips:[["Categoria","Scooter"],["Modello","Vespa"],["Anno","1980–1989"],["Prezzo","≤ CHF 2'000"],["Stato","anche da riparare"]],meta:"2 annunci in Ticino · 9 in Svizzera"}
+  ];
+  var qt=document.getElementById('q-text'),qc=document.getElementById('q-chips'),qm=document.getElementById('q-meta');
+  if(!qt||!qc||!qm) return;
+  var rm=window.matchMedia('(prefers-reduced-motion: reduce)'),i=0;
+  function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
+  function chipsHTML(q){return q.chips.map(function(c,n){return '<span class="chip new" style="--d:'+(n*90)+'ms"><span class="k">'+c[0]+'</span>'+c[1]+'</span>';}).join('');}
+  async function run(){
+    for(;;){
+      await wait(4600);
+      if(rm.matches||document.hidden) continue;
+      i=(i+1)%Q.length;var q=Q[i];
+      qc.classList.add('fade');qm.classList.add('fade');
+      var t=qt.textContent;
+      while(t.length){t=t.slice(0,-3);qt.textContent=t;await wait(16);}
+      for(var n=1;n<=q.q.length;n++){qt.textContent=q.q.slice(0,n);await wait(34);}
+      await wait(240);
+      qc.innerHTML=chipsHTML(q);qm.textContent=q.meta;
+      qc.classList.remove('fade');qm.classList.remove('fade');
+    }
+  }
+  run();
+})();
+</script>

@@ -1,0 +1,117 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CategoryIcon from '../../components/CategoryIcon.astro';
+import ListingCard from '../../components/ListingCard.astro';
+import { getListing } from '../../core/store.ts';
+import { getComune } from '../../core/comuni.ts';
+import { getCategory } from '../../core/categories.ts';
+import { estimatePrice, priceVerdict } from '../../core/price.ts';
+import { similarTo } from '../../core/search.ts';
+import { CONDITION_LABEL, VERDICT_LABEL, formatAge, formatChf, formatChfRange } from '../../core/format.ts';
+
+const listing = getListing(Astro.params.id ?? '');
+if (!listing || listing.status !== 'pubblicato') {
+  return new Response('Annuncio non trovato', { status: 404 });
+}
+
+const comune = getComune(listing.comuneId);
+const category = getCategory(listing.category);
+const verdict = priceVerdict(listing);
+const estimate = estimatePrice({
+  text: `${listing.title} ${listing.tags.join(' ')}`,
+  category: listing.category,
+  condition: listing.condition,
+  excludeId: listing.id,
+});
+const similar = similarTo(listing.id, listing.title);
+const attributes = Object.entries(listing.attributes);
+---
+
+<Layout title={`${listing.title} · Piazza`} description={listing.description}>
+  <section class="wrap band">
+    <p class="crumbs muted"><a href="/cerca">Annunci</a> · {category.name}</p>
+    <div class="detail">
+      <div class="photo">
+        <CategoryIcon category={listing.category} />
+        <span class="label">Foto in arrivo con la Fase 1</span>
+      </div>
+
+      <div class="info">
+        <h1 class="title">{listing.title}</h1>
+        <div class="price-row">
+          <span class="price mono">{formatChf(listing.priceChf)}</span>
+          {listing.negotiable && <span class="badge plain">Trattabile</span>}
+          {verdict && <span class={`badge ${verdict === 'sopra_mercato' ? 'bad' : 'ok'}`}>{VERDICT_LABEL[verdict]}</span>}
+        </div>
+
+        {
+          estimate && (
+            <div class="estimate">
+              <span class="ai-mark sm" />
+              <span>
+                Annunci simili: <b class="mono">{formatChfRange(estimate.low, estimate.high)}</b>
+                <span class="muted">
+                  {' '}
+                  ({estimate.comparables} annunci, {estimate.soldComparables} venduti)
+                </span>
+              </span>
+            </div>
+          )
+        }
+
+        <dl class="facts">
+          <div><dt>Condizione</dt><dd>{CONDITION_LABEL[listing.condition]}</dd></div>
+          <div><dt>Ritiro</dt><dd>{comune ? `${comune.cap} ${comune.name} · distretto di ${comune.district}` : '—'}</dd></div>
+          {attributes.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}
+          <div><dt>Pubblicato</dt><dd>{formatAge(listing.publishedAt)}</dd></div>
+        </dl>
+
+        <p class="desc">{listing.description}</p>
+
+        <div class="seller panel">
+          <div>
+            <span class="label">Pubblicato da</span>
+            <p class="name">
+              {listing.seller.name}
+              {listing.seller.verified && <span class="badge ok">Natel verificato</span>}
+            </p>
+          </div>
+          <button class="btn primary" type="button" disabled title="Messaggi e offerte arrivano nella Fase 1">Contatta</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {
+    similar.length > 0 && (
+      <section class="wrap">
+        <div class="section-h">
+          <h2>Annunci simili</h2>
+        </div>
+        <div class="cards">
+          {similar.map((h) => <ListingCard listing={h.listing} verdict={h.verdict} />)}
+        </div>
+      </section>
+    )
+  }
+</Layout>
+
+<style>
+  .crumbs { font-size: 13.5px; margin-bottom: 16px; }
+  .crumbs a { color: inherit; }
+  .detail { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: clamp(24px, 4vw, 48px); align-items: start; }
+  @media (max-width: 860px) { .detail { grid-template-columns: 1fr; } }
+  .photo { aspect-ratio: 4 / 3; border-radius: 18px; border: 1px solid var(--line); background: linear-gradient(140deg, var(--line-soft), var(--surface)); display: grid; place-items: center; align-content: center; gap: 12px; color: var(--muted); max-width: 100%; }
+  .photo svg { width: 34%; height: auto; }
+  .info { display: grid; gap: 16px; }
+  .title { font-size: clamp(26px, 3vw, 36px); line-height: 1.1; }
+  .price-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .price { font-size: 26px; font-weight: 650; }
+  .estimate { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--volt-soft); font-size: 14px; }
+  .facts { display: grid; border-top: 1px solid var(--line); }
+  .facts > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding-block: 9px; border-bottom: 1px solid var(--line-soft); font-size: 15px; }
+  .facts dt { font: 500 10px/1.8 var(--f-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .desc { font-size: 16px; line-height: 1.6; max-width: 62ch; }
+  .seller { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 16px; }
+  .name { display: flex; align-items: center; gap: 8px; font-weight: 640; margin-top: 4px; }
+</style>

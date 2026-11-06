@@ -1,0 +1,28 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SellForm from '../components/SellForm.tsx';
+import '../styles/sell.css';
+import { COMUNI } from '../core/comuni.ts';
+
+const comuni = COMUNI.map((c) => c.name).sort((a, b) => a.localeCompare(b, 'it'));
+---
+
+<Layout title="Vendi · Piazza" description="Scatta e vendi: tre foto e l'assistente prepara l'annuncio.">
+  <section class="wrap band sell">
+    <div class="intro">
+      <p class="eyebrow">Scatta e vendi</p>
+      <h1>Tre foto, nessun modulo.</h1>
+      <p class="muted">
+        Carica da 1 a 5 foto e, se vuoi, due righe. L'assistente riconosce l'oggetto, scrive titolo e descrizione e propone
+        una fascia di prezzo dagli annunci simili. I campi con l'anello blu li ha scritti lui: controlla prima di pubblicare.
+      </p>
+    </div>
+    <SellForm client:load comuni={comuni} />
+  </section>
+</Layout>
+
+<style>
+  .sell { display: grid; gap: 28px; max-width: 760px; }
+  .intro { display: grid; gap: 12px; }
+  .intro h1 { font-size: clamp(30px, 4vw, 48px); }
+</style>

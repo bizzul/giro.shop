@@ -1,0 +1,92 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { TOOL_DOCS } from '../mcp/server.ts';
+
+const endpoint = new URL('/mcp', Astro.url).href;
+// In sviluppo mostriamo il percorso reale del progetto, utile per la configurazione stdio.
+const projectDir = import.meta.env.DEV ? process.cwd() : '/percorso/del/progetto/piazza';
+const desktopConfig = JSON.stringify(
+  {
+    mcpServers: {
+      piazza: {
+        command: 'node',
+        args: [`${projectDir}/src/mcp/stdio.ts`],
+        env: { PIAZZA_BASE_URL: new URL('/', Astro.url).origin, ANTHROPIC_API_KEY: '<la tua chiave, facoltativa>' },
+      },
+    },
+  },
+  null,
+  2,
+);
+---
+
+<Layout title="Assistente AI · Piazza" description="Collega Piazza a Claude o a un altro client MCP.">
+  <section class="wrap band connect">
+    <div class="intro">
+      <p class="eyebrow">Connettore MCP</p>
+      <h1>Piazza dentro il tuo assistente AI.</h1>
+      <p class="muted">
+        MCP è lo standard aperto con cui gli assistenti AI usano servizi esterni. Collegando Piazza puoi cercare annunci,
+        stimare prezzi e preparare bozze parlando con il tuo assistente. Nessuno strumento pubblica o contatta qualcuno: in questo
+        prototipo si legge e si preparano bozze.
+      </p>
+    </div>
+
+    <div class="panel block">
+      <h2>Indirizzo del server</h2>
+      <pre class="code"><code>{endpoint}</code></pre>
+      <p class="muted">Trasporto Streamable HTTP, senza sessione. Nel prototipo non serve accedere.</p>
+    </div>
+
+    <div class="grid">
+      <div class="panel block">
+        <h3>Claude Code</h3>
+        <pre class="code"><code>claude mcp add --transport http piazza {endpoint}</code></pre>
+      </div>
+      <div class="panel block">
+        <h3>MCP Inspector</h3>
+        <pre class="code"><code>npx @modelcontextprotocol/inspector</code></pre>
+        <p class="muted">Poi scegli "Streamable HTTP" e incolla l'indirizzo qui sopra.</p>
+      </div>
+    </div>
+
+    <div class="panel block">
+      <h3>Claude Desktop (server locale via stdio)</h3>
+      <p class="muted">
+        Aggiungi questo blocco a <code>claude_desktop_config.json</code> e riavvia l'app. Serve Node 24 o più recente: se l'app
+        non trova <code>node</code>, metti il percorso completo (es. <code>/opt/homebrew/bin/node</code>).
+      </p>
+      <pre class="code"><code>{desktopConfig}</code></pre>
+    </div>
+
+    <div class="panel block">
+      <h3>Strumenti</h3>
+      <dl class="tools">
+        {
+          TOOL_DOCS.map((t) => (
+            <div>
+              <dt class="mono">{t.name}</dt>
+              <dd>{t.summary}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .connect { display: grid; gap: 18px; max-width: 900px; }
+  .intro { display: grid; gap: 12px; margin-bottom: 8px; }
+  .intro h1 { font-size: clamp(30px, 4vw, 48px); }
+  .block { display: grid; gap: 10px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .code { margin: 0; background: #0d1120; color: #e7eaf3; border-radius: 12px; padding: 14px 16px; font: 500 12px/1.7 var(--f-mono); overflow-x: auto; max-width: 100%; }
+  code { font-family: var(--f-mono); font-size: 0.92em; }
+  .tools { display: grid; border-top: 1px solid var(--line); }
+  .tools > div { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; padding-block: 10px; border-bottom: 1px solid var(--line-soft); }
+  .tools dt { color: var(--volt); font-size: 12.5px; }
+  .tools dd { font-size: 15px; }
+  @media (max-width: 520px) { .tools > div { grid-template-columns: 1fr; gap: 2px; } }
+</style>

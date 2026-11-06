@@ -1,0 +1,92 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SearchForm from '../components/SearchForm.astro';
+import ListingCard from '../components/ListingCard.astro';
+import { search } from '../core/search.ts';
+import { latestListings } from '../core/store.ts';
+import { priceVerdict } from '../core/price.ts';
+
+const q = Astro.url.searchParams.get('q')?.trim().slice(0, 200) ?? '';
+const result = q ? search(q) : null;
+const browse = result ? [] : latestListings(48);
+---
+
+<Layout title={q ? `${q} · Piazza` : 'Cerca · Piazza'}>
+  <section class="wrap band">
+    <div class="head">
+      <SearchForm value={q} autofocus={!q} />
+      {
+        result && result.chips.length > 0 && (
+          <div class="understood">
+            <span class="label">Ho capito così</span>
+            <div class="chips">
+              {result.chips.map((c) => (
+                <span class="chip">
+                  <span class="k">{c.key}</span>
+                  {c.value}
+                </span>
+              ))}
+            </div>
+          </div>
+        )
+      }
+    </div>
+
+    {
+      result && (
+        <p class="count">
+          {result.hits.length === 0 ? (
+            'Nessun annuncio corrisponde.'
+          ) : (
+            <>
+              <b>{result.hits.length === 1 ? '1 annuncio' : `${result.hits.length} annunci`}</b>
+              <span class="muted"> · ordinati per pertinenza e distanza</span>
+            </>
+          )}
+        </p>
+      )
+    }
+
+    {
+      result && result.hits.length > 0 && (
+        <div class="cards">
+          {result.hits.map((h) => (
+            <ListingCard listing={h.listing} distanceKm={h.distanceKm} reasons={h.reasons} verdict={h.verdict} />
+          ))}
+        </div>
+      )
+    }
+
+    {
+      result && result.hits.length === 0 && (
+        <div class="panel empty">
+          <h3>Ancora niente, ma può arrivare.</h3>
+          <p class="muted">
+            Con gli avvisi intelligenti (in arrivo nella Fase 1) ti scriveremo appena qualcuno pubblica un annuncio che
+            corrisponde a questa ricerca. Intanto prova a togliere un filtro o ad allargare la zona.
+          </p>
+        </div>
+      )
+    }
+
+    {
+      !result && (
+        <>
+          <div class="section-h">
+            <h2>Tutti gli annunci</h2>
+          </div>
+          <div class="cards">
+            {browse.map((l) => <ListingCard listing={l} verdict={priceVerdict(l)} />)}
+          </div>
+        </>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .head { display: grid; gap: 14px; max-width: 760px; margin-bottom: 24px; }
+  .understood { display: grid; gap: 8px; }
+  .count { margin-bottom: 14px; font-size: 15px; }
+  .empty { display: grid; gap: 8px; max-width: 640px; }
+</style>

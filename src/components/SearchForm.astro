@@ -1,0 +1,27 @@
+---
+interface Props {
+  value?: string;
+  autofocus?: boolean;
+}
+const { value = '', autofocus = false } = Astro.props;
+---
+
+<form class="search" action="/cerca" method="get" role="search">
+  <span class="ai-mark live" aria-hidden="true"></span>
+  <label class="sr" for="q">Cosa cerchi</label>
+  <input
+    id="q"
+    name="q"
+    type="search"
+    value={value}
+    placeholder="Scrivi come parli: bici per una bimba di 6 anni a Bellinzona"
+    autocomplete="off"
+    enterkeyhint="search"
+    autofocus={autofocus}
+  />
+  <button class="btn primary" type="submit">Cerca</button>
+</form>
+
+<style>
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>

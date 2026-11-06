@@ -1,0 +1,44 @@
+---
+import type { Listing, PriceVerdict } from '../core/types.ts';
+import CategoryIcon from './CategoryIcon.astro';
+import { getComune } from '../core/comuni.ts';
+import { formatChf, formatKm, isNew, VERDICT_LABEL } from '../core/format.ts';
+
+interface Props {
+  listing: Listing;
+  distanceKm?: number;
+  reasons?: string[];
+  verdict?: PriceVerdict;
+}
+
+const { listing, distanceKm, reasons = [], verdict } = Astro.props;
+const comune = getComune(listing.comuneId);
+const verdictClass = verdict === 'sotto_mercato' ? 'ok' : verdict === 'sopra_mercato' ? 'bad' : 'ok';
+---
+
+<a class="lcard" href={`/annuncio/${listing.id}`}>
+  <div class="lph">
+    <div class="badges">
+      {isNew(listing.publishedAt) && <span class="badge sun">Nuovo oggi</span>}
+      {verdict && <span class={`badge ${verdictClass}`}>{VERDICT_LABEL[verdict]}</span>}
+      {listing.priceChf === 0 && <span class="badge volt">Regalo</span>}
+      {listing.negotiable && <span class="badge plain">Trattabile</span>}
+    </div>
+    <CategoryIcon category={listing.category} />
+  </div>
+  <div class="lb">
+    <span class="lprice">{formatChf(listing.priceChf)}</span>
+    <span class="ltitle">{listing.title}</span>
+    <span class="lmeta">
+      {comune?.name}{distanceKm != null && ` · ${formatKm(distanceKm)}`}
+    </span>
+    {
+      reasons.length > 0 && (
+        <span class="lwhy">
+          <span class="ai-mark sm" />
+          {reasons.join(' · ')}
+        </span>
+      )
+    }
+  </div>
+</a>

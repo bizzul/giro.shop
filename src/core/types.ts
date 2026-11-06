@@ -1,0 +1,125 @@
+export type Condition = 'nuovo' | 'come_nuovo' | 'buono' | 'usato' | 'da_riparare';
+
+export const CONDITIONS = ['nuovo', 'come_nuovo', 'buono', 'usato', 'da_riparare'] as const;
+
+export const CATEGORY_IDS = [
+  'arredamento',
+  'bici',
+  'sport_inverno',
+  'moto_scooter',
+  'auto',
+  'bambini',
+  'elettronica',
+  'telefonia',
+  'informatica',
+  'videogiochi',
+  'elettrodomestici',
+  'abbigliamento',
+  'musica',
+  'collezionismo',
+  'giardino',
+  'altro',
+] as const;
+
+export type CategoryId = (typeof CATEGORY_IDS)[number];
+
+export type District =
+  | 'Bellinzona'
+  | 'Blenio'
+  | 'Leventina'
+  | 'Locarno'
+  | 'Lugano'
+  | 'Mendrisio'
+  | 'Riviera'
+  | 'Vallemaggia';
+
+export interface Comune {
+  id: string;
+  name: string;
+  cap: string;
+  district: District;
+  lat: number;
+  lon: number;
+  /** Altri modi di chiamarlo nelle ricerche (frazioni, regioni). */
+  aliases?: string[];
+}
+
+export type ListingStatus = 'pubblicato' | 'venduto';
+
+export interface Listing {
+  id: string;
+  title: string;
+  description: string;
+  category: CategoryId;
+  tags: string[];
+  attributes: Record<string, string>;
+  /** Prezzo richiesto in CHF; 0 significa "regalo". */
+  priceChf: number;
+  negotiable?: boolean;
+  condition: Condition;
+  comuneId: string;
+  publishedAt: string;
+  status: ListingStatus;
+  soldPriceChf?: number;
+  seller: { name: string; verified: boolean };
+}
+
+/** Un gruppo di parole equivalenti: basta che l'annuncio ne contenga una. */
+export interface TermGroup {
+  term: string;
+  alts: string[];
+  kind: 'materiale' | 'parola';
+}
+
+export interface SearchFilters {
+  raw: string;
+  category?: CategoryId;
+  categoryLabel?: string;
+  /** Il nome dell'oggetto cercato (es. scrivania): l'annuncio deve contenerlo. */
+  required?: { term: string; alts: string[] };
+  groups: TermGroup[];
+  minPrice?: number;
+  maxPrice?: number;
+  comuneId?: string;
+  radiusKm?: number;
+  conditions?: Condition[];
+  includeBroken?: boolean;
+  yearFrom?: number;
+  yearTo?: number;
+  wheelRange?: [number, number];
+  pickup?: boolean;
+}
+
+export interface Chip {
+  key: string;
+  value: string;
+}
+
+export type PriceVerdict = 'sotto_mercato' | 'prezzo_giusto' | 'sopra_mercato';
+
+export interface PriceEstimate {
+  low: number;
+  mid: number;
+  high: number;
+  /** Quanti annunci sono stati usati per la stima. */
+  comparables: number;
+  soldComparables: number;
+  basis: 'simili' | 'categoria';
+  confidence: 'alta' | 'media' | 'bassa';
+  comparableIds: string[];
+}
+
+export interface SearchHit {
+  listing: Listing;
+  comune: Comune;
+  distanceKm?: number;
+  score: number;
+  reasons: string[];
+  verdict?: PriceVerdict;
+}
+
+export interface SearchResult {
+  filters: SearchFilters;
+  chips: Chip[];
+  hits: SearchHit[];
+}
