@@ -4,14 +4,14 @@ import type { Draft } from '../core/draft.ts';
 import { CONDITION_LABEL, formatChf } from '../core/format.ts';
 import { getCategory } from '../core/categories.ts';
 import PhotoManager, { type PhotoItem } from './PhotoManager.tsx';
+import ComunePicker from './ComunePicker.tsx';
 
 interface Props {
-  comuni: string[];
   /** Chi ha fatto l'accesso può pubblicare; gli altri vengono portati all'accesso. */
   signedIn?: boolean;
 }
 
-export default function SellForm({ comuni, signedIn = false }: Props) {
+export default function SellForm({ signedIn = false }: Props) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [notes, setNotes] = useState('');
   const [comune, setComune] = useState('');
@@ -55,7 +55,8 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
   /** Pubblica la bozza così come l'hai modificata, con le foto già ridotte. */
   async function publish() {
     if (!draft) return;
-    const pickup = draft.comune?.name ?? comune;
+    // Il comune scelto a mano vince su quello riconosciuto dalla bozza
+    const pickup = comune || draft.comune?.name || '';
     if (!title.trim()) return setError('Scrivi un titolo.');
     if (price === '') return setError('Indica un prezzo (0 se lo regali).');
     if (!pickup) return setError('Scegli il comune di ritiro.');
@@ -208,19 +209,10 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
           )}
         </div>
 
-        <div class="fld">
-          <span class="label">Ritiro</span>
-          {draft.comune ? (
-            <p>{`${draft.comune.cap} ${draft.comune.name}`}</p>
-          ) : (
-            <select id="draft-comune" value={comune} onChange={(e) => setComune((e.target as HTMLSelectElement).value)}>
-              <option value="">Scegli il comune</option>
-              {comuni.map((c) => (
-                <option value={c}>{c}</option>
-              ))}
-            </select>
-          )}
-        </div>
+        <label class="fld">
+          <span class="label">{draft.comune && !comune && <span class="ai-mark sm" />}Comune di ritiro</span>
+          <ComunePicker id="draft-comune" value={comune || draft.comune?.name || ''} onChange={setComune} required />
+        </label>
 
         <div class="fld">
           <span class="label">Spedizione</span>
@@ -302,12 +294,7 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
 
       <label class="fld">
         <span class="label">Comune di ritiro</span>
-        <select id="comune" value={comune} onChange={(e) => setComune((e.target as HTMLSelectElement).value)}>
-          <option value="">Scegli il comune</option>
-          {comuni.map((c) => (
-            <option value={c}>{c}</option>
-          ))}
-        </select>
+        <ComunePicker id="comune" value={comune} onChange={setComune} />
       </label>
 
       {error && (

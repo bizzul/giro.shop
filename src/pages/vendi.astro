@@ -2,10 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import SellForm from '../components/SellForm.tsx';
 import '../styles/sell.css';
-import { COMUNI } from '../core/comuni.ts';
 
 const signedIn = Boolean(Astro.locals.user);
-const comuni = COMUNI.map((c) => c.name).sort((a, b) => a.localeCompare(b, 'it'));
 ---
 
 <Layout title="Vendi · giro.shop" description="Scatta e vendi: tre foto e l'assistente prepara l'annuncio.">
@@ -23,7 +21,7 @@ const comuni = COMUNI.map((c) => c.name).sort((a, b) => a.localeCompare(b, 'it')
         </p>
       )}
     </div>
-    <SellForm client:load comuni={comuni} signedIn={signedIn} />
+    <SellForm client:load signedIn={signedIn} />
   </section>
 </Layout>
 

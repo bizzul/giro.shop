@@ -76,3 +76,26 @@ export function distanceKm(a: Comune, b: Comune): number {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
+
+/**
+ * Comuni che corrispondono a quello che si sta scrivendo: nome, frazione (alias) o CAP,
+ * senza badare ad accenti e maiuscole. Prima chi comincia così, poi chi lo contiene; a campo vuoto tutti.
+ */
+export function searchComuni(query: string, limit = COMUNI.length): Comune[] {
+  const q = normalize(query);
+  const byName = (a: Comune, b: Comune) => a.name.localeCompare(b.name, 'it');
+  if (!q) return [...COMUNI].sort(byName).slice(0, limit);
+  const scored: Array<{ c: Comune; score: number }> = [];
+  for (const c of COMUNI) {
+    const name = normalize(c.name);
+    const aliases = (c.aliases ?? []).map(normalize);
+    let score = -1;
+    if (name === q) score = 0;
+    else if (name.startsWith(q) || c.cap.startsWith(q)) score = 1;
+    else if (name.split(' ').some((w) => w.startsWith(q))) score = 2;
+    else if (aliases.some((a) => a.startsWith(q))) score = 3;
+    else if (name.includes(q) || aliases.some((a) => a.includes(q))) score = 4;
+    if (score >= 0) scored.push({ c, score });
+  }
+  return scored.sort((a, b) => a.score - b.score || byName(a.c, b.c)).slice(0, limit).map((s) => s.c);
+}

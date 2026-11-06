@@ -93,3 +93,17 @@ describe('formatDay', () => {
     expect(formatDay('2026-11-09T12:00:00Z', 'al')).toBe('al 9 novembre');
   });
 });
+
+describe('searchComuni', () => {
+  it('trova i comuni da nome, CAP e frazione, senza accenti', async () => {
+    const { searchComuni } = await import('../src/core/comuni.ts');
+    const names = (q: string) => searchComuni(q).map((c) => c.name);
+    expect(names('lug')[0]).toBe('Lugano');
+    expect(names('6900')).toContain('Massagno');
+    expect(names('tesserete')).toEqual(['Capriasca']);
+    expect(names('castione')).toEqual(['Arbedo-Castione']);
+    expect(names("sant'an")[0]).toBe("Sant'Antonino");
+    expect(names('xyz')).toEqual([]);
+    expect(searchComuni('').length).toBeGreaterThan(30);
+  });
+});

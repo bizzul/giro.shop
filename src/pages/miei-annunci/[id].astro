@@ -2,12 +2,13 @@
 import Layout from '../../layouts/Layout.astro';
 import { actions, isInputError } from 'astro:actions';
 import { CATEGORIES } from '../../core/categories.ts';
-import { COMUNI, getComune } from '../../core/comuni.ts';
+import { getComune } from '../../core/comuni.ts';
 import { estimatePrice } from '../../core/price.ts';
 import { photoUrl } from '../../core/store.ts';
 import { CONDITIONS } from '../../core/types.ts';
 import { CONDITION_LABEL, formatChfRange } from '../../core/format.ts';
 import PhotoField from '../../components/PhotoField.tsx';
+import ComunePicker from '../../components/ComunePicker.tsx';
 import '../../styles/sell.css';
 
 const { user, supabase } = Astro.locals;
@@ -28,7 +29,6 @@ if (!listing) return new Response('Annuncio non trovato tra i tuoi', { status: 4
 
 const photos = [...(listing.photos ?? [])].sort((a, b) => a.position - b.position);
 const comuneName = getComune(listing.comune_id)?.name ?? '';
-const comuni = COMUNI.map((c) => c.name).sort((a, b) => a.localeCompare(b, 'it'));
 const estimate = estimatePrice({
   text: `${listing.title} ${(listing.tags ?? []).join(' ')}`,
   category: listing.category_id,
@@ -115,9 +115,7 @@ const onSale = listing.status === 'pubblicato' || listing.status === 'in_trattat
 
       <label class="fld">
         <span class="label">Comune di ritiro</span>
-        <select id="comune" name="comune">
-          {comuni.map((c) => <option value={c} selected={c === comuneName}>{c}</option>)}
-        </select>
+        <ComunePicker client:load id="comune" name="comune" initial={comuneName} required autosave />
       </label>
 
       <label class="fld">
