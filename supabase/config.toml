@@ -258,7 +258,7 @@ otp_expiry = 3600
 # Allow/disallow new user signups via SMS to your project.
 enable_signup = false
 # If enabled, users need to confirm their phone number before signing in.
-# Piazza: deve restare attivo, altrimenti il cambio di natel avviene senza codice e la verifica non vale nulla.
+# Piazza: deve restare attivo, altrimenti il cambio di cellulare avviene senza codice e la verifica non vale nulla.
 enable_confirmations = true
 # Template for sending OTP to users
 template = "Your code is {{ .Code }}"
@@ -266,7 +266,7 @@ template = "Your code is {{ .Code }}"
 max_frequency = "5s"
 
 # Use pre-defined map of phone number to OTP for testing.
-# Natel di prova per lo sviluppo locale: nessun SMS parte, il codice è fisso.
+# Cellulari di prova per lo sviluppo locale: nessun SMS parte, il codice è fisso.
 [auth.sms.test_otp]
 41791234567 = "123456"
 41787654321 = "654321"

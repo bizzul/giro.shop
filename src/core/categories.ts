@@ -122,7 +122,7 @@ export const CATEGORIES: Category[] = [
     name: 'Telefonia',
     icon: 'phone',
     keywords: [
-      ['natel', 'Natel'],
+      ['natel', 'Cellulari'],
       ['iphone', 'iPhone'],
       ['smartphon', 'Smartphone'],
       ['telefon', 'Telefoni'],

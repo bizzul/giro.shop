@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatSwissMobile, maskSwissMobile, normalizeSwissMobile } from '../src/core/phone.ts';
 
-describe('natel svizzeri', () => {
+describe('cellulari svizzeri', () => {
   it('accetta i formati più comuni', () => {
     for (const input of ['079 123 45 67', '0791234567', '+41 79 123 45 67', '0041791234567', '41791234567', '+41 (0)79 123 45 67'.replace('(0)', '')]) {
       expect(normalizeSwissMobile(input)).toBe('+41791234567');

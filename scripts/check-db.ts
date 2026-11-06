@@ -3,7 +3,7 @@
  * Uso: pnpm test:db   (con `supabase start` acceso)
  *
  * Crea venditore, acquirente e intruso, prova ciò che è permesso e ciò che è vietato
- * su annunci, foto, conversazioni, messaggi, offerte e natel, poi cancella tutto.
+ * su annunci, foto, conversazioni, messaggi, offerte e cellulare, poi cancella tutto.
  */
 import { execFileSync } from 'node:child_process';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -111,18 +111,18 @@ try {
   const again = await buyer.client.rpc('respond_to_offer', { p_message_id: counter.data!.id, p_decision: 'rifiutata' });
   expect('un\'offerta già decisa non cambia', Boolean(again.error));
 
-  // Natel: numeri di prova con codice fisso, da supabase/config.toml
+  // Cellulare: numeri di prova con codice fisso, da supabase/config.toml
   const TEST_PHONES: Record<string, string> = { '+41791234567': '123456', '+41787654321': '654321', '+41761112233': '111222' };
   const { data: allUsers } = await admin.auth.admin.listUsers({ perPage: 1000 });
   const taken = new Set((allUsers?.users ?? []).map((u) => (u.phone ? `+${u.phone}` : '')).filter(Boolean));
   const free = Object.keys(TEST_PHONES).filter((p) => !taken.has(p));
-  if (free.length < 2) throw new Error('servono due natel di prova liberi: esegui `supabase db reset`');
+  if (free.length < 2) throw new Error('servono due cellulari di prova liberi: esegui `supabase db reset`');
 
   const [phone, other] = free;
   const change = await buyer.client.auth.updateUser({ phone });
   const verify = change.error ? null : await buyer.client.auth.verifyOtp({ phone, token: TEST_PHONES[phone], type: 'phone_change' });
   const profile = await admin.from('profiles').select('phone_verified_at').eq('id', buyer.id).single();
-  expect('il natel si verifica con il codice', !change.error && !verify?.error && Boolean(profile.data?.phone_verified_at), change.error?.message ?? verify?.error?.message);
+  expect('il cellulare si verifica con il codice', !change.error && !verify?.error && Boolean(profile.data?.phone_verified_at), change.error?.message ?? verify?.error?.message);
 
   const wrong = await intruder.client.auth.updateUser({ phone: other });
   const wrongVerify = wrong.error ? null : await intruder.client.auth.verifyOtp({ phone: other, token: '000000', type: 'phone_change' });
@@ -130,7 +130,7 @@ try {
   expect('un codice sbagliato non verifica', Boolean(wrongVerify?.error) && !intruderProfile.data?.phone_verified_at, wrong.error?.message);
 
   const stolen = await seller.client.auth.updateUser({ phone });
-  expect('un natel già verificato da altri viene rifiutato', Boolean(stolen.error));
+  expect('un cellulare già verificato da altri viene rifiutato', Boolean(stolen.error));
 } catch (error) {
   expect('esecuzione', false, (error as Error).message);
 } finally {

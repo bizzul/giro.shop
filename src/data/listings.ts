@@ -493,7 +493,7 @@ const seed: Seed[] = [
     title: 'iPhone 13 128 GB, batteria all’88%',
     description: 'Sempre con cover e vetro, nessun graffio sullo schermo. Scatola e cavo inclusi.',
     category: 'telefonia',
-    tags: ['iphone', 'natel', 'smartphone', 'apple'],
+    tags: ['iphone', 'cellulare', 'smartphone', 'apple'],
     attributes: { memoria: '128 GB', batteria: '88%' },
     priceChf: 330,
     condition: 'buono',

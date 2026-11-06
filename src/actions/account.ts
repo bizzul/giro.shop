@@ -198,27 +198,27 @@ export const account = {
       return { id };
     },
   }),
-  /** Passo 1 della verifica del natel: Supabase manda un SMS con un codice a 6 cifre. */
+  /** Passo 1 della verifica del cellulare: Supabase manda un SMS con un codice a 6 cifre. */
   startPhoneVerification: defineAction({
     accept: 'form',
-    input: z.object({ phone: z.string().trim().min(6, 'Scrivi il numero del natel.') }),
+    input: z.object({ phone: z.string().trim().min(6, 'Scrivi il numero di cellulare.') }),
     handler: async ({ phone }, context) => {
       const { supabase } = requireUser(context);
       const e164 = normalizeSwissMobile(phone);
-      if (!e164) throw new ActionError({ code: 'BAD_REQUEST', message: 'Serve un natel svizzero (075–079), per esempio 079 123 45 67.' });
+      if (!e164) throw new ActionError({ code: 'BAD_REQUEST', message: 'Serve un numero di cellulare svizzero (075–079), per esempio 079 123 45 67.' });
       const { error } = await supabase.auth.updateUser({ phone: e164 });
       if (error) {
         const taken = /already|exists|registered/i.test(error.message);
         throw new ActionError({
           code: taken ? 'CONFLICT' : 'BAD_REQUEST',
-          message: taken ? 'Questo natel è già collegato a un altro account.' : `Non riesco a mandare l'SMS: ${error.message}`,
+          message: taken ? 'Questo numero di cellulare è già collegato a un altro account.' : `Non riesco a mandare l'SMS: ${error.message}`,
         });
       }
       return { phone: e164 };
     },
   }),
 
-  /** Passo 2: il codice ricevuto conferma il numero; il profilo diventa "natel verificato". */
+  /** Passo 2: il codice ricevuto conferma il numero; il profilo diventa "cellulare verificato". */
   confirmPhone: defineAction({
     accept: 'form',
     input: z.object({

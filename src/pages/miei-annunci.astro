@@ -20,7 +20,7 @@ const phoneStart = Astro.getActionResult(actions.account.startPhoneVerification)
 const phoneConfirm = Astro.getActionResult(actions.account.confirmPhone);
 const phoneError = phoneStart?.error?.message ?? phoneConfirm?.error?.message;
 
-// Stato del natel: verificato, in attesa del codice, oppure da aggiungere
+// Stato del cellulare: verificato, in attesa del codice, oppure da aggiungere
 const { data: authData } = await supabase.auth.getUser();
 const authUser = authData.user;
 const verifiedPhone = authUser?.phone && authUser.phone_confirmed_at ? `+${authUser.phone}` : null;
@@ -33,7 +33,7 @@ const notice = nameResult?.data
     : deleteResult?.data
       ? 'Annuncio eliminato.'
       : phoneConfirm?.data
-        ? 'Natel verificato: lo vedono anche gli acquirenti.'
+        ? 'Cellulare verificato: lo vedono anche gli acquirenti.'
         : null;
 
 const { data: profile } = await supabase.from('profiles').select('display_name, phone_verified_at').eq('id', user.id).single();
@@ -76,9 +76,9 @@ const STATUS_LABEL: Record<string, string> = {
     {notice && <p class="notice" role="status">{notice}</p>}
     {error && <p class="error" role="alert">{error}</p>}
 
-    <section class="panel phone-panel" aria-labelledby="natel-title">
+    <section class="panel phone-panel" aria-labelledby="cellulare-title">
       <div class="phone-head">
-        <h2 id="natel-title">Natel</h2>
+        <h2 id="cellulare-title">Cellulare</h2>
         {verifiedPhone && !pendingPhone && <span class="badge ok">Verificato · {maskSwissMobile(verifiedPhone)}</span>}
       </div>
       {phoneError && <p class="error" role="alert">{phoneError}</p>}
@@ -104,7 +104,7 @@ const STATUS_LABEL: Record<string, string> = {
             <summary class="small">Cambia numero</summary>
             <form class="phone-form" method="POST" action={actions.account.startPhoneVerification}>
               <label class="fld">
-                <span class="label">Nuovo natel</span>
+                <span class="label">Nuovo cellulare</span>
                 <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="079 123 45 67" required />
               </label>
               <button class="btn" type="submit">Mandami il codice</button>
@@ -112,10 +112,10 @@ const STATUS_LABEL: Record<string, string> = {
           </details>
         ) : (
           <>
-            <p class="muted">Chi compra si fida di più: accanto al tuo nome compare "Natel verificato". Il numero non viene mostrato.</p>
+            <p class="muted">Chi compra si fida di più: accanto al tuo nome compare "Cellulare verificato". Il numero non viene mostrato.</p>
             <form class="phone-form" method="POST" action={actions.account.startPhoneVerification}>
               <label class="fld">
-                <span class="label">Il tuo natel</span>
+                <span class="label">Il tuo cellulare</span>
                 <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="079 123 45 67" required />
               </label>
               <button class="btn primary" type="submit">Mandami il codice</button>

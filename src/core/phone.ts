@@ -1,5 +1,5 @@
 /**
- * Numeri natel svizzeri: accetta "079 123 45 67", "+41 79 123 45 67", "0041791234567"…
+ * Numeri di cellulare svizzeri: accetta "079 123 45 67", "+41 79 123 45 67", "0041791234567"…
  * e restituisce il formato internazionale +41791234567. Solo prefissi mobili 075–079.
  */
 export function normalizeSwissMobile(input: string): string | null {

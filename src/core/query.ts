@@ -13,7 +13,9 @@ const SYNONYMS: Record<string, string[]> = {
   bambin: ['bambin', 'bimb', 'ragazz'],
   ragazz: ['bambin', 'bimb', 'ragazz'],
   ebike: ['ebike', 'bici elettric', 'pedalata assistita'],
+  // "Natel" resta un sinonimo: in Ticino molti lo scrivono così
   natel: ['natel', 'smartphon', 'telefon', 'iphone', 'cellular'],
+  cellular: ['natel', 'smartphon', 'telefon', 'iphone', 'cellular'],
   telefon: ['natel', 'smartphon', 'telefon', 'iphone', 'cellular'],
   passeggin: ['passeggin', 'carrozzin', 'trio'],
   portatil: ['portatil', 'laptop', 'notebook', 'macbook'],
