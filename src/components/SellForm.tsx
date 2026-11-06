@@ -3,6 +3,7 @@ import { actions } from 'astro:actions';
 import type { Draft } from '../core/draft.ts';
 import { CONDITION_LABEL, formatChf } from '../core/format.ts';
 import { getCategory } from '../core/categories.ts';
+import PhotoManager, { type PhotoItem } from './PhotoManager.tsx';
 
 interface Props {
   comuni: string[];
@@ -10,37 +11,8 @@ interface Props {
   signedIn?: boolean;
 }
 
-const MAX_PHOTOS = 5;
-const MAX_SIDE = 1568;
-const ACCEPTED = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-
-/** Riduce le foto del telefono prima dell'invio: caricamento più rapido e sotto i limiti dell'API. */
-async function shrink(file: File): Promise<File> {
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-    if (scale === 1 && file.size < 1_500_000 && ACCEPTED.includes(file.type)) return file;
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('conversione non riuscita'))), 'image/jpeg', 0.85),
-    );
-    return new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.jpg`, { type: 'image/jpeg' });
-  } catch {
-    // Formato che il browser non sa leggere (es. HEIC): lo segnalerà il server.
-    return file;
-  }
-}
-
-interface Photo {
-  file: File;
-  url: string;
-}
-
 export default function SellForm({ comuni, signedIn = false }: Props) {
-  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [notes, setNotes] = useState('');
   const [comune, setComune] = useState('');
   const [status, setStatus] = useState<'idle' | 'working' | 'done'>('idle');
@@ -53,22 +25,6 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
 
   useEffect(() => () => photos.forEach((p) => URL.revokeObjectURL(p.url)), []);
 
-  async function addFiles(list: FileList | null) {
-    if (!list) return;
-    const room = MAX_PHOTOS - photos.length;
-    const picked = Array.from(list).slice(0, room);
-    const ready = await Promise.all(picked.map(shrink));
-    setPhotos((prev) => [...prev, ...ready.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
-    if (list.length > room) setError(`Puoi usare al massimo ${MAX_PHOTOS} foto: le altre non sono state aggiunte.`);
-  }
-
-  function removePhoto(index: number) {
-    setPhotos((prev) => {
-      URL.revokeObjectURL(prev[index].url);
-      return prev.filter((_, i) => i !== index);
-    });
-  }
-
   async function submit(event: Event) {
     event.preventDefault();
     setError(null);
@@ -78,7 +34,7 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
     }
     setStatus('working');
     const form = new FormData();
-    photos.forEach((p) => form.append('photos', p.file));
+    photos.forEach((p) => p.file && form.append('photos', p.file));
     if (notes.trim()) form.append('notes', notes.trim());
     if (comune) form.append('comune', comune);
     const { data, error: actionError } = await actions.createDraft(form);
@@ -101,6 +57,7 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
     if (!title.trim()) return setError('Scrivi un titolo.');
     if (price === '') return setError('Indica un prezzo (0 se lo regali).');
     if (!pickup) return setError('Scegli il comune di ritiro.');
+    if (!photos.length) return setError("Aggiungi almeno una foto: la prima è la copertina dell'annuncio.");
     setError(null);
     setPublishing(true);
     const form = new FormData();
@@ -115,7 +72,8 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
     form.append('aiSource', draft.source);
     if (draft.model) form.append('aiModel', draft.model);
     form.append('aiConfidence', String(draft.confidence));
-    photos.forEach((p) => form.append('photos', p.file));
+    // Nell'ordine dei riquadri: la prima foto è la copertina
+    photos.forEach((p) => p.file && form.append('photos', p.file));
     const { data, error: actionError } = await actions.account.publishListing(form);
     if (actionError || !data) {
       setPublishing(false);
@@ -151,6 +109,13 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
             </span>
           </div>
         </div>
+
+        <PhotoManager
+          items={photos}
+          onChange={setPhotos}
+          keepOne={photos.length > 0}
+          message={photos.length === 0 ? "Aggiungi almeno una foto per pubblicare: la prima è la copertina." : null}
+        />
 
         {draft.warnings.length > 0 && (
           <ul class="warn">
@@ -270,7 +235,7 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
 
         <div class="actions">
           {signedIn ? (
-            <button class="btn primary" type="button" onClick={publish} disabled={publishing}>
+            <button class="btn primary" type="button" onClick={publish} disabled={publishing || photos.length === 0}>
               {publishing ? 'Pubblico…' : 'Pubblica annuncio'}
             </button>
           ) : (
@@ -293,36 +258,7 @@ export default function SellForm({ comuni, signedIn = false }: Props) {
 
   return (
     <form class="panel sellform" onSubmit={submit}>
-      <div class="fld">
-        <span class="label">Foto ({photos.length}/{MAX_PHOTOS})</span>
-        <div class="shots">
-          {photos.map((p, i) => (
-            <div class="shot">
-              <img src={p.url} alt={`Foto ${i + 1}`} />
-              <button type="button" class="remove" aria-label={`Togli la foto ${i + 1}`} onClick={() => removePhoto(i)}>
-                ×
-              </button>
-            </div>
-          ))}
-          {photos.length < MAX_PHOTOS && (
-            <label class="shot add">
-              <input
-                id="photos"
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => {
-                  const input = e.target as HTMLInputElement;
-                  addFiles(input.files);
-                  input.value = '';
-                }}
-              />
-              <span aria-hidden="true">+</span>
-              <span class="sr">Aggiungi foto</span>
-            </label>
-          )}
-        </div>
-      </div>
+      <PhotoManager items={photos} onChange={setPhotos} />
 
       <label class="fld">
         <span class="label">Due righe, se vuoi</span>

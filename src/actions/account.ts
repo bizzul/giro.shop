@@ -5,6 +5,7 @@ import { resolveComune } from '../core/comuni.ts';
 import { refreshListings } from '../core/store.ts';
 import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
 import { normalizeSwissMobile } from '../core/phone.ts';
+import { MIN_PHOTOS, planPhotoOrder } from '../core/photos.ts';
 import { invalidateListingPages } from '../lib/cache.ts';
 
 /** Client Supabase con la sessione, oppure un errore chiaro. */
@@ -101,6 +102,7 @@ export const account = {
       if (!comune) throw new ActionError({ code: 'BAD_REQUEST', message: `Non conosco il comune "${input.comune}".` });
 
       const files = (input.photos ?? []).filter((f) => f.size > 0);
+      if (files.length < MIN_PHOTOS) throw new ActionError({ code: 'BAD_REQUEST', message: "Aggiungi almeno una foto: la prima è la copertina dell'annuncio." });
       if (files.length > MAX_PHOTOS) throw new ActionError({ code: 'BAD_REQUEST', message: `Al massimo ${MAX_PHOTOS} foto.` });
       for (const f of files) {
         if (!IMAGE_TYPES.includes(f.type as ImageMediaType) || f.size > MAX_PHOTO_BYTES) {
@@ -248,7 +250,8 @@ export const account = {
       negotiable: z.string().nullish(),
       comune: z.string().trim().min(1, 'Scegli il comune di ritiro.'),
       tags: z.string().nullish(),
-      removePhotos: z.array(z.string()).optional(),
+      /** Ordine dei riquadri: "e:<percorso>" foto già salvata, "n:<indice>" file nuovo. Il primo è la copertina. */
+      order: z.array(z.string()).optional(),
       photos: z.array(z.instanceof(File)).optional(),
     }),
     handler: async (input, context) => {
@@ -263,6 +266,17 @@ export const account = {
         .eq('seller_id', user.id)
         .maybeSingle();
       if (readError || !current) throw new ActionError({ code: 'NOT_FOUND', message: 'Annuncio non trovato tra i tuoi.' });
+
+      // Prima si controllano le foto: se qualcosa non va, l'annuncio resta com'era
+      const photos = (current.photos ?? []) as Array<{ id: number; storage_path: string; position: number }>;
+      const files = (input.photos ?? []).filter((f) => f.size > 0);
+      const plan = planPhotoOrder(input.order ?? [], photos.map((p) => p.storage_path), files.length);
+      if (!plan.ok) throw new ActionError({ code: 'BAD_REQUEST', message: plan.error });
+      for (const file of files) {
+        if (!IMAGE_TYPES.includes(file.type as ImageMediaType) || file.size > MAX_PHOTO_BYTES) {
+          throw new ActionError({ code: 'BAD_REQUEST', message: `"${file.name}" non è un'immagine JPEG, PNG o WebP sotto i 5 MB.` });
+        }
+      }
 
       const tags = (input.tags ?? '')
         .split(',')
@@ -285,32 +299,37 @@ export const account = {
         .eq('seller_id', user.id);
       if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Modifiche non salvate: ${error.message}` });
 
-      // Foto da togliere: solo quelle di questo annuncio
-      const photos = (current.photos ?? []) as Array<{ id: number; storage_path: string; position: number }>;
-      const toRemove = photos.filter((p) => input.removePhotos?.includes(p.storage_path));
-      if (toRemove.length) {
-        await supabase.from('listing_photos').delete().in('id', toRemove.map((p) => p.id));
-        const own = toRemove.map((p) => p.storage_path).filter((path) => path.startsWith(`${user.id}/`));
-        if (own.length) await supabase.storage.from('foto').remove(own);
-      }
-
-      // Foto nuove, fino a 5 in tutto
-      const files = (input.photos ?? []).filter((f) => f.size > 0);
-      const kept = photos.length - toRemove.length;
-      if (kept + files.length > MAX_PHOTOS) {
-        throw new ActionError({ code: 'BAD_REQUEST', message: `Al massimo ${MAX_PHOTOS} foto per annuncio: ne hai già ${kept}.` });
-      }
-      let position = Math.max(-1, ...photos.filter((p) => !toRemove.includes(p)).map((p) => p.position)) + 1;
-      for (const file of files) {
-        if (!IMAGE_TYPES.includes(file.type as ImageMediaType) || file.size > MAX_PHOTO_BYTES) {
-          throw new ActionError({ code: 'BAD_REQUEST', message: `"${file.name}" non è un'immagine JPEG, PNG o WebP sotto i 5 MB.` });
-        }
-        const path = `${user.id}/${input.id}/${Date.now()}-${position}.${EXTENSION[file.type as ImageMediaType]}`;
+      // Foto nuove nella cartella dell'utente
+      const uploaded = new Map<number, string>();
+      for (const slot of plan.slots) {
+        if (slot.kind !== 'new') continue;
+        const file = files[slot.fileIndex];
+        const path = `${user.id}/${input.id}/${Date.now()}-${slot.fileIndex}.${EXTENSION[file.type as ImageMediaType]}`;
         const { error: uploadError } = await supabase.storage.from('foto').upload(path, file, { contentType: file.type });
         if (uploadError) throw new ActionError({ code: 'BAD_REQUEST', message: `Caricamento di "${file.name}" non riuscito: ${uploadError.message}` });
-        const { error: rowError } = await supabase.from('listing_photos').insert({ listing_id: input.id, storage_path: path, position });
-        if (rowError) throw new ActionError({ code: 'BAD_REQUEST', message: `Foto caricata ma non collegata: ${rowError.message}` });
-        position++;
+        uploaded.set(slot.fileIndex, path);
+      }
+
+      // Posizioni nell'ordine scelto: la prima è la copertina
+      const byPath = new Map(photos.map((p) => [p.storage_path, p]));
+      for (const [position, slot] of plan.slots.entries()) {
+        const result =
+          slot.kind === 'existing'
+            ? await supabase.from('listing_photos').update({ position }).eq('id', byPath.get(slot.path)!.id)
+            : await supabase.from('listing_photos').insert({ listing_id: input.id, storage_path: uploaded.get(slot.fileIndex), position });
+        if (result.error) throw new ActionError({ code: 'BAD_REQUEST', message: `Foto non salvate: ${result.error.message}` });
+      }
+
+      // Foto tolte: righe e file (solo quelli nella cartella dell'utente)
+      const kept = new Set(plan.slots.flatMap((slot) => (slot.kind === 'existing' ? [slot.path] : [])));
+      const removed = photos.filter((p) => !kept.has(p.storage_path));
+      if (removed.length) {
+        await supabase.from('listing_photos').delete().in('id', removed.map((p) => p.id));
+        const own = removed.map((p) => p.storage_path).filter((path) => path.startsWith(`${user.id}/`));
+        if (own.length) {
+          const { data: gone, error: removeError } = await supabase.storage.from('foto').remove(own);
+          if (removeError || (gone?.length ?? 0) < own.length) console.warn(`[piazza] foto non cancellate dallo storage: ${removeError?.message ?? own.join(', ')}`);
+        }
       }
 
       await refreshListings(true);

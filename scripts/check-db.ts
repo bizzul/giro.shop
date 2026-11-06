@@ -59,6 +59,15 @@ try {
   const upload = await intruder.client.storage.from('foto').upload(`${seller.id}/${listingId}/x.jpg`, new Blob(['x'], { type: 'image/jpeg' }), { contentType: 'image/jpeg' });
   expect('intruso non carica foto nella cartella altrui', Boolean(upload.error));
 
+  // Cancellazione dei file: il proprietario ci riesce, l'intruso no
+  const ownPath = `${seller.id}/${listingId}/prova.jpg`;
+  const own = await seller.client.storage.from('foto').upload(ownPath, new Blob(['x'], { type: 'image/jpeg' }), { contentType: 'image/jpeg' });
+  const exists = async () => ((await admin.storage.from('foto').list(`${seller.id}/${listingId}`)).data ?? []).some((f) => f.name === 'prova.jpg');
+  await intruder.client.storage.from('foto').remove([ownPath]);
+  expect('intruso non cancella foto altrui', !own.error && (await exists()));
+  const removed = await seller.client.storage.from('foto').remove([ownPath]);
+  expect('chi vende cancella le proprie foto', !removed.error && !(await exists()), removed.error?.message);
+
   const { data: edited, error: ee } = await seller.client.from('listings').update({ title: `Prova modificata ${tag}`, price_chf: 90 }).eq('id', listingId).select('updated_at');
   expect('chi vende modifica il proprio annuncio', !ee && Boolean(edited?.[0]?.updated_at), ee?.message);
 

@@ -7,6 +7,7 @@ import { estimatePrice } from '../../core/price.ts';
 import { photoUrl } from '../../core/store.ts';
 import { CONDITIONS } from '../../core/types.ts';
 import { CONDITION_LABEL, formatChfRange } from '../../core/format.ts';
+import PhotoField from '../../components/PhotoField.tsx';
 import '../../styles/sell.css';
 
 const { user, supabase } = Astro.locals;
@@ -55,8 +56,12 @@ const onSale = listing.status === 'pubblicato' || listing.status === 'in_trattat
     )}
     {!onSale && <p class="small">Questo annuncio non è in vendita: lo rimetti in vendita da I miei annunci.</p>}
 
-    <form class="panel sellform" method="POST" action={actions.account.updateListing} enctype="multipart/form-data">
+    <form class="panel sellform" method="POST" action={actions.account.updateListing} enctype="multipart/form-data" autocomplete="off">
       <input type="hidden" name="id" value={listing.id} />
+
+      <div class="fld">
+        <PhotoField client:load initial={photos.map((p) => ({ path: p.storage_path, url: photoUrl(p.storage_path) }))} />
+      </div>
 
       <label class="fld">
         <span class="label">Titolo</span>
@@ -107,26 +112,6 @@ const onSale = listing.status === 'pubblicato' || listing.status === 'in_trattat
         <input id="tags" name="tags" value={(listing.tags ?? []).join(', ')} />
       </label>
 
-      <fieldset class="fld photos">
-        <legend class="label">Foto ({photos.length}/5)</legend>
-        {
-          photos.length > 0 && (
-            <div class="shots">
-              {photos.map((p, i) => (
-                <label class="shot editable">
-                  <img src={photoUrl(p.storage_path)} alt={`Foto ${i + 1}`} loading="lazy" decoding="async" />
-                  <span class="remove-toggle">
-                    <input type="checkbox" name="removePhotos" value={p.storage_path} />
-                    Togli
-                  </span>
-                </label>
-              ))}
-            </div>
-          )
-        }
-        <input id="photos" name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple />
-        <small>JPEG, PNG o WebP, al massimo 5 MB ciascuna.</small>
-      </fieldset>
 
       <div class="actions">
         <button class="btn primary" type="submit">Salva le modifiche</button>
@@ -145,9 +130,4 @@ const onSale = listing.status === 'pubblicato' || listing.status === 'in_trattat
   ul.error { padding-left: 28px; list-style: disc; }
   .check { display: flex; align-items: center; gap: 10px; align-self: end; padding-bottom: 12px; }
   .check input { width: auto; }
-  .photos { border: 0; padding: 0; margin: 0; }
-  .editable { cursor: pointer; }
-  .remove-toggle { position: absolute; left: 6px; bottom: 6px; display: inline-flex; align-items: center; gap: 6px; background: var(--bg); color: var(--ink); border-radius: 4px; padding: 4px 8px; font-size: 12px; }
-  .remove-toggle input { width: auto; margin: 0; }
-  .editable:has(input:checked) img { opacity: 0.35; }
 </style>
