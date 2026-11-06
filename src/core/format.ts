@@ -47,3 +47,14 @@ export function formatAge(iso: string, now = new Date()): string {
 export function isNew(iso: string, now = new Date()): boolean {
   return now.getTime() - new Date(iso).getTime() < 24 * 36e5;
 }
+
+/**
+ * Giorno e mese con l'articolo giusto: "il 9 novembre", "l'8 novembre", "l'11 marzo".
+ * Con prep "al": "al 9 novembre", "all'8 novembre".
+ */
+export function formatDay(iso: string, prep: 'il' | 'al' = 'il'): string {
+  const text = new Date(iso).toLocaleDateString('it-CH', { day: 'numeric', month: 'long' });
+  const vowel = /^(8|11)\b/.test(text);
+  if (prep === 'al') return vowel ? `all'${text}` : `al ${text}`;
+  return vowel ? `l'${text}` : `il ${text}`;
+}

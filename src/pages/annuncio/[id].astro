@@ -256,6 +256,7 @@ const canTranslate = Boolean(claudeKey());
               </ContactBox>
             )
           }
+          <a class="report small muted" href={`/segnala?annuncio=${encodeURIComponent(listing.id)}`}>Segnala l'annuncio</a>
         </div>
 
         <div class="blocks">
@@ -308,7 +309,8 @@ const canTranslate = Boolean(claudeKey());
                         </p>
                         <span class="qa-foot">
                           <span class="muted small">
-                            Chiesto da {q.askerName} · {formatAge(q.createdAt)}
+                            Chiesto da {q.askerName} · {formatAge(q.createdAt)} ·{' '}
+                            <a class="report" href={`/segnala?annuncio=${encodeURIComponent(listing.id)}&domanda=${q.id}`}>Segnala</a>
                           </span>
                           {!sold && (
                             <form method="POST" action={voteAction}>
@@ -409,7 +411,10 @@ const canTranslate = Boolean(claudeKey());
                 <li>Diffida di chi vuole spostare la conversazione su WhatsApp o ti manda link per pagare.</li>
                 <li>Per gli oggetti di valore chiedi lo scontrino o il certificato di garanzia.</li>
               </ul>
-              <a class="small" href="/sicurezza">Leggi la guida completa</a>
+              <p class="small">
+                <a href="/sicurezza">Leggi la guida completa</a> · Qualcosa non torna?{' '}
+                <a href={`/segnala?annuncio=${encodeURIComponent(listing.id)}`}>Segnala l'annuncio</a>
+              </p>
             </div>
           </details>
         </div>
@@ -667,6 +672,7 @@ const canTranslate = Boolean(claudeKey());
   .stars-inline { color: var(--sun); letter-spacing: 1px; font-weight: 400; }
   .seller-link { text-underline-offset: 4px; text-decoration-color: var(--line-strong); }
   .dist { font-weight: 500; }
+  .report { color: inherit; text-underline-offset: 3px; }
   .ask-dist { display: block; margin-top: 4px; }
   .qa { display: grid; }
   .qa li { display: grid; gap: 8px; padding-block: 14px; border-top: 1px solid var(--line); }

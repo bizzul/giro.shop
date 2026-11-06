@@ -1,6 +1,8 @@
 import { defineMiddleware } from 'astro:middleware';
 import { configureStore, refreshListings } from './core/store.ts';
 import { createRequestClient, SUPABASE_KEY, SUPABASE_URL } from './lib/supabase.ts';
+import { maybeRunMaintenance } from './lib/maintenance.ts';
+import { invalidateListingPages } from './lib/cache.ts';
 
 configureStore(SUPABASE_URL, SUPABASE_KEY);
 
@@ -27,6 +29,8 @@ const PUBLIC_PATHS = new Set([
 
 export const onRequest = defineMiddleware(async (context, next) => {
   await refreshListings();
+  // Promemoria di scadenza e annunci scaduti: al massimo ogni 15 minuti, senza far aspettare la richiesta
+  maybeRunMaintenance(context.url.origin, () => invalidateListingPages(context));
 
   context.locals.supabase = null;
   context.locals.user = null;

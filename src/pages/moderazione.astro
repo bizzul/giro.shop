@@ -1,0 +1,149 @@
+---
+/** Segnalazioni aperte, raggruppate per contenuto. Solo per chi modera. */
+import Layout from '../layouts/Layout.astro';
+import { actions } from 'astro:actions';
+import { adminClient } from '../lib/admin.ts';
+import { REPORT_REASONS, type ReportReason } from '../actions/reports.ts';
+import { formatAge } from '../core/format.ts';
+
+const { user, supabase } = Astro.locals;
+if (!user || !supabase) return Astro.redirect('/accedi?next=/moderazione');
+const { data: me } = await supabase.from('profiles').select('is_moderator').eq('id', user.id).maybeSingle();
+const admin = adminClient();
+if (!me?.is_moderator || !admin) return new Response('Pagina non trovata', { status: 404 });
+
+const decided = Astro.getActionResult(actions.moderation.decide);
+if (decided?.data) return Astro.redirect(`/moderazione?fatto=${decided.data.decision}`, 303);
+const done = Astro.url.searchParams.get('fatto');
+
+interface ReportRow {
+  target: string;
+  listing_id: string;
+  question_id: string | null;
+  rating_id: string | null;
+  reason: ReportReason;
+  note: string | null;
+  created_at: string;
+}
+const { data } = await admin
+  .from('reports')
+  .select('target, listing_id, question_id, rating_id, reason, note, created_at')
+  .eq('status', 'aperta')
+  .order('created_at');
+const rows = (data ?? []) as ReportRow[];
+
+// Un gruppo per contenuto: quante persone, per quali motivi, con quali note
+const groups = new Map<string, ReportRow[]>();
+for (const r of rows) groups.set(r.target, [...(groups.get(r.target) ?? []), r]);
+
+const ids = (key: 'listing_id' | 'question_id' | 'rating_id') => [...new Set(rows.map((r) => r[key]).filter((v): v is string => Boolean(v)))];
+const [{ data: listings }, { data: questions }, { data: ratings }] = await Promise.all([
+  admin.from('listings').select('id, title, description, status, hidden_at, hidden_reason, seller:profiles!listings_seller_id_fkey(display_name)').in('id', ids('listing_id')),
+  admin.from('questions').select('id, body, answer, hidden_at').in('id', ids('question_id')),
+  admin.from('ratings').select('id, stars, comment, hidden_at').in('id', ids('rating_id')),
+]);
+const L = new Map((listings ?? []).map((l) => [l.id as string, l as unknown as { id: string; title: string; description: string; status: string; hidden_at: string | null; hidden_reason: string | null; seller: { display_name: string } | null }]));
+const Q = new Map((questions ?? []).map((q) => [q.id as string, q]));
+const Rt = new Map((ratings ?? []).map((r) => [r.id as string, r]));
+
+const cards = [...groups].map(([target, list]) => {
+  const first = list[0];
+  const listing = L.get(first.listing_id);
+  const question = first.question_id ? Q.get(first.question_id) : undefined;
+  const rating = first.rating_id ? Rt.get(first.rating_id) : undefined;
+  const reasons = Object.entries(
+    list.reduce<Record<string, number>>((acc, r) => ({ ...acc, [r.reason]: (acc[r.reason] ?? 0) + 1 }), {}),
+  ).sort((a, b) => b[1] - a[1]);
+  const hidden = Boolean(question ? question.hidden_at : rating ? rating.hidden_at : listing?.hidden_at);
+  return { target, list, listing, question, rating, reasons, hidden, kind: question ? 'Domanda' : rating ? 'Valutazione' : 'Annuncio' };
+});
+---
+
+<Layout title="Moderazione · giro.shop">
+  <section class="wrap band moderation">
+    <header class="section-h">
+      <h1>Moderazione</h1>
+      <span class="muted small">{cards.length === 1 ? '1 contenuto segnalato' : `${cards.length} contenuti segnalati`}</span>
+    </header>
+
+    {done && <p class="notice" role="status">{done === 'nascondi' ? 'Nascosto: chi ha segnalato e chi vende sono stati avvisati.' : 'Segnalazioni respinte.'}</p>}
+    {decided?.error && <p class="error" role="alert">{decided.error.message}</p>}
+
+    {
+      cards.length === 0 ? (
+        <div class="panel">
+          <h3>Nessuna segnalazione aperta.</h3>
+          <p class="muted">Quando qualcuno segnala un annuncio, una domanda o una valutazione, compare qui e ricevi un avviso.</p>
+        </div>
+      ) : (
+        <ul class="reports">
+          {cards.map((c) => (
+            <li class="panel">
+              <div class="r-top">
+                <span class="badge plain">{c.kind}</span>
+                {c.hidden && <span class="badge bad">Già nascosto</span>}
+                <span class="muted small">
+                  {c.list.length === 1 ? '1 persona' : `${c.list.length} persone`} · {formatAge(c.list[0].created_at)}
+                </span>
+              </div>
+              <a class="title" href={`/annuncio/${c.listing?.id}`}>{c.listing?.title ?? 'Annuncio tolto'}</a>
+              <span class="muted small">di {c.listing?.seller?.display_name ?? 'Utente'}</span>
+              {c.question && (
+                <blockquote>
+                  «{c.question.body}»{c.question.answer && <span class="muted"> — {c.question.answer}</span>}
+                </blockquote>
+              )}
+              {c.rating && (
+                <blockquote>
+                  {'★'.repeat(c.rating.stars)} {c.rating.comment ? `«${c.rating.comment}»` : ''}
+                </blockquote>
+              )}
+              {!c.question && !c.rating && c.listing?.description && <blockquote>{c.listing.description.slice(0, 280)}</blockquote>}
+              <div class="chips">
+                {c.reasons.map(([reason, n]) => (
+                  <span class="chip">
+                    <span class="k">{n}×</span>
+                    {REPORT_REASONS[reason as ReportReason]}
+                  </span>
+                ))}
+              </div>
+              {c.list.some((r) => r.note) && (
+                <ul class="notes small">
+                  {c.list.filter((r) => r.note).slice(0, 5).map((r) => <li>«{r.note}»</li>)}
+                </ul>
+              )}
+              <form class="decide" method="POST" action={actions.moderation.decide}>
+                <input type="hidden" name="target" value={c.target} />
+                {c.kind === 'Annuncio' && (
+                  <label class="fld">
+                    <span class="label">Messaggio per chi vende, se lo nascondi</span>
+                    <input name="message" maxlength="300" placeholder="Non rispetta le regole di giro.shop" />
+                  </label>
+                )}
+                <div class="row">
+                  <button class="btn primary" type="submit" name="decision" value="nascondi">Nascondi</button>
+                  <button class="btn" type="submit" name="decision" value="respingi">{c.hidden ? 'Respingi e rimetti visibile' : 'Respingi'}</button>
+                </div>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .moderation { display: grid; gap: 24px; max-width: 860px; }
+  .moderation h1 { font-size: clamp(28px, 3.6vw, 40px); }
+  .reports { display: grid; gap: 16px; }
+  .reports > li { gap: 10px; justify-items: stretch; }
+  .r-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .title { font-weight: 500; font-size: 17px; text-underline-offset: 4px; overflow-wrap: anywhere; }
+  blockquote { margin: 0; padding: 10px 14px; border-left: 2px solid var(--line-strong); background: var(--surface-2); overflow-wrap: anywhere; font-size: 14.5px; }
+  .notes { display: grid; gap: 4px; color: var(--ink); }
+  .decide { display: grid; gap: 12px; }
+  .fld { display: grid; gap: 6px; }
+  .fld input { font: 400 15px/1.3 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 9px 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; }
+</style>

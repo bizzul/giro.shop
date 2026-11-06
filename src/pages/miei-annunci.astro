@@ -2,7 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import { actions } from 'astro:actions';
 import { photoUrl } from '../core/store.ts';
-import { formatAge, formatChf } from '../core/format.ts';
+import { formatAge, formatChf, formatDay } from '../core/format.ts';
 import { maskSwissMobile } from '../core/phone.ts';
 import '../styles/sell.css';
 
@@ -17,6 +17,7 @@ const nameResult = Astro.getActionResult(actions.account.updateName);
 const statusResult = Astro.getActionResult(actions.account.setListingStatus);
 const deleteResult = Astro.getActionResult(actions.account.deleteListing);
 const emailResult = Astro.getActionResult(actions.account.setEmailNotices);
+const renewResult = Astro.getActionResult(actions.account.renewListing);
 const phoneStart = Astro.getActionResult(actions.account.startPhoneVerification);
 const phoneConfirm = Astro.getActionResult(actions.account.confirmPhone);
 const phoneError = phoneStart?.error?.message ?? phoneConfirm?.error?.message;
@@ -26,8 +27,10 @@ const { data: authData } = await supabase.auth.getUser();
 const authUser = authData.user;
 const verifiedPhone = authUser?.phone && authUser.phone_confirmed_at ? `+${authUser.phone}` : null;
 const pendingPhone = phoneStart?.data?.phone ?? (authUser?.new_phone ? `+${authUser.new_phone}` : null);
-const error = [nameResult, statusResult, deleteResult, signOut, emailResult].find((r) => r?.error)?.error?.message;
-const notice = emailResult?.data
+const error = [nameResult, statusResult, deleteResult, signOut, emailResult, renewResult].find((r) => r?.error)?.error?.message;
+const notice = renewResult?.data
+  ? `Rinnovato: resta online fino ${formatDay(renewResult.data.expires, 'al')}.`
+  : emailResult?.data
   ? emailResult.data.on
     ? 'Email degli avvisi accese.'
     : 'Email degli avvisi spente: gli avvisi restano sotto la campanella.'
@@ -41,10 +44,10 @@ const notice = emailResult?.data
         ? 'Cellulare verificato: lo vedono anche gli acquirenti.'
         : null;
 
-const { data: profile } = await supabase.from('profiles').select('display_name, phone_verified_at, notify_email').eq('id', user.id).single();
+const { data: profile } = await supabase.from('profiles').select('display_name, phone_verified_at, notify_email, is_moderator').eq('id', user.id).single();
 const { data: rows } = await supabase
   .from('listings')
-  .select('id, title, price_chf, status, published_at, created_at, expires_at, sold_price_chf, photos:listing_photos(storage_path, position)')
+  .select('id, title, price_chf, status, published_at, created_at, expires_at, sold_price_chf, hidden_at, hidden_reason, photos:listing_photos(storage_path, position)')
   .eq('seller_id', user.id)
   .order('created_at', { ascending: false });
 
@@ -72,7 +75,10 @@ const STATUS_LABEL: Record<string, string> = {
   in_trattativa: 'In trattativa',
   venduto: 'Venduto',
   archiviato: 'Archiviato',
+  scaduto: 'Scaduto',
 };
+// Da quanti giorni manca la scadenza: sotto le due settimane compare "Rinnova"
+const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime() - Date.now()) / 864e5) : null);
 ---
 
 <Layout title="I miei annunci · giro.shop">
@@ -86,6 +92,7 @@ const STATUS_LABEL: Record<string, string> = {
       <div class="head-actions">
         <a class="btn primary" href="/vendi">Nuovo annuncio</a>
         <a class="btn" href="/salvati">Salvati</a>
+        {profile?.is_moderator && <a class="btn" href="/moderazione">Moderazione</a>}
         <form method="POST" action={actions.account.signOut}>
           <button class="btn" type="submit">Esci</button>
         </form>
@@ -185,7 +192,7 @@ const STATUS_LABEL: Record<string, string> = {
       ) : (
         <ul class="rows">
           {listings.map((l) => (
-            <li class="row-item">
+            <li class="row-item" id={`a-${l.id}`}>
               <a class="thumb" href={`/annuncio/${l.id}`} tabindex="-1" aria-hidden="true">
                 {l.cover && <img src={photoUrl(l.cover)} alt="" width="96" height="72" loading="lazy" decoding="async" />}
               </a>
@@ -196,13 +203,29 @@ const STATUS_LABEL: Record<string, string> = {
                   <span class="mono">{formatChf(Number(l.price_chf))}</span>
                   {l.status === 'venduto' && l.sold_price_chf != null && <span class="muted">venduto a {formatChf(Number(l.sold_price_chf))}</span>}
                   {l.published_at && <span class="muted">pubblicato {formatAge(l.published_at)}</span>}
-                  {l.status === 'pubblicato' && l.expires_at && (
-                    <span class="muted">scade il {new Date(l.expires_at).toLocaleDateString('it-CH', { day: 'numeric', month: 'long' })}</span>
+                  {(l.status === 'pubblicato' || l.status === 'in_trattativa') && l.expires_at && (
+                    <span class:list={[(daysLeft(l.expires_at) ?? 99) <= 3 ? 'soon' : 'muted']}>
+                      scade {formatDay(l.expires_at)}
+                    </span>
                   )}
+                  {l.hidden_at && <span class="badge bad">Nascosto: in verifica</span>}
                 </span>
               </div>
+              {l.hidden_at && (
+                <p class="hidden-note small">
+                  {l.hidden_reason === 'segnalazioni'
+                    ? 'Più persone hanno segnalato questo annuncio: non è visibile finché non lo controlliamo.'
+                    : `Nascosto da chi modera${l.hidden_reason && l.hidden_reason !== 'moderazione' ? `: ${l.hidden_reason}` : '.'}`}
+                </p>
+              )}
               <div class="row-actions">
                 <a class="btn" href={`/miei-annunci/${l.id}`}>Modifica</a>
+                {(l.status === 'scaduto' || ((l.status === 'pubblicato' || l.status === 'in_trattativa') && (daysLeft(l.expires_at) ?? 99) <= 14)) && (
+                  <form method="POST" action={actions.account.renewListing}>
+                    <input type="hidden" name="id" value={l.id} />
+                    <button class="btn primary" type="submit">Rinnova</button>
+                  </form>
+                )}
                 {l.status === 'pubblicato' || l.status === 'in_trattativa' ? (
                   <>
                     <form class="inline" method="POST" action={actions.account.setListingStatus}>
@@ -229,7 +252,7 @@ const STATUS_LABEL: Record<string, string> = {
                       <button class="btn" type="submit">Archivia</button>
                     </form>
                   </>
-                ) : (
+                ) : l.status === 'scaduto' ? null : (
                   <form method="POST" action={actions.account.setListingStatus}>
                     <input type="hidden" name="id" value={l.id} />
                     <input type="hidden" name="status" value="pubblicato" />
@@ -287,6 +310,8 @@ const STATUS_LABEL: Record<string, string> = {
   .row-actions .btn { padding: 10px 12px; }
   .inline { display: flex; gap: 6px; align-items: center; }
   .sold { width: 84px; font: 400 14px/1.2 var(--f-mono); padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); color: var(--ink); }
+  .soon { color: var(--bad); }
+  .hidden-note { grid-column: 1 / -1; background: var(--bad-soft); border-radius: 4px; padding: 8px 12px; color: var(--ink); }
   .buyer { max-width: 160px; font: 400 14px/1.2 var(--f-body); padding: 9px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); color: var(--ink); }
   .danger summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 10px 4px; }
   .danger form { display: grid; gap: 8px; padding-top: 8px; }

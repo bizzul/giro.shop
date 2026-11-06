@@ -4,7 +4,7 @@
  *
  * Crea venditore, acquirente e intruso, prova ciò che è permesso e ciò che è vietato
  * su annunci, foto, conversazioni, messaggi, offerte, cellulare, salvati, avvisi, domande,
- * voti, preferenze email e valutazioni, poi cancella tutto.
+ * voti, preferenze email, valutazioni, scadenza, segnalazioni e moderazione, poi cancella tutto.
  */
 import { execFileSync } from 'node:child_process';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -199,6 +199,44 @@ try {
   expect('una sola valutazione per vendita', Boolean((await buyer.client.from('ratings').insert({ listing_id: listingId, rater_id: buyer.id, rated_id: seller.id, stars: 1 })).error));
   expect('intruso non valuta', Boolean((await intruder.client.from('ratings').insert({ listing_id: listingId, rater_id: intruder.id, rated_id: seller.id, stars: 1 })).error));
   expect('niente etichette inventate nelle valutazioni', Boolean((await seller.client.from('ratings').insert({ listing_id: listingId, rater_id: seller.id, rated_id: buyer.id, stars: 4, tags: ['truffatore'] })).error));
+  // Scadenza: non si sposta oltre 90 giorni, e tornando in vendita riparte
+  const far = new Date(Date.now() + 400 * 864e5).toISOString();
+  await seller.client.from('listings').update({ expires_at: far }).eq('id', qListing);
+  const clamped = await seller.client.from('listings').select('expires_at').eq('id', qListing).single();
+  expect('la scadenza non va oltre 90 giorni', new Date(clamped.data!.expires_at).getTime() < Date.now() + 91 * 864e5, clamped.data?.expires_at);
+  await admin.from('listings').update({ status: 'scaduto', expires_at: new Date(Date.now() - 864e5).toISOString() }).eq('id', qListing);
+  expect('un annuncio scaduto non lo vede nessuno', denied(await anon.from('listings').select('id').eq('id', qListing)));
+  expect('chi vende vede il proprio annuncio scaduto', !denied(await seller.client.from('listings').select('id').eq('id', qListing)));
+  await seller.client.from('listings').update({ status: 'pubblicato' }).eq('id', qListing);
+  const renewed = await seller.client.from('listings').select('expires_at').eq('id', qListing).single();
+  expect('tornando in vendita la scadenza riparte da 90 giorni', new Date(renewed.data!.expires_at).getTime() > Date.now() + 89 * 864e5, renewed.data?.expires_at);
+
+  // Moderazione: nessuno si nomina da solo, chi vende non toglie il "nascosto"
+  expect('nessuno si nomina moderatore', Boolean((await intruder.client.from('profiles').update({ is_moderator: true }).eq('id', intruder.id)).error));
+  await admin.from('listings').update({ hidden_at: new Date().toISOString(), hidden_reason: 'prova' }).eq('id', qListing);
+  expect('un annuncio nascosto non lo vede nessuno', denied(await anon.from('listings').select('id').eq('id', qListing)));
+  await seller.client.from('listings').update({ hidden_at: null, title: `Prova domande ${tag} bis` }).eq('id', qListing);
+  const still = await admin.from('listings').select('hidden_at, title').eq('id', qListing).single();
+  expect('chi vende non toglie il "nascosto"', Boolean(still.data?.hidden_at) && still.data?.title.endsWith('bis') === true, JSON.stringify(still.data));
+  await admin.from('listings').update({ hidden_at: null, hidden_reason: null }).eq('id', qListing);
+
+  // Segnalazioni
+  const witness = await makeUser('testimone');
+  users.push(witness.id);
+  const report = (who: SupabaseClient, id: string, extra: Record<string, unknown> = {}) =>
+    who.from('reports').insert({ reporter_id: id, listing_id: qListing, reason: 'truffa', ...extra });
+  expect('anonimo non segnala', Boolean((await anon.from('reports').insert({ reporter_id: buyer.id, listing_id: qListing, reason: 'truffa' })).error));
+  expect('chi vende non segnala il proprio annuncio', Boolean((await report(seller.client, seller.id)).error));
+  expect('nessuno segnala a nome di altri', Boolean((await report(intruder.client, buyer.id)).error));
+  expect('chi compra segnala un annuncio', !(await report(buyer.client, buyer.id)).error);
+  expect('una segnalazione a testa per contenuto', Boolean((await report(buyer.client, buyer.id, { reason: 'spam' })).error));
+  expect('le segnalazioni degli altri non si vedono', (await intruder.client.from('reports').select('id').eq('reporter_id', buyer.id)).data?.length === 0);
+  expect('due segnalazioni non bastano a nascondere', !denied(await anon.from('listings').select('id').eq('id', qListing)) && !(await report(intruder.client, intruder.id)).error);
+  expect('alla terza persona l\'annuncio si nasconde', !(await report(witness.client, witness.id)).error && denied(await anon.from('listings').select('id').eq('id', qListing)));
+  await admin.from('listings').update({ hidden_at: null, hidden_reason: null }).eq('id', qListing);
+  expect('si segnala una domanda', !(await report(intruder.client, intruder.id, { question_id: q.data!.id, reason: 'offensivo' })).error);
+  expect('alla seconda persona la domanda si nasconde', !(await report(witness.client, witness.id, { question_id: q.data!.id, reason: 'offensivo' })).error && denied(await anon.from('questions').select('id').eq('id', q.data!.id)));
+
   const stats = await anon.rpc('seller_stats', { seller: seller.id });
   const st = (stats.data as Array<{ rating_count: number; sold: number }> | null)?.[0];
   expect('affidabilità di chi vende visibile a tutti', st?.rating_count === 1 && st?.sold === 1, JSON.stringify(stats.data ?? stats.error));

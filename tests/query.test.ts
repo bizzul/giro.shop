@@ -83,3 +83,13 @@ describe('chip che si possono togliere', () => {
     expect(without('sotto 150 franchi').Prezzo).toBe('');
   });
 });
+
+describe('formatDay', () => {
+  it("usa l'articolo giusto davanti a 8 e 11", async () => {
+    const { formatDay } = await import('../src/core/format.ts');
+    expect(formatDay('2026-11-08T12:00:00Z')).toBe("l'8 novembre");
+    expect(formatDay('2026-11-11T12:00:00Z', 'al')).toBe("all'11 novembre");
+    expect(formatDay('2026-11-09T12:00:00Z')).toBe('il 9 novembre');
+    expect(formatDay('2026-11-09T12:00:00Z', 'al')).toBe('al 9 novembre');
+  });
+});

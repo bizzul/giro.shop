@@ -218,6 +218,30 @@ export const account = {
     },
   }),
 
+  /** Rinnova un annuncio in scadenza o scaduto: altri 90 giorni da oggi. */
+  renewListing: defineAction({
+    accept: 'form',
+    input: z.object({ id: z.string().min(1) }),
+    handler: async ({ id }, context) => {
+      const { supabase, user } = requireUser(context);
+      const { data: current } = await supabase.from('listings').select('status').eq('id', id).eq('seller_id', user.id).maybeSingle();
+      if (!current) throw new ActionError({ code: 'NOT_FOUND', message: 'Annuncio non trovato tra i tuoi.' });
+      if (!['pubblicato', 'in_trattativa', 'scaduto'].includes(current.status)) {
+        throw new ActionError({ code: 'BAD_REQUEST', message: 'Si rinnovano solo gli annunci in vendita o scaduti.' });
+      }
+      const expires = new Date(Date.now() + 90 * 864e5).toISOString();
+      const { error } = await supabase
+        .from('listings')
+        .update({ status: current.status === 'scaduto' ? 'pubblicato' : current.status, expires_at: expires, expiry_notified_at: null })
+        .eq('id', id)
+        .eq('seller_id', user.id);
+      if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Annuncio non rinnovato: ${error.message}` });
+      await refreshListings(true);
+      await invalidateListingPages(context);
+      return { id, expires };
+    },
+  }),
+
   /** Elimina un proprio annuncio e le sue foto. */
   deleteListing: defineAction({
     accept: 'form',

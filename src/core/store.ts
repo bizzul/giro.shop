@@ -16,7 +16,7 @@ const MAX_AGE_MS = 10_000;
 /** Le colonne della copia in memoria: la usa anche `pnpm test:db` per controllare che la query funzioni. */
 export const LISTING_SELECT = `
   id, title, description, category_id, tags, attributes, price_chf, negotiable, condition, comune_id,
-  status, published_at, created_at, sold_price_chf, seller_id, buyer_id, shipping, shipping_chf, highlights,
+  status, published_at, created_at, expires_at, sold_price_chf, seller_id, buyer_id, shipping, shipping_chf, highlights,
   seller:profiles!listings_seller_id_fkey(display_name, phone_verified_at),
   photos:listing_photos(storage_path, position, credit, width, height),
   history:price_history(price_chf, changed_at),
@@ -64,6 +64,7 @@ interface Row {
   status: string;
   published_at: string | null;
   created_at: string;
+  expires_at?: string | null;
   sold_price_chf: number | string | null;
   seller_id: string | null;
   buyer_id?: string | null;
@@ -157,7 +158,12 @@ async function load(): Promise<void> {
     loadedAt = Date.now();
     return;
   }
-  snapshot = (data as unknown as Row[]).map(rowToListing);
+  // Un annuncio scaduto sparisce subito, anche prima che il server lo segni come "scaduto"
+  const now = Date.now();
+  const live = (data as unknown as Row[]).filter(
+    (r) => r.status === 'venduto' || !r.expires_at || new Date(r.expires_at).getTime() > now,
+  );
+  snapshot = live.map(rowToListing);
   loadedAt = Date.now();
 }
 

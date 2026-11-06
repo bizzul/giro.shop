@@ -17,6 +17,8 @@ export interface SellerStats {
 }
 
 export interface Rating {
+  id: string;
+  listingId: string;
   stars: number;
   tags: string[];
   comment: string | null;
@@ -32,7 +34,7 @@ export async function sellerProfile(sellerId: string): Promise<{ stats: SellerSt
     c.rpc('seller_stats', { seller: sellerId }),
     c
       .from('ratings')
-      .select('stars, tags, comment, created_at, rater:profiles!ratings_rater_id_fkey(display_name)')
+      .select('id, listing_id, stars, tags, comment, created_at, rater:profiles!ratings_rater_id_fkey(display_name)')
       .eq('rated_id', sellerId)
       .order('created_at', { ascending: false })
       .limit(50),
@@ -52,7 +54,9 @@ export async function sellerProfile(sellerId: string): Promise<{ stats: SellerSt
         ratingCount: Number(r.rating_count ?? 0),
       }
     : null;
-  const ratings: Rating[] = ((list ?? []) as unknown as Array<{ stars: number; tags: string[]; comment: string | null; created_at: string; rater: { display_name: string } | null }>).map((x) => ({
+  const ratings: Rating[] = ((list ?? []) as unknown as Array<{ id: string; listing_id: string; stars: number; tags: string[]; comment: string | null; created_at: string; rater: { display_name: string } | null }>).map((x) => ({
+    id: x.id,
+    listingId: x.listing_id,
     stars: x.stars,
     tags: x.tags ?? [],
     comment: x.comment,

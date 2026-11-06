@@ -3,7 +3,7 @@ import { adminClient } from './admin.ts';
 import { noticeMail, sendMail } from './mail.ts';
 import { unsubscribeUrl } from './unsubscribe.ts';
 
-export type NoticeKind = 'ricerca' | 'prezzo' | 'venduto' | 'domanda' | 'risposta' | 'valutazione';
+export type NoticeKind = 'ricerca' | 'prezzo' | 'venduto' | 'domanda' | 'risposta' | 'valutazione' | 'scadenza' | 'segnalazione';
 
 export interface Notice {
   userId: string;

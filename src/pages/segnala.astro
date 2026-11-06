@@ -1,0 +1,105 @@
+---
+/** Segnalare un annuncio, una domanda o una valutazione. Serve l'accesso: le segnalazioni anonime si abusano facilmente. */
+import Layout from '../layouts/Layout.astro';
+import { actions } from 'astro:actions';
+import { getListing } from '../core/store.ts';
+import { REPORT_REASONS } from '../actions/reports.ts';
+
+const params = Astro.url.searchParams;
+const listingId = params.get('annuncio') ?? '';
+const questionId = params.get('domanda') ?? '';
+const ratingId = params.get('valutazione') ?? '';
+const here = `/segnala?${new URLSearchParams(Object.entries({ annuncio: listingId, domanda: questionId, valutazione: ratingId }).filter(([, v]) => v)).toString()}`;
+
+const { user, supabase } = Astro.locals;
+if (!user || !supabase) return Astro.redirect(`/accedi?next=${encodeURIComponent(here)}`);
+
+const result = Astro.getActionResult(actions.reports.create);
+if (result?.data) return Astro.redirect(`${here}&fatto=1`, 303);
+const done = params.get('fatto') === '1';
+
+const listing = getListing(listingId);
+const question = questionId ? listing?.questions?.find((q) => q.id === questionId) : undefined;
+const { data: rating } = ratingId
+  ? await supabase.from('ratings').select('stars, comment').eq('id', ratingId).eq('listing_id', listingId).maybeSingle()
+  : { data: null };
+const found = Boolean(listing) && (!questionId || question) && (!ratingId || rating);
+const what = questionId ? 'questa domanda' : ratingId ? 'questa valutazione' : 'questo annuncio';
+const back = listing ? `/annuncio/${listing.id}${questionId ? '#domande' : ratingId ? '#valutazioni' : ''}` : '/cerca';
+---
+
+<Layout title="Segnala · giro.shop">
+  <section class="wrap band report-page">
+    {
+      !found ? (
+        <div class="panel">
+          <h1>Contenuto non trovato.</h1>
+          <p class="muted">Forse è già stato tolto.</p>
+          <a class="btn" href="/cerca">Cerca annunci</a>
+        </div>
+      ) : done ? (
+        <div class="panel">
+          <span class="label">Segnalazione inviata</span>
+          <h1>Grazie, la controlliamo.</h1>
+          <p class="muted">
+            Se più persone segnalano lo stesso contenuto, lo nascondiamo subito in attesa di verifica. Ti avvisiamo quando abbiamo deciso.
+          </p>
+          <a class="btn" href={back}>Torna all'annuncio</a>
+        </div>
+      ) : (
+        <form class="panel" method="POST" action={`${here}${actions.reports.create.toString().replace('?', '&')}`}>
+          <span class="label">Segnala {what}</span>
+          <h1>{listing!.title}</h1>
+          {question && <blockquote>«{question.body}»{question.answer && <span class="muted"> — {question.answer}</span>}</blockquote>}
+          {rating && (
+            <blockquote>
+              {'★'.repeat(rating.stars)} {rating.comment ? `«${rating.comment}»` : ''}
+            </blockquote>
+          )}
+
+          {result?.error && <p class="error" role="alert">{result.error.message}</p>}
+
+          <input type="hidden" name="listingId" value={listingId} />
+          <input type="hidden" name="questionId" value={questionId} />
+          <input type="hidden" name="ratingId" value={ratingId} />
+
+          <fieldset>
+            <legend>Perché?</legend>
+            {Object.entries(REPORT_REASONS)
+              .filter(([k]) => !(questionId || ratingId) || !['vietato', 'falso'].includes(k))
+              .map(([value, label]) => (
+                <label class="reason">
+                  <input type="radio" name="reason" value={value} required />
+                  <span>{label}</span>
+                </label>
+              ))}
+          </fieldset>
+
+          <label class="fld">
+            <span class="label">Cosa hai notato? <span class="muted">(facoltativo, lo legge solo chi modera)</span></span>
+            <textarea name="note" rows="3" maxlength="500" placeholder="Per esempio: chiede di pagare in anticipo con un link"></textarea>
+          </label>
+
+          <div class="row">
+            <button class="btn primary" type="submit">Invia la segnalazione</button>
+            <a class="btn" href={back}>Annulla</a>
+          </div>
+          <p class="small">Se pensi di essere vittima di una truffa, rivolgiti anche alla Polizia cantonale.</p>
+        </form>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .report-page { max-width: 640px; }
+  .report-page h1 { font-size: clamp(24px, 3vw, 32px); overflow-wrap: anywhere; }
+  blockquote { margin: 0; padding: 10px 14px; border-left: 2px solid var(--line-strong); background: var(--surface-2); color: var(--ink); overflow-wrap: anywhere; }
+  fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
+  legend { font-weight: 500; margin-bottom: 8px; }
+  .reason { display: flex; align-items: center; gap: 10px; font-size: 15px; cursor: pointer; }
+  .reason input { width: 18px; height: 18px; accent-color: var(--action); }
+  .fld { display: grid; gap: 8px; width: 100%; }
+  .fld textarea { width: 100%; font: 400 15px/1.5 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 10px 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; }
+</style>
