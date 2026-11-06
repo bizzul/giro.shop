@@ -12,7 +12,7 @@ interface Props {
 const { value = '', autofocus = false, target, mode = 'cerca', suggestions } = Astro.props;
 ---
 
-<form class="search" action="/cerca" method="get" role="search" data-live={target ? '' : undefined} data-target={target} data-mode={mode}>
+<form class="search dock" action="/cerca" method="get" role="search" data-live={target ? '' : undefined} data-target={target} data-mode={mode}>
   <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5"></circle><path d="M11 11l3.5 3.5"></path></svg>
   <label class="sr" for="q">Cosa cerchi</label>
   <input
@@ -160,5 +160,23 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions } = A
     });
     document.addEventListener('visibilitychange', () => (document.hidden ? clearTimeout(timer) : start()));
     still.addEventListener('change', start);
+  }
+
+  // Telefono: la barra in basso segue la tastiera. La tastiera rimpicciolisce la parte visibile
+  // della pagina (visualViewport) ma non quella su cui sono fissati gli elementi: la differenza
+  // è quanto la barra deve salire per restarle sopra.
+  const vv = window.visualViewport;
+  if (vv && document.querySelector('.search.dock')) {
+    const root = document.documentElement;
+    const sync = () => {
+      const covered = root.clientHeight - vv.height - vv.offsetTop;
+      // Pochi pixel sono solo la barra del browser che compare o sparisce, non la tastiera
+      const open = covered > 80;
+      root.style.setProperty('--kb', open ? `${Math.round(covered)}px` : '0px');
+      root.classList.toggle('kb-open', open);
+    };
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    sync();
   }
 </script>
