@@ -21,6 +21,8 @@
     "@astrojs/node": "^11.1.11",
     "@astrojs/preact": "^6.1.2",
     "@modelcontextprotocol/server": "^2.4.0",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.119.0",
     "astro": "^7.4.7",
     "preact": "^11.2.0",
     "zod": "^4.6.7"

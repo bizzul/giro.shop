@@ -6,6 +6,8 @@ import { getCategory } from '../core/categories.ts';
 
 interface Props {
   comuni: string[];
+  /** Chi ha fatto l'accesso può pubblicare; gli altri vengono portati all'accesso. */
+  signedIn?: boolean;
 }
 
 const MAX_PHOTOS = 5;
@@ -37,7 +39,7 @@ interface Photo {
   url: string;
 }
 
-export default function SellForm({ comuni }: Props) {
+export default function SellForm({ comuni, signedIn = false }: Props) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [notes, setNotes] = useState('');
   const [comune, setComune] = useState('');
@@ -47,6 +49,7 @@ export default function SellForm({ comuni }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
+  const [publishing, setPublishing] = useState(false);
 
   useEffect(() => () => photos.forEach((p) => URL.revokeObjectURL(p.url)), []);
 
@@ -89,6 +92,37 @@ export default function SellForm({ comuni }: Props) {
     setDescription(data.description);
     setPrice(data.price ? String(data.price.mid) : '');
     setStatus('done');
+  }
+
+  /** Pubblica la bozza così come l'hai modificata, con le foto già ridotte. */
+  async function publish() {
+    if (!draft) return;
+    const pickup = draft.comune?.name ?? comune;
+    if (!title.trim()) return setError('Scrivi un titolo.');
+    if (price === '') return setError('Indica un prezzo (0 se lo regali).');
+    if (!pickup) return setError('Scegli il comune di ritiro.');
+    setError(null);
+    setPublishing(true);
+    const form = new FormData();
+    form.append('title', title.trim());
+    form.append('description', description.trim());
+    form.append('category', draft.category);
+    form.append('condition', draft.condition);
+    form.append('price', price);
+    form.append('comune', pickup);
+    form.append('tags', JSON.stringify(draft.tags));
+    form.append('attributes', JSON.stringify(draft.attributes));
+    form.append('aiSource', draft.source);
+    if (draft.model) form.append('aiModel', draft.model);
+    form.append('aiConfidence', String(draft.confidence));
+    photos.forEach((p) => form.append('photos', p.file));
+    const { data, error: actionError } = await actions.account.publishListing(form);
+    if (actionError || !data) {
+      setPublishing(false);
+      setError(actionError?.message ?? 'Pubblicazione non riuscita. Riprova.');
+      return;
+    }
+    location.href = `/annuncio/${data.id}`;
   }
 
   function restart() {
@@ -193,13 +227,28 @@ export default function SellForm({ comuni }: Props) {
               </small>
             </div>
           ) : (
-            <p class="muted">Non ci sono ancora annunci simili per stimare un prezzo.</p>
+            <>
+              <p class="muted">Non ci sono ancora annunci simili per stimare un prezzo.</p>
+              <label class="pb-input">
+                <span>CHF</span>
+                <input id="draft-price" inputMode="numeric" value={price} onInput={(e) => setPrice((e.target as HTMLInputElement).value.replace(/[^\d]/g, ''))} />
+              </label>
+            </>
           )}
         </div>
 
         <div class="fld">
           <span class="label">Ritiro</span>
-          <p>{draft.comune ? `${draft.comune.cap} ${draft.comune.name}` : 'Da indicare'}</p>
+          {draft.comune ? (
+            <p>{`${draft.comune.cap} ${draft.comune.name}`}</p>
+          ) : (
+            <select id="draft-comune" value={comune} onChange={(e) => setComune((e.target as HTMLSelectElement).value)}>
+              <option value="">Scegli il comune</option>
+              {comuni.map((c) => (
+                <option value={c}>{c}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {draft.questions.length > 0 && (
@@ -213,15 +262,31 @@ export default function SellForm({ comuni }: Props) {
           </div>
         )}
 
+        {error && (
+          <p class="error" role="alert">
+            {error}
+          </p>
+        )}
+
         <div class="actions">
-          <button class="btn primary" type="button" disabled title="La pubblicazione arriva nella Fase 1">
-            Pubblica annuncio
-          </button>
-          <button class="btn" type="button" onClick={restart}>
+          {signedIn ? (
+            <button class="btn primary" type="button" onClick={publish} disabled={publishing}>
+              {publishing ? 'Pubblico…' : 'Pubblica annuncio'}
+            </button>
+          ) : (
+            <a class="btn primary" href="/accedi?next=/vendi">
+              Accedi per pubblicare
+            </a>
+          )}
+          <button class="btn" type="button" onClick={restart} disabled={publishing}>
             Ricomincia
           </button>
         </div>
-        <p class="muted small">Pubblicazione, messaggi e offerte arrivano nella Fase 1. Questa bozza resta solo nel prototipo.</p>
+        <p class="muted small">
+          {signedIn
+            ? "Dopo la pubblicazione l'annuncio resta online 90 giorni. Lo gestisci da I miei annunci."
+            : 'Per pubblicare serve un account: entri con un link via email, senza password.'}
+        </p>
       </div>
     );
   }

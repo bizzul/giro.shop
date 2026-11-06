@@ -4,9 +4,11 @@ import { createDraft, DraftError, IMAGE_TYPES, MAX_PHOTOS, MAX_PHOTO_BYTES } fro
 import type { DraftImage, ImageMediaType } from '../core/draft.ts';
 import { estimatePrice } from '../core/price.ts';
 import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
+import { account } from './account.ts';
 
 /** Le stesse funzioni del nucleo usate dal server MCP, esposte al sito come Astro Actions. */
 export const server = {
+  account,
   createDraft: defineAction({
     accept: 'form',
     input: z.object({

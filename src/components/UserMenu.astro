@@ -1,0 +1,14 @@
+---
+/**
+ * Link all'account nell'intestazione. Si usa come server island (server:defer):
+ * le pagine restano uguali per tutti e possono stare in cache, questo pezzo si carica a parte.
+ */
+const user = Astro.locals.user;
+let name: string | null = null;
+if (user && Astro.locals.supabase) {
+  const { data } = await Astro.locals.supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+  name = data?.display_name ?? null;
+}
+---
+
+{user ? <a href="/miei-annunci">{name ?? 'Il mio account'}</a> : <a href="/accedi">Accedi</a>}

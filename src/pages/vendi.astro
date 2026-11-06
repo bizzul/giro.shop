@@ -4,6 +4,7 @@ import SellForm from '../components/SellForm.tsx';
 import '../styles/sell.css';
 import { COMUNI } from '../core/comuni.ts';
 
+const signedIn = Boolean(Astro.locals.user);
 const comuni = COMUNI.map((c) => c.name).sort((a, b) => a.localeCompare(b, 'it'));
 ---
 
@@ -16,8 +17,13 @@ const comuni = COMUNI.map((c) => c.name).sort((a, b) => a.localeCompare(b, 'it')
         Carica da 1 a 5 foto e, se vuoi, due righe. L'assistente riconosce l'oggetto, scrive titolo e descrizione e propone
         una fascia di prezzo dagli annunci simili. I campi con l'anello blu li ha scritti lui: controlla prima di pubblicare.
       </p>
+      {!signedIn && (
+        <p class="small">
+          Puoi preparare la bozza subito; per pubblicarla <a href="/accedi?next=/vendi">accedi con la tua email</a>.
+        </p>
+      )}
     </div>
-    <SellForm client:load comuni={comuni} />
+    <SellForm client:load comuni={comuni} signedIn={signedIn} />
   </section>
 </Layout>
 

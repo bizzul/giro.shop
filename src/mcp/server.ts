@@ -6,7 +6,7 @@ import { parseQuery } from '../core/query.ts';
 import { searchWithFilters } from '../core/search.ts';
 import { estimatePrice } from '../core/price.ts';
 import { createDraft, DraftError } from '../core/draft.ts';
-import { getListing, getPhoto } from '../core/store.ts';
+import { getListing, getPhoto, refreshListings } from '../core/store.ts';
 import { getComune, resolveComune } from '../core/comuni.ts';
 import { getCategory } from '../core/categories.ts';
 import { CONDITION_LABEL, VERDICT_LABEL } from '../core/format.ts';
@@ -66,7 +66,8 @@ function hitToJson(hit: SearchHit, baseUrl: string) {
 
 function photoUrl(id: string, baseUrl: string): string | null {
   const photo = getPhoto(id);
-  return photo ? `${baseUrl}${photo.src}` : null;
+  if (!photo) return null;
+  return photo.src.startsWith('http') ? photo.src : `${baseUrl}${photo.src}`;
 }
 
 export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
@@ -91,6 +92,7 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async (args) => {
+      await refreshListings();
       const { filters, chips } = parseQuery(args.query);
       const merged: SearchFilters = { ...filters };
       if (args.max_price_chf != null) merged.maxPrice = args.max_price_chf;
@@ -123,6 +125,7 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async ({ id }) => {
+      await refreshListings();
       const l = getListing(id);
       if (!l || l.status !== 'pubblicato') return errorResult(`Nessun annuncio pubblicato con id "${id}".`);
       const comune = getComune(l.comuneId);
@@ -150,8 +153,8 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
         photo: getPhoto(l.id)
           ? {
               url: photoUrl(l.id, baseUrl),
-              credit: getPhoto(l.id)!.credit,
-              note: 'Foto di esempio del prototipo, non dell\'oggetto reale.',
+              credit: getPhoto(l.id)!.credit ?? null,
+              note: getPhoto(l.id)!.credit ? 'Foto di esempio del prototipo, non dell\'oggetto reale.' : 'Foto caricata da chi vende.',
             }
           : null,
         note: UNTRUSTED_NOTE,
@@ -173,6 +176,7 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async ({ item, category, condition }) => {
+      await refreshListings();
       const est = estimatePrice({ text: item, category, condition });
       if (!est) {
         return errorResult('Non ci sono abbastanza annunci simili per stimare un prezzo. Aggiungi categoria o una descrizione più comune.');
@@ -202,6 +206,7 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async ({ description, photo_urls, pickup_comune }) => {
+      await refreshListings();
       try {
         const draft = await createDraft({
           notes: description,

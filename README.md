@@ -4,17 +4,32 @@ Prototipo di un mercatino dell'usato per il Canton Ticino, costruito attorno all
 l'annuncio nasce da una foto, la ricerca capisce le frasi e un server MCP permette di
 cercare, stimare prezzi e preparare bozze dal proprio assistente AI.
 
-Corrisponde ai "primi 10 giorni" del piano di attacco: Astro 7, nucleo di dominio,
-server MCP con 4 strumenti, bozza da foto con Claude e schema Supabase pronto.
-Gli annunci sono **dati di prova in memoria** (48 annunci inventati).
+Stato: Astro 7, nucleo di dominio, server MCP con 4 strumenti, bozza da foto con Claude e,
+dalla Fase 1, **Supabase con account, pubblicazione e foto**. Senza Supabase il sito gira
+lo stesso sui 48 annunci di prova in memoria.
 
 ## Avvio
 
 ```bash
 pnpm install
-cp .env.example .env      # facoltativo: ANTHROPIC_API_KEY per leggere le foto
+cp .env.example .env      # poi compila le chiavi (vedi sotto)
+supabase start            # Supabase in locale: serve Docker (OrbStack) acceso
 pnpm dev                  # http://localhost:4321
 ```
+
+### Supabase in locale
+
+`supabase start` crea il database, applica le migrazioni in `supabase/migrations` e carica
+`supabase/seed.sql` (48 annunci, 19 venditori di prova senza password, 43 foto con crediti).
+Copia in `.env` i valori di `supabase status`: `API_URL` → `PUBLIC_SUPABASE_URL`,
+`PUBLISHABLE_KEY` → `PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+
+- Studio (tabelle, utenti, storage): http://127.0.0.1:54323
+- Mailpit, dove arrivano le email di accesso in sviluppo: http://127.0.0.1:54324
+- Ripartire da zero con i dati di prova: `supabase db reset`
+
+L'accesso è con link via email (PKCE, nessuna password). Il link va aperto nello stesso browser
+da cui è stato chiesto.
 
 | Comando | Cosa fa |
 | --- | --- |
@@ -24,6 +39,7 @@ pnpm dev                  # http://localhost:4321
 | `pnpm mcp:smoke` | Prova il server MCP via HTTP (con `pnpm dev` acceso) |
 | `pnpm mcp:stdio` | Server MCP via stdio, per Claude Desktop |
 | `pnpm db:seed-sql` | Rigenera `supabase/seed.sql` dai dati di prova |
+| `supabase db reset` | Ricrea il database locale da migrazioni e seed |
 | `node scripts/fetch-photos.ts search \| sheet \| build` | Cerca, rivede e genera le foto di esempio |
 
 ## Foto
@@ -39,12 +55,26 @@ poi si aggiorna `PICKS` nello script e si rilancia `build`.
 
 ## Pagine
 
-- `/` ricerca e ultimi annunci
+- `/` ricerca dal vivo e ultimi annunci
 - `/cerca?q=…` ricerca in linguaggio naturale: la frase diventa filtri visibili (chip)
-- `/annuncio/[id]` scheda con stima di prezzo dagli annunci simili
-- `/vendi` "Scatta e vendi": foto e due righe → bozza con prezzo suggerito
+- `/annuncio/[id]` scheda con foto, stima di prezzo e stato (anche "venduto")
+- `/vendi` "Scatta e vendi": foto e due righe → bozza → pubblicazione (serve l'accesso)
+- `/accedi` accesso o registrazione con link via email; `/auth/callback` ritorno dal link
+- `/miei-annunci` annunci propri: venduto (con prezzo), archivia, rimetti in vendita, elimina; nome visibile; esci
 - `/connetti` come collegare un assistente AI
 - `/mcp` endpoint MCP (Streamable HTTP, senza sessione)
+
+## Dati, accesso e sicurezza
+
+- Il server tiene in memoria una copia degli annunci pubblicati e venduti, aggiornata al massimo
+  ogni 10 secondi e subito dopo ogni modifica: ricerca, stime e MCP restano veloci e sincroni.
+- Home, ricerca e schede sono uguali per tutti e restano in cache; la sessione non viene letta lì.
+  Il link all'account nell'intestazione è una server island (`server:defer`) caricata a parte.
+- Le pagine private usano un client Supabase con la sessione dell'utente: sono le regole RLS
+  del database a decidere cosa si può leggere e modificare. Le foto vanno nel bucket `foto`,
+  ognuno solo nella propria cartella (`foto/<utente>/<annuncio>/n.jpg`).
+- Verificato con un secondo utente: non può modificare, prendersi o cancellare annunci altrui,
+  né caricare foto nella loro cartella o pubblicare a loro nome.
 
 ## Struttura
 
@@ -90,8 +120,9 @@ la bozza si crea dal testo con regole semplici e la pagina lo dice.
 
 ## Cosa manca (Fase 1 e oltre)
 
-- Annunci su Supabase al posto dei dati in memoria (schema già in `supabase/migrations`)
-- Account, foto salvate, pubblicazione, messaggi e offerte
+- Progetto Supabase online (per ora solo in locale) e messa online del sito
+- Messaggi e offerte tra chi compra e chi vende
+- Verifica del natel; modifica di un annuncio già pubblicato
 - Ricerca per significato con embedding (colonna `embedding` già prevista)
 - Avvisi, OAuth 2.1 sul server MCP, `publish_listing` con conferma
 - Elenco ufficiale dei comuni con coordinate swisstopo (ora sono approssimative)

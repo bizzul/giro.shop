@@ -1,0 +1,178 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { actions } from 'astro:actions';
+import { photoUrl } from '../core/store.ts';
+import { formatAge, formatChf } from '../core/format.ts';
+import '../styles/sell.css';
+
+const user = Astro.locals.user;
+const supabase = Astro.locals.supabase;
+if (!user || !supabase) return Astro.redirect('/accedi?next=/miei-annunci');
+
+const signOut = Astro.getActionResult(actions.account.signOut);
+if (signOut && !signOut.error) return Astro.redirect('/');
+
+const nameResult = Astro.getActionResult(actions.account.updateName);
+const statusResult = Astro.getActionResult(actions.account.setListingStatus);
+const deleteResult = Astro.getActionResult(actions.account.deleteListing);
+const error = [nameResult, statusResult, deleteResult, signOut].find((r) => r?.error)?.error?.message;
+const notice = nameResult?.data
+  ? 'Nome salvato.'
+  : statusResult?.data
+    ? { venduto: 'Segnato come venduto.', pubblicato: 'Di nuovo in vendita.', archiviato: 'Annuncio archiviato.' }[statusResult.data.status]
+    : deleteResult?.data
+      ? 'Annuncio eliminato.'
+      : null;
+
+const { data: profile } = await supabase.from('profiles').select('display_name, phone_verified_at').eq('id', user.id).single();
+const { data: rows } = await supabase
+  .from('listings')
+  .select('id, title, price_chf, status, published_at, created_at, expires_at, sold_price_chf, photos:listing_photos(storage_path, position)')
+  .eq('seller_id', user.id)
+  .order('created_at', { ascending: false });
+
+const listings = (rows ?? []).map((r) => ({
+  ...r,
+  cover: [...(r.photos ?? [])].sort((a, b) => a.position - b.position)[0]?.storage_path,
+}));
+
+const STATUS_LABEL: Record<string, string> = {
+  bozza: 'Bozza',
+  pubblicato: 'In vendita',
+  in_trattativa: 'In trattativa',
+  venduto: 'Venduto',
+  archiviato: 'Archiviato',
+};
+---
+
+<Layout title="I miei annunci · Piazza">
+  <section class="wrap band mine">
+    <header class="mine-head">
+      <div>
+        <span class="label">Il tuo account</span>
+        <h1>{profile?.display_name ?? 'I miei annunci'}</h1>
+        <p class="muted small">{user.email}</p>
+      </div>
+      <div class="head-actions">
+        <a class="btn primary" href="/vendi">Nuovo annuncio</a>
+        <form method="POST" action={actions.account.signOut}>
+          <button class="btn" type="submit">Esci</button>
+        </form>
+      </div>
+    </header>
+
+    {notice && <p class="notice" role="status">{notice}</p>}
+    {error && <p class="error" role="alert">{error}</p>}
+
+    <details class="panel name-panel">
+      <summary>Cambia il nome visibile agli altri</summary>
+      <form class="name-form" method="POST" action={actions.account.updateName}>
+        <label class="fld">
+          <span class="label">Nome</span>
+          <input id="displayName" name="displayName" value={profile?.display_name ?? ''} minlength="2" maxlength="40" required />
+        </label>
+        <button class="btn" type="submit">Salva</button>
+      </form>
+    </details>
+
+    <div class="section-h">
+      <h2>I miei annunci</h2>
+      <span class="muted small">{listings.length === 1 ? '1 annuncio' : `${listings.length} annunci`}</span>
+    </div>
+
+    {
+      listings.length === 0 ? (
+        <div class="panel">
+          <h3>Non hai ancora annunci.</h3>
+          <p class="muted">Con "Scatta e vendi" bastano tre foto: l'assistente scrive l'annuncio e propone il prezzo.</p>
+          <a class="btn primary" href="/vendi">Prepara il primo annuncio</a>
+        </div>
+      ) : (
+        <ul class="rows">
+          {listings.map((l) => (
+            <li class="row-item">
+              <a class="thumb" href={`/annuncio/${l.id}`} tabindex="-1" aria-hidden="true">
+                {l.cover && <img src={photoUrl(l.cover)} alt="" width="96" height="72" loading="lazy" decoding="async" />}
+              </a>
+              <div class="info">
+                <a class="title" href={`/annuncio/${l.id}`}>{l.title}</a>
+                <span class="meta">
+                  <span class={`badge ${l.status === 'pubblicato' ? 'ok' : 'plain'}`}>{STATUS_LABEL[l.status] ?? l.status}</span>
+                  <span class="mono">{formatChf(Number(l.price_chf))}</span>
+                  {l.status === 'venduto' && l.sold_price_chf != null && <span class="muted">venduto a {formatChf(Number(l.sold_price_chf))}</span>}
+                  {l.published_at && <span class="muted">pubblicato {formatAge(l.published_at)}</span>}
+                  {l.status === 'pubblicato' && l.expires_at && (
+                    <span class="muted">scade il {new Date(l.expires_at).toLocaleDateString('it-CH', { day: 'numeric', month: 'long' })}</span>
+                  )}
+                </span>
+              </div>
+              <div class="row-actions">
+                {l.status === 'pubblicato' ? (
+                  <>
+                    <form class="inline" method="POST" action={actions.account.setListingStatus}>
+                      <input type="hidden" name="id" value={l.id} />
+                      <input type="hidden" name="status" value="venduto" />
+                      <label class="sr" for={`sold-${l.id}`}>Prezzo di vendita in CHF</label>
+                      <input id={`sold-${l.id}`} class="sold" name="soldPrice" inputmode="numeric" placeholder={String(Number(l.price_chf))} />
+                      <button class="btn" type="submit">Venduto</button>
+                    </form>
+                    <form method="POST" action={actions.account.setListingStatus}>
+                      <input type="hidden" name="id" value={l.id} />
+                      <input type="hidden" name="status" value="archiviato" />
+                      <button class="btn" type="submit">Archivia</button>
+                    </form>
+                  </>
+                ) : (
+                  <form method="POST" action={actions.account.setListingStatus}>
+                    <input type="hidden" name="id" value={l.id} />
+                    <input type="hidden" name="status" value="pubblicato" />
+                    <button class="btn" type="submit">Rimetti in vendita</button>
+                  </form>
+                )}
+                <details class="danger">
+                  <summary>Elimina</summary>
+                  <form method="POST" action={actions.account.deleteListing}>
+                    <input type="hidden" name="id" value={l.id} />
+                    <p class="small">L'annuncio e le sue foto spariscono per sempre.</p>
+                    <button class="btn" type="submit">Sì, elimina</button>
+                  </form>
+                </details>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .mine { display: grid; gap: 24px; max-width: 960px; }
+  .mine-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+  .mine-head h1 { font-size: clamp(28px, 3.6vw, 40px); }
+  .head-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+  .notice { background: var(--surface); border-radius: 4px; padding: 10px 12px; font-size: 14px; }
+  .name-panel { padding: 16px 20px; }
+  .name-panel summary { cursor: pointer; font-size: 14px; }
+  .name-form { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-top: 12px; }
+  .name-form .fld { flex: 1; min-width: 200px; }
+  .rows { display: grid; border-top: 1px solid var(--line); }
+  .row-item { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding-block: 16px; border-bottom: 1px solid var(--line); }
+  .thumb { width: 96px; aspect-ratio: 4 / 3; border-radius: 4px; overflow: hidden; background: var(--surface); display: block; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .info { display: grid; gap: 6px; min-width: 0; }
+  .title { font-weight: 500; text-decoration: none; overflow-wrap: anywhere; }
+  .title:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 13px; }
+  .row-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: end; align-items: center; }
+  .row-actions .btn { padding: 10px 12px; }
+  .inline { display: flex; gap: 6px; align-items: center; }
+  .sold { width: 84px; font: 400 14px/1.2 var(--f-mono); padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); color: var(--ink); }
+  .danger summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 10px 4px; }
+  .danger form { display: grid; gap: 8px; padding-top: 8px; }
+  @media (max-width: 720px) {
+    .row-item { grid-template-columns: 72px minmax(0, 1fr); }
+    .thumb { width: 72px; }
+    .row-actions { grid-column: 1 / -1; justify-content: start; }
+  }
+</style>

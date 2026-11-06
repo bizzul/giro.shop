@@ -1,0 +1,60 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { actions, isInputError } from 'astro:actions';
+import { safeNext } from '../actions/account.ts';
+import { supabaseConfigured } from '../lib/supabase.ts';
+import '../styles/sell.css';
+
+const next = safeNext(Astro.url.searchParams.get('next'));
+if (Astro.locals.user) return Astro.redirect(next);
+
+const result = Astro.getActionResult(actions.account.sendMagicLink);
+const emailError = result?.error && isInputError(result.error) ? result.error.fields.email?.[0] : undefined;
+const linkFailed = Astro.url.searchParams.has('errore');
+---
+
+<Layout title="Accedi · Piazza" description="Entra in Piazza con un link via email, senza password.">
+  <section class="wrap band auth">
+    {
+      result?.data ? (
+        <div class="panel">
+          <span class="label">Controlla la posta</span>
+          <h1>Ti abbiamo mandato un link.</h1>
+          <p class="muted">
+            Apri l'email inviata a <b>{result.data.email}</b> e tocca il link per entrare. Vale un'ora; aprilo nello stesso browser
+            da cui l'hai chiesto.
+          </p>
+          {import.meta.env.DEV && (
+            <p class="small">
+              In sviluppo le email non partono davvero: le trovi in Mailpit, su{' '}
+              <a href="http://127.0.0.1:54324" target="_blank" rel="noopener">127.0.0.1:54324</a>.
+            </p>
+          )}
+        </div>
+      ) : (
+        <form class="panel sellform" method="POST" action={actions.account.sendMagicLink}>
+          <span class="label">Accedi o crea un account</span>
+          <h1>Entra con la tua email.</h1>
+          <p class="muted">Niente password: ti mandiamo un link. Se è la prima volta, l'account si crea da solo.</p>
+          {linkFailed && <p class="error">Il link non è valido o è scaduto. Chiedine uno nuovo.</p>}
+          {result?.error && !emailError && <p class="error">{result.error.message}</p>}
+          {!supabaseConfigured() && <p class="error">Supabase non è configurato: manca PUBLIC_SUPABASE_URL nel file .env.</p>}
+          <label class="fld">
+            <span class="label">Email</span>
+            <input id="email" name="email" type="email" autocomplete="email" inputmode="email" required placeholder="nome@esempio.ch" />
+            {emailError && <small class="error-text">{emailError}</small>}
+          </label>
+          <input type="hidden" name="next" value={next} />
+          <button class="btn primary" type="submit" disabled={!supabaseConfigured()}>Mandami il link</button>
+        </form>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .auth { max-width: 560px; }
+  .auth h1 { font-size: clamp(28px, 3.6vw, 40px); }
+  .auth .fld { width: 100%; }
+  .error-text { color: var(--bad); }
+</style>

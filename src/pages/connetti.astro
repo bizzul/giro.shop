@@ -11,7 +11,12 @@ const desktopConfig = JSON.stringify(
       piazza: {
         command: 'node',
         args: [`${projectDir}/src/mcp/stdio.ts`],
-        env: { PIAZZA_BASE_URL: new URL('/', Astro.url).origin, ANTHROPIC_API_KEY: '<la tua chiave, facoltativa>' },
+        env: {
+          PIAZZA_BASE_URL: new URL('/', Astro.url).origin,
+          PUBLIC_SUPABASE_URL: import.meta.env.PUBLIC_SUPABASE_URL ?? '<url di Supabase>',
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY: import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '<chiave pubblica di Supabase>',
+          ANTHROPIC_API_KEY: '<la tua chiave, facoltativa>',
+        },
       },
     },
   },

@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import UserMenu from '../components/UserMenu.astro';
 
 interface Props {
   title: string;
@@ -53,6 +54,9 @@ const nav = [
               </a>
             ))
           }
+          <UserMenu server:defer>
+            <span slot="fallback" class="nav-ghost" aria-hidden="true">Accedi</span>
+          </UserMenu>
           <a class="btn primary" href="/vendi" aria-current={path.startsWith('/vendi') ? 'page' : undefined}>Vendi</a>
         </nav>
       </div>

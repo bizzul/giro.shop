@@ -62,6 +62,9 @@ export interface Listing {
   status: ListingStatus;
   soldPriceChf?: number;
   seller: { name: string; verified: boolean };
+  /** Id dell'account di chi vende (solo con Supabase). */
+  sellerId?: string;
+  photos?: Photo[];
 }
 
 /** Foto di un annuncio, in due misure, con i crediti richiesti dalla licenza. */
@@ -70,14 +73,17 @@ export interface Photo {
   srcSmall: string;
   width: number;
   height: number;
-  credit: {
-    author: string | null;
-    authorUrl: string | null;
-    license: string;
-    licenseUrl: string | null;
-    source: string;
-    sourceUrl: string;
-  };
+  /** Solo per le foto di esempio con licenza CC: le foto degli utenti non ne hanno. */
+  credit?: PhotoCredit | null;
+}
+
+export interface PhotoCredit {
+  author: string | null;
+  authorUrl: string | null;
+  license: string;
+  licenseUrl: string | null;
+  source: string;
+  sourceUrl: string;
 }
 
 /** Un gruppo di parole equivalenti: basta che l'annuncio ne contenga una. */

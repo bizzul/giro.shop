@@ -36,7 +36,8 @@ create table public.profiles (
 );
 
 create table public.listings (
-  id uuid primary key default gen_random_uuid(),
+  -- Testo: gli annunci di prova tengono id leggibili (l-001), i nuovi ricevono un UUID
+  id text primary key default gen_random_uuid()::text,
   seller_id uuid references public.profiles (id) on delete cascade,
   status public.listing_status not null default 'bozza',
   title text not null check (char_length(title) between 3 and 80),
@@ -66,7 +67,7 @@ create table public.listings (
 
 create table public.listing_photos (
   id uuid primary key default gen_random_uuid(),
-  listing_id uuid not null references public.listings (id) on delete cascade,
+  listing_id text not null references public.listings (id) on delete cascade,
   storage_path text not null,
   position smallint not null default 0,
   ai_caption text,

@@ -10,12 +10,14 @@ import { similarTo } from '../../core/search.ts';
 import { CONDITION_LABEL, VERDICT_LABEL, formatAge, formatChf, formatChfRange } from '../../core/format.ts';
 
 const listing = getListing(Astro.params.id ?? '');
-if (!listing || listing.status !== 'pubblicato') {
+if (!listing) {
   return new Response('Annuncio non trovato', { status: 404 });
 }
 
+const sold = listing.status === 'venduto';
 const comune = getComune(listing.comuneId);
 const photo = getPhoto(listing.id);
+const morePhotos = (listing.photos ?? []).slice(1);
 const category = getCategory(listing.category);
 const verdict = priceVerdict(listing);
 const estimate = estimatePrice({
@@ -44,6 +46,16 @@ const attributes = Object.entries(listing.attributes);
               fetchpriority="high"
               decoding="async"
             />
+            {morePhotos.length > 0 && (
+              <div class="thumbs">
+                {morePhotos.map((p, i) => (
+                  <a href={p.src} target="_blank" rel="noopener">
+                    <img src={p.srcSmall} width={p.width} height={p.height} alt={`${listing.title}, foto ${i + 2}`} loading="lazy" decoding="async" />
+                  </a>
+                ))}
+              </div>
+            )}
+            {photo.credit && (
             <figcaption class="credit">
               Foto di esempio:{' '}
               {photo.credit.authorUrl ? (
@@ -66,6 +78,7 @@ const attributes = Object.entries(listing.attributes);
                 {sourceName(photo.credit.source)}
               </a>
             </figcaption>
+            )}
           </figure>
         ) : (
           <div class="photo">
@@ -79,8 +92,9 @@ const attributes = Object.entries(listing.attributes);
         <h1 class="title">{listing.title}</h1>
         <div class="price-row">
           <span class="price mono">{formatChf(listing.priceChf)}</span>
-          {listing.negotiable && <span class="badge plain">Trattabile</span>}
-          {verdict && <span class={`badge ${verdict === 'sopra_mercato' ? 'bad' : 'ok'}`}>{VERDICT_LABEL[verdict]}</span>}
+          {sold && <span class="badge plain">Venduto</span>}
+          {!sold && listing.negotiable && <span class="badge plain">Trattabile</span>}
+          {!sold && verdict && <span class={`badge ${verdict === 'sopra_mercato' ? 'bad' : 'ok'}`}>{VERDICT_LABEL[verdict]}</span>}
         </div>
 
         {
@@ -115,10 +129,12 @@ const attributes = Object.entries(listing.attributes);
               {listing.seller.verified && <span class="badge ok">Natel verificato</span>}
             </p>
           </div>
-          <div class="contact">
-            <button class="btn primary" type="button" disabled aria-describedby="contact-note">Contatta</button>
-            <span id="contact-note" class="small">Messaggi e offerte arrivano con la Fase 1</span>
-          </div>
+          {!sold && (
+            <div class="contact">
+              <button class="btn primary" type="button" disabled aria-describedby="contact-note">Contatta</button>
+              <span id="contact-note" class="small">Messaggi e offerte arrivano a breve</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -147,6 +163,8 @@ const attributes = Object.entries(listing.attributes);
   .photo svg { width: 30%; height: auto; }
   .gallery { display: grid; gap: 10px; }
   .hero-photo { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; background: var(--surface); display: block; }
+  .thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .thumbs img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; display: block; }
   .credit { font-size: 12px; color: var(--muted); line-height: 1.4; }
   .credit a { color: inherit; text-underline-offset: 2px; }
   .info { display: grid; gap: 24px; }
