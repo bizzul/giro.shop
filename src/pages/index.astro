@@ -1,11 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import SearchForm from '../components/SearchForm.astro';
-import ListingCard from '../components/ListingCard.astro';
-import { latestListings } from '../core/store.ts';
-import { priceVerdict } from '../core/price.ts';
+import SearchResults from '../components/SearchResults.astro';
 
-const latest = latestListings(8);
 const examples = [
   'scrivania in legno sotto i 150 franchi vicino a Lugano',
   'bici per una bimba di 6 anni, ritiro a Bellinzona',
@@ -14,25 +11,19 @@ const examples = [
 ---
 
 <Layout title="Piazza · il mercatino del Ticino">
-  <section class="hero">
-    <div class="wrap hero-in">
-      <p class="eyebrow">Prototipo · annunci di prova</p>
-      <h1>Compra e vendi in Ticino, <em>a parole tue</em>.</h1>
-      <SearchForm />
-      <p class="examples">
-        <span>Prova:</span>
-        {examples.map((q) => <a href={`/cerca?q=${encodeURIComponent(q)}`}>{q}</a>)}
-      </p>
-    </div>
+  <section class="wrap hero-in">
+    <h1>Compra e vendi in Ticino, a parole tue.</h1>
+    <p class="muted lede">Annunci da una foto e ricerca a frasi, con l'assistente al tuo fianco.</p>
+    <SearchForm target="risultati" mode="home" />
+    <p class="examples">
+      {examples.map((q) => <a href={`/cerca?q=${encodeURIComponent(q)}`} data-example={q}>{q}</a>)}
+    </p>
   </section>
 
   <section class="wrap band">
-    <div class="section-h">
-      <h2>Ultimi annunci</h2>
-      <a class="muted" href="/cerca">Tutti gli annunci →</a>
-    </div>
-    <div class="cards">
-      {latest.map((l, i) => <ListingCard listing={l} verdict={priceVerdict(l)} eager={i < 4} />)}
+    <p id="risultati-stato" class="sr" aria-live="polite"></p>
+    <div id="risultati" class="results">
+      <SearchResults q="" mode="home" />
     </div>
   </section>
 
@@ -41,7 +32,7 @@ const examples = [
       <span class="label">Scatta e vendi</span>
       <h2>Tre foto, nessun modulo.</h2>
       <p class="muted">L'assistente riconosce l'oggetto, scrive titolo e descrizione e propone un prezzo dagli annunci simili. Tu controlli e confermi.</p>
-      <span class="btn primary">Prepara un annuncio</span>
+      <span class="btn">Prepara un annuncio</span>
     </a>
     <a class="panel promo" href="/connetti">
       <span class="label">Connettore MCP</span>
@@ -53,13 +44,14 @@ const examples = [
 </Layout>
 
 <style>
-  .hero { border-bottom: 1px solid var(--line-soft); background:
-      radial-gradient(1200px 400px at 85% -10%, color-mix(in srgb, var(--volt) 10%, transparent), transparent 70%); }
-  .hero-in { padding-block: clamp(40px, 7vw, 88px); display: grid; gap: 22px; max-width: 820px; margin-inline: 0; }
-  @media (min-width: 1256px) { .hero-in { margin-inline: auto; max-width: 1192px; } .hero-in > * { max-width: 760px; } }
-  .duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .hero-in { display: grid; justify-items: center; gap: 24px; text-align: center; padding-block: clamp(40px, 8vw, 96px) clamp(32px, 5vw, 48px); }
+  .hero-in h1 { max-width: 15ch; }
+  .lede { max-width: 540px; text-wrap: balance; }
+  .hero-in :global(.search) { width: 100%; max-width: 640px; margin-top: 24px; text-align: left; }
+  .duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
   @media (max-width: 760px) { .duo { grid-template-columns: 1fr; } }
-  .promo { display: grid; gap: 10px; align-content: start; text-decoration: none; }
-  .promo .btn { justify-self: start; margin-top: 6px; }
-  .promo:hover { border-color: var(--volt); }
+  .promo { text-decoration: none; align-content: start; }
+  .promo p { max-width: 44ch; }
+  .promo .btn { margin-top: 8px; }
+  .promo:hover .btn { border-color: var(--ink); }
 </style>

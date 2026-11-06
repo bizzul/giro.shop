@@ -17,23 +17,35 @@ interface Props {
 const { listing, distanceKm, reasons = [], verdict, eager = false } = Astro.props;
 const comune = getComune(listing.comuneId);
 const photo = getPhoto(listing.id);
-const verdictClass = verdict === 'sotto_mercato' ? 'ok' : verdict === 'sopra_mercato' ? 'bad' : 'ok';
+const verdictTone = verdict === 'sopra_mercato' ? 'bad' : 'ok';
+// Al massimo due badge sulla foto, in ordine di importanza.
+const badges = [
+  listing.priceChf === 0 && { tone: 'volt', label: 'Regalo' },
+  isNew(listing.publishedAt) && { tone: 'sun', label: 'Nuovo oggi' },
+  verdict && listing.priceChf > 0 && { tone: verdictTone, label: VERDICT_LABEL[verdict] },
+  listing.negotiable && { tone: 'plain', label: 'Trattabile' },
+]
+  .filter((b): b is { tone: string; label: string } => Boolean(b))
+  .slice(0, 2);
 ---
 
 <a class="lcard" href={`/annuncio/${listing.id}`}>
   <div class="lph">
-    <div class="badges">
-      {isNew(listing.publishedAt) && <span class="badge sun">Nuovo oggi</span>}
-      {verdict && <span class={`badge ${verdictClass}`}>{VERDICT_LABEL[verdict]}</span>}
-      {listing.priceChf === 0 && <span class="badge volt">Regalo</span>}
-      {listing.negotiable && <span class="badge plain">Trattabile</span>}
-    </div>
+    {
+      badges.length > 0 && (
+        <div class="badges">
+          {badges.map((b) => (
+            <span class={`badge ${b.tone}`}>{b.label}</span>
+          ))}
+        </div>
+      )
+    }
     {
       photo ? (
         <img
           src={photo.srcSmall}
           srcset={`${photo.srcSmall} 480w, ${photo.src} ${photo.width}w`}
-          sizes="(max-width: 560px) 100vw, 300px"
+          sizes="(max-width: 560px) 50vw, 360px"
           width="480"
           height="360"
           alt={listing.title}

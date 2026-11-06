@@ -1,48 +1,43 @@
 /* Stili di "Scatta e vendi" (isola Preact) */
-.sellform, .draft { display: grid; gap: 18px; }
-.fld { display: grid; gap: 6px; }
+.sellform, .draft { display: grid; gap: 24px; justify-items: stretch; }
+.fld { display: grid; gap: 8px; }
 .fld .label { display: flex; align-items: center; gap: 6px; }
 .fld input, .fld textarea, .fld select {
   width: 100%;
-  font: 400 16px/1.45 var(--f-body);
+  font: 400 15px/1.5 var(--f-body);
   color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  padding: 12px 14px;
 }
 .fld textarea { resize: vertical; }
-.fld input:focus, .fld textarea:focus, .fld select:focus { outline: none; border-color: var(--volt); box-shadow: 0 0 0 3px color-mix(in srgb, var(--volt) 18%, transparent); }
-.fld p { font-size: 15.5px; }
-.fld small, .small { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.fld input:focus, .fld textarea:focus, .fld select:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.fld p { font-size: 15px; }
+.fld small { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
 .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 @media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
 
-.shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
-.shot { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: var(--surface); border: 1px solid var(--line-soft); max-width: 100%; }
+.shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.shot { position: relative; aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--surface-2); max-width: 100%; }
 .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.shot .remove { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--ink); color: var(--bg); font-size: 15px; line-height: 1; cursor: pointer; }
-.shot.add { display: grid; place-items: center; border: 1.5px dashed var(--line); background: none; font-size: 26px; color: var(--muted); cursor: pointer; }
-.shot.add:hover { border-color: var(--volt); color: var(--volt); }
+.shot .remove { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--ink); color: var(--bg); font-size: 16px; line-height: 1; cursor: pointer; }
+.shot.add { display: grid; place-items: center; border: 1px dashed var(--line-strong); font-size: 24px; font-weight: 300; color: var(--muted); cursor: pointer; }
+.shot.add:hover { border-color: var(--ink); color: var(--ink); }
 .shot.add input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.btn.big { padding: 14px 18px; font-size: 15.5px; }
-.error { color: var(--bad); background: var(--bad-soft); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
-.warn { display: grid; gap: 4px; background: color-mix(in srgb, var(--sun) 18%, var(--surface-2)); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; }
-
-.recog { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 12px; background: var(--volt-soft); }
-.recog b { display: block; font-size: 16px; }
+.recog { display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 4px; background: var(--volt-soft); color: var(--ink); }
+.recog b { display: block; font-size: 16px; font-weight: 500; }
 .recog span { font-size: 12.5px; color: var(--muted); }
-.attrs { display: grid; gap: 4px; font-size: 14.5px; }
-.attrs div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; }
+.attrs { display: grid; border-top: 1px solid var(--line); font-size: 14.5px; }
+.attrs div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; padding-block: 8px; border-bottom: 1px solid var(--line); }
 .attrs dt { color: var(--muted); text-transform: capitalize; }
 .questions { display: grid; gap: 4px; font-size: 14.5px; list-style: disc; padding-left: 18px; }
 
-.pband { display: grid; gap: 8px; }
-.pb-input { display: inline-flex; align-items: center; gap: 8px; font: 600 20px/1 var(--f-mono); }
-.pb-input input { width: 120px; font: 600 20px/1 var(--f-mono); padding: 8px 10px; }
-.pb-track { position: relative; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--volt) 28%, var(--line-soft)); margin-top: 6px; }
-.pb-dot { position: absolute; top: 50%; width: 18px; height: 18px; border-radius: 50%; background: var(--volt); border: 3px solid var(--surface-2); transform: translate(-50%, -50%); transition: left 0.15s; }
-.pb-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
-.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.pband { display: grid; gap: 10px; }
+.pb-input { display: inline-flex; align-items: baseline; gap: 8px; font: 500 24px/1 var(--f-mono); }
+.pb-input input { width: 140px; font: 500 24px/1 var(--f-mono); padding: 8px 10px; font-variant-numeric: tabular-nums; }
+.pb-track { position: relative; height: 2px; background: var(--line-strong); margin: 14px 7px 4px; }
+.pb-dot { position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%; background: var(--ink); border: 3px solid var(--bg); transform: translate(-50%, -50%); transition: left 0.15s; }
+.pb-scale { display: flex; justify-content: space-between; font: 400 11px/1.4 var(--f-mono); color: var(--muted); }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; }

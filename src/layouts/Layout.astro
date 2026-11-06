@@ -29,8 +29,10 @@ const nav = [
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Instrument+Sans:wght@400..700&family=Martian+Mono:wght@400..600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@300..700&family=Instrument+Sans:wght@400..600&family=Martian+Mono:wght@400..500&display=swap"
     />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)" />
   </head>
   <body>
     <header class="top">
@@ -51,7 +53,7 @@ const nav = [
               </a>
             ))
           }
-          <a class="cta" href="/vendi" aria-current={path.startsWith('/vendi') ? 'page' : undefined}>Vendi</a>
+          <a class="btn primary" href="/vendi" aria-current={path.startsWith('/vendi') ? 'page' : undefined}>Vendi</a>
         </nav>
       </div>
     </header>

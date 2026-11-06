@@ -76,17 +76,18 @@ const desktopConfig = JSON.stringify(
 </Layout>
 
 <style>
-  .connect { display: grid; gap: 18px; max-width: 900px; }
-  .intro { display: grid; gap: 12px; margin-bottom: 8px; }
-  .intro h1 { font-size: clamp(30px, 4vw, 48px); }
-  .block { display: grid; gap: 10px; }
-  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+  .connect { display: grid; gap: 24px; max-width: 900px; }
+  .intro { display: grid; gap: 16px; margin-bottom: 16px; }
+  .intro h1 { font-size: clamp(32px, 4.4vw, 48px); }
+  .block { display: grid; gap: 12px; align-content: start; justify-items: stretch; }
+  .block h2 { font-size: clamp(22px, 2.4vw, 28px); }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
   @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
-  .code { margin: 0; background: #0d1120; color: #e7eaf3; border-radius: 12px; padding: 14px 16px; font: 500 12px/1.7 var(--f-mono); overflow-x: auto; max-width: 100%; }
-  code { font-family: var(--f-mono); font-size: 0.92em; }
+  .code { margin: 0; background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; font: 400 12px/1.7 var(--f-mono); overflow-x: auto; max-width: 100%; }
+  code { font-family: var(--f-mono); font-size: 0.9em; }
   .tools { display: grid; border-top: 1px solid var(--line); }
-  .tools > div { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; padding-block: 10px; border-bottom: 1px solid var(--line-soft); }
-  .tools dt { color: var(--volt); font-size: 12.5px; }
+  .tools > div { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; padding-block: 12px; border-bottom: 1px solid var(--line); }
+  .tools dt { font-size: 12px; line-height: 1.9; }
   .tools dd { font-size: 15px; }
   @media (max-width: 520px) { .tools > div { grid-template-columns: 1fr; gap: 2px; } }
 </style>

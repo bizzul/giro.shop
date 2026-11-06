@@ -1,0 +1,14 @@
+---
+/**
+ * Solo la griglia dei risultati, senza layout: la usa la ricerca dal vivo.
+ * GET /risultati?vista=home|cerca&q=…
+ */
+import SearchResults from '../components/SearchResults.astro';
+
+export const partial = true;
+
+const q = Astro.url.searchParams.get('q')?.trim().slice(0, 200) ?? '';
+const mode = Astro.url.searchParams.get('vista') === 'home' ? 'home' : 'cerca';
+---
+
+<SearchResults q={q} mode={mode} />

@@ -1,0 +1,83 @@
+---
+import ListingCard from './ListingCard.astro';
+import { search } from '../core/search.ts';
+import { latestListings } from '../core/store.ts';
+import { priceVerdict } from '../core/price.ts';
+
+interface Props {
+  q: string;
+  /** "home": a campo vuoto gli ultimi 8 annunci; "cerca": tutti. */
+  mode: 'home' | 'cerca';
+}
+
+const { q, mode } = Astro.props;
+const result = q ? search(q) : null;
+const browse = result ? [] : latestListings(mode === 'home' ? 8 : 48);
+const count = result?.hits.length ?? 0;
+---
+
+{
+  result ? (
+    <>
+      {result.chips.length > 0 && (
+        <div class="understood">
+          <span class="label">Ho capito così</span>
+          <div class="chips">
+            {result.chips.map((c) => (
+              <span class="chip">
+                <span class="k">{c.key}</span>
+                {c.value}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p class="count" data-status>
+        {count === 0 ? (
+          'Nessun annuncio corrisponde.'
+        ) : (
+          <>
+            <b>{count === 1 ? '1 annuncio' : `${count} annunci`}</b>
+            <span class="muted"> · ordinati per pertinenza e distanza</span>
+          </>
+        )}
+      </p>
+
+      {count > 0 ? (
+        <div class="cards">
+          {result.hits.map((h, i) => (
+            <ListingCard listing={h.listing} distanceKm={h.distanceKm} reasons={h.reasons} verdict={h.verdict} eager={i < 4} />
+          ))}
+        </div>
+      ) : (
+        <div class="panel empty">
+          <h3>Ancora niente, ma può arrivare.</h3>
+          <p class="muted">
+            Con gli avvisi intelligenti (in arrivo nella Fase 1) ti scriveremo appena qualcuno pubblica un annuncio che
+            corrisponde a questa ricerca. Intanto prova a togliere un filtro o ad allargare la zona.
+          </p>
+        </div>
+      )}
+    </>
+  ) : (
+    <>
+      <div class="section-h">
+        <h2 data-status>{mode === 'home' ? 'Ultimi annunci' : 'Tutti gli annunci'}</h2>
+        {mode === 'home' && <a href="/cerca">Tutti gli annunci</a>}
+      </div>
+      <div class="cards">
+        {browse.map((l, i) => (
+          <ListingCard listing={l} verdict={priceVerdict(l)} eager={i < 4} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+<style>
+  .understood { display: grid; gap: 10px; margin-bottom: 24px; }
+  .count { margin-bottom: 24px; font-size: 14px; }
+  .count b { font-weight: 500; }
+  .empty { max-width: 640px; }
+</style>

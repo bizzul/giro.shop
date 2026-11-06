@@ -2,12 +2,16 @@
 interface Props {
   value?: string;
   autofocus?: boolean;
+  /** Id del contenitore dei risultati da aggiornare mentre si scrive. */
+  target?: string;
+  /** "home" mostra gli ultimi annunci a campo vuoto, "cerca" tutti. */
+  mode?: 'home' | 'cerca';
 }
-const { value = '', autofocus = false } = Astro.props;
+const { value = '', autofocus = false, target, mode = 'cerca' } = Astro.props;
 ---
 
-<form class="search" action="/cerca" method="get" role="search">
-  <span class="ai-mark live" aria-hidden="true"></span>
+<form class="search" action="/cerca" method="get" role="search" data-live={target ? '' : undefined} data-target={target} data-mode={mode}>
+  <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5"></circle><path d="M11 11l3.5 3.5"></path></svg>
   <label class="sr" for="q">Cosa cerchi</label>
   <input
     id="q"
@@ -19,9 +23,69 @@ const { value = '', autofocus = false } = Astro.props;
     enterkeyhint="search"
     autofocus={autofocus}
   />
-  <button class="btn primary" type="submit">Cerca</button>
 </form>
 
-<style>
-  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-</style>
+<script>
+  // Ricerca dal vivo: mentre scrivi, il server rimanda solo la griglia dei risultati.
+  // Senza JavaScript il form continua a funzionare: Invio apre /cerca?q=…
+  for (const form of document.querySelectorAll<HTMLFormElement>('form[data-live]')) {
+    const input = form.querySelector<HTMLInputElement>('input[name="q"]');
+    const target = document.getElementById(form.dataset.target ?? '');
+    const status = document.getElementById(`${form.dataset.target}-stato`);
+    const mode = form.dataset.mode ?? 'cerca';
+    if (!input || !target) continue;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let controller: AbortController | undefined;
+    let shown = input.value.trim();
+
+    const update = async () => {
+      const q = input.value.trim();
+      if (q === shown) return;
+      controller?.abort();
+      controller = new AbortController();
+      target.setAttribute('aria-busy', 'true');
+      try {
+        const params = new URLSearchParams({ vista: mode, q });
+        const res = await fetch(`/risultati?${params}`, { signal: controller.signal });
+        if (!res.ok) throw new Error(String(res.status));
+        target.innerHTML = await res.text();
+        shown = q;
+        if (mode === 'cerca') {
+          history.replaceState(null, '', q ? `/cerca?q=${encodeURIComponent(q)}` : '/cerca');
+          document.title = q ? `${q} · Piazza` : 'Cerca · Piazza';
+        }
+        if (status) status.textContent = target.querySelector('[data-status]')?.textContent?.trim() ?? '';
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') return;
+        // Se la ricerca dal vivo non risponde, si passa alla pagina dei risultati.
+        location.href = `/cerca?q=${encodeURIComponent(q)}`;
+      } finally {
+        if (!controller.signal.aborted) target.removeAttribute('aria-busy');
+      }
+    };
+
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(update, 180);
+    });
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      clearTimeout(timer);
+      update();
+      input.blur();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    // Gli esempi riempiono il campo invece di cambiare pagina
+    for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-example]')) {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        input.value = link.dataset.example ?? '';
+        clearTimeout(timer);
+        update();
+      });
+    }
+  }
+</script>

@@ -115,7 +115,10 @@ const attributes = Object.entries(listing.attributes);
               {listing.seller.verified && <span class="badge ok">Natel verificato</span>}
             </p>
           </div>
-          <button class="btn primary" type="button" disabled title="Messaggi e offerte arrivano nella Fase 1">Contatta</button>
+          <div class="contact">
+            <button class="btn primary" type="button" disabled aria-describedby="contact-note">Contatta</button>
+            <span id="contact-note" class="small">Messaggi e offerte arrivano con la Fase 1</span>
+          </div>
         </div>
       </div>
     </div>
@@ -136,25 +139,28 @@ const attributes = Object.entries(listing.attributes);
 </Layout>
 
 <style>
-  .crumbs { font-size: 13.5px; margin-bottom: 16px; }
-  .crumbs a { color: inherit; }
-  .detail { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: clamp(24px, 4vw, 48px); align-items: start; }
+  .crumbs { font-size: 13px; margin-bottom: 24px; }
+  .crumbs a { color: inherit; text-underline-offset: 4px; text-decoration-color: var(--line-strong); }
+  .detail { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: clamp(32px, 5vw, 64px); align-items: start; }
   @media (max-width: 860px) { .detail { grid-template-columns: 1fr; } }
-  .photo { aspect-ratio: 4 / 3; border-radius: 18px; border: 1px solid var(--line); background: linear-gradient(140deg, var(--line-soft), var(--surface)); display: grid; place-items: center; align-content: center; gap: 12px; color: var(--muted); max-width: 100%; }
-  .photo svg { width: 34%; height: auto; }
-  .gallery { display: grid; gap: 8px; }
-  .hero-photo { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); display: block; }
+  .photo { aspect-ratio: 4 / 3; border-radius: 6px; background: var(--surface); display: grid; place-items: center; align-content: center; gap: 16px; color: var(--muted); max-width: 100%; }
+  .photo svg { width: 30%; height: auto; }
+  .gallery { display: grid; gap: 10px; }
+  .hero-photo { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; background: var(--surface); display: block; }
   .credit { font-size: 12px; color: var(--muted); line-height: 1.4; }
   .credit a { color: inherit; text-underline-offset: 2px; }
-  .info { display: grid; gap: 16px; }
-  .title { font-size: clamp(26px, 3vw, 36px); line-height: 1.1; }
-  .price-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .price { font-size: 26px; font-weight: 650; }
-  .estimate { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--volt-soft); font-size: 14px; }
+  .info { display: grid; gap: 24px; }
+  .title { font-size: clamp(28px, 3.4vw, 40px); line-height: 1.1; }
+  .price-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: -8px; }
+  .price { font-size: 24px; font-weight: 500; line-height: 1; }
+  .estimate { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 4px; background: var(--surface); font-size: 14px; }
+  .estimate b { font-weight: 500; }
   .facts { display: grid; border-top: 1px solid var(--line); }
-  .facts > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding-block: 9px; border-bottom: 1px solid var(--line-soft); font-size: 15px; }
-  .facts dt { font: 500 10px/1.8 var(--f-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .facts > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding-block: 12px; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .facts dt { font: 500 11px/2 var(--f-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
   .desc { font-size: 16px; line-height: 1.6; max-width: 62ch; }
-  .seller { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 16px; }
-  .name { display: flex; align-items: center; gap: 8px; font-weight: 640; margin-top: 4px; }
+  .seller { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px; }
+  .name { display: flex; align-items: center; gap: 10px; font-weight: 500; margin-top: 6px; }
+  .contact { display: grid; gap: 6px; justify-items: end; }
+  @media (max-width: 480px) { .contact { justify-items: stretch; width: 100%; } }
 </style>
