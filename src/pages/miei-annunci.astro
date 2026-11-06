@@ -169,7 +169,7 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
 
     <section class="panel email-panel" id="email" aria-labelledby="email-title">
       <h2 id="email-title">Email degli avvisi</h2>
-      <form class="email-form" method="POST" action={actions.account.setEmailNotices}>
+      <form class="email-form" method="POST" action={actions.account.setEmailNotices} autocomplete="off">
         <label class="toggle">
           <input type="checkbox" name="on" checked={profile?.notify_email !== false} />
           <span>
@@ -177,18 +177,19 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
             <span class="muted small">Restano comunque nel sito, sotto la campanella.</span>
           </span>
         </label>
-        <button class="btn" type="submit">Salva</button>
+        <noscript><button class="btn" type="submit">Salva</button></noscript>
       </form>
     </section>
 
     <details class="panel name-panel">
       <summary>Cambia il nome visibile agli altri</summary>
-      <form class="name-form" method="POST" action={actions.account.updateName}>
+      <form class="name-form" method="POST" action={actions.account.updateName} autocomplete="off">
         <label class="fld">
           <span class="label">Nome</span>
           <input id="displayName" name="displayName" value={profile?.display_name ?? ''} minlength="2" maxlength="40" required />
         </label>
-        <button class="btn" type="submit">Salva</button>
+        <p class="small">Si salva quando esci dal campo.</p>
+        <noscript><button class="btn" type="submit">Salva</button></noscript>
       </form>
     </details>
 
@@ -290,6 +291,28 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
     }
   </section>
 </Layout>
+
+<script>
+  // Nome ed email degli avvisi: niente bottone "Salva", si salva uscendo dal campo o cambiando la casella
+  import { actions } from 'astro:actions';
+  import { autosave } from '../lib/autosave.ts';
+
+  const nameForm = document.querySelector<HTMLFormElement>('form.name-form');
+  if (nameForm) {
+    autosave(nameForm, {
+      save: (form) => actions.account.updateName(form),
+      message: () => 'Nome salvato: è quello che vedono gli altri',
+    });
+  }
+  const emailForm = document.querySelector<HTMLFormElement>('form.email-form');
+  if (emailForm) {
+    autosave(emailForm, {
+      save: (form) => actions.account.setEmailNotices(form),
+      message: (_label, data) =>
+        (data as { on: boolean }).on ? 'Email degli avvisi accese' : 'Email degli avvisi spente: restano sotto la campanella',
+    });
+  }
+</script>
 
 <style>
   .mine { display: grid; gap: 24px; max-width: 960px; }

@@ -2,7 +2,7 @@ import { ActionError, defineAction, type ActionAPIContext } from 'astro:actions'
 import { z } from 'astro/zod';
 import { IMAGE_TYPES, MAX_PHOTOS, MAX_PHOTO_BYTES, type ImageMediaType } from '../core/draft.ts';
 import { resolveComune } from '../core/comuni.ts';
-import { getListing, refreshListings } from '../core/store.ts';
+import { getListing, photoUrl, refreshListings } from '../core/store.ts';
 import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
 import { normalizeSwissMobile } from '../core/phone.ts';
 import { MIN_PHOTOS, planPhotoOrder } from '../core/photos.ts';
@@ -400,7 +400,9 @@ export const account = {
       if (current.title !== input.title || current.description !== input.description) {
         afterTextChange(input.id, () => invalidateListingPages(context));
       }
-      return { id: input.id };
+      // Le foto come sono ora, nell'ordine: chi salva da solo (senza ricaricare) le usa per non rimandarle
+      const paths = plan.slots.map((slot) => (slot.kind === 'existing' ? slot.path : uploaded.get(slot.fileIndex)!));
+      return { id: input.id, photos: paths.map((path) => ({ path, url: photoUrl(path) })) };
     },
   }),
 };

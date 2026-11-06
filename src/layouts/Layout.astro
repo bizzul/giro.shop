@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import UserMenu from '../components/UserMenu.astro';
 import PlacePicker from '../components/PlacePicker.astro';
+import Toasts from '../components/Toasts.astro';
 
 interface Props {
   title: string;
@@ -76,6 +77,7 @@ const nav = [
       <slot />
     </main>
     <PlacePicker />
+    <Toasts />
     <footer class="foot">
       <div class="wrap">
         <span>giro.shop · prototipo, annunci di prova · <a href="/sicurezza">Comprare e vendere sicuri</a></span>

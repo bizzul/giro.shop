@@ -40,8 +40,9 @@ const onSale = listing.status === 'pubblicato' || listing.status === 'in_trattat
 
 <Layout title={`Modifica · ${listing.title} · giro.shop`}>
   <section class="wrap band edit">
-    <p class="crumbs muted"><a href="/miei-annunci">I miei annunci</a></p>
+    <p class="crumbs muted"><a href="/miei-annunci" data-autosave-flush>I miei annunci</a></p>
     <h1>Modifica l'annuncio</h1>
+    <p class="muted small autosave-hint">Ogni modifica si salva da sola quando esci dal campo; le foto appena le cambi.</p>
 
     {result?.data && (
       <p class="notice" role="status">
@@ -126,15 +127,39 @@ const onSale = listing.status === 'pubblicato' || listing.status === 'in_trattat
 
 
       <div class="actions">
-        <button class="btn primary" type="submit">Salva le modifiche</button>
-        <a class="btn" href="/miei-annunci">Annulla</a>
+        <noscript><button class="btn primary" type="submit">Salva le modifiche</button></noscript>
+        <a class="btn" href={`/annuncio/${listing.id}`} data-autosave-flush>Vedi l'annuncio</a>
+        <a class="btn" href="/miei-annunci" data-autosave-flush>Torna ai miei annunci</a>
       </div>
     </form>
   </section>
 </Layout>
 
+<script>
+  // Niente bottone "Salva": ogni campo si salva all'uscita, le foto a ogni cambio (vedi src/lib/autosave.ts)
+  import { actions } from 'astro:actions';
+  import { autosave } from '../../lib/autosave.ts';
+
+  const form = document.querySelector<HTMLFormElement>('form.sellform');
+  if (form) {
+    autosave(form, {
+      save: (data) => actions.account.updateListing(data),
+      prepare: () => {
+        form.dispatchEvent(new Event('photos:prepare'));
+        return form.dataset.photosError ?? null;
+      },
+      saved: (data) => {
+        const photos = (data as { photos?: Array<{ path: string; url: string }> }).photos;
+        if (photos) form.dispatchEvent(new CustomEvent('photos:saved', { detail: photos }));
+      },
+    });
+  }
+</script>
+
 <style>
   .edit { display: grid; gap: 20px; max-width: 760px; }
+  .autosave-hint { margin-top: -12px; }
+  .sellform[aria-busy='true'] { cursor: progress; }
   .edit h1 { font-size: clamp(28px, 3.6vw, 40px); }
   .crumbs { font-size: 13px; }
   .crumbs a { color: inherit; text-underline-offset: 4px; }

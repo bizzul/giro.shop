@@ -1,0 +1,81 @@
+---
+/**
+ * Contenitore delle notifiche toast, una volta sola nel layout.
+ * Le notifiche arrivano con l'evento "giro:toast" (vedi src/lib/toast.ts) e gli screen reader le leggono.
+ */
+---
+
+<div class="toasts" aria-live="polite" aria-atomic="false" data-toasts></div>
+
+<script>
+  const box = document.querySelector<HTMLElement>('[data-toasts]');
+  const MAX = 3;
+
+  window.addEventListener('giro:toast', (event) => {
+    if (!box) return;
+    const { text, tone = 'ok' } = (event as CustomEvent<{ text: string; tone?: 'ok' | 'error' | 'info' }>).detail;
+    const item = document.createElement('div');
+    item.className = `toast ${tone}`;
+    item.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+    const label = document.createElement('span');
+    label.textContent = text;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'toast-close';
+    close.setAttribute('aria-label', 'Chiudi la notifica');
+    close.textContent = '×';
+    item.append(label, close);
+    box.append(item);
+    while (box.children.length > MAX) box.firstElementChild?.remove();
+
+    const remove = () => {
+      item.classList.add('leaving');
+      setTimeout(() => item.remove(), 180);
+    };
+    close.addEventListener('click', remove);
+    // Gli errori restano di più: vanno letti
+    let timer = setTimeout(remove, tone === 'error' ? 7000 : 3200);
+    item.addEventListener('pointerenter', () => clearTimeout(timer));
+    item.addEventListener('pointerleave', () => (timer = setTimeout(remove, 1800)));
+  });
+</script>
+
+<style is:global>
+  .toasts {
+    position: fixed;
+    z-index: 60;
+    left: 50%;
+    bottom: calc(var(--toast-offset, 16px) + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    display: grid;
+    gap: 8px;
+    width: min(420px, calc(100vw - 32px));
+    pointer-events: none;
+  }
+  /* Sopra la ricerca in basso e sopra la barra della scheda, su telefono */
+  @media (max-width: 760px) {
+    body:has(.search.dock) .toasts { --toast-offset: 88px; }
+    body:has(.buybar) .toasts { --toast-offset: 84px; }
+  }
+  .toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 10px 12px 16px;
+    border-radius: 6px;
+    background: var(--action);
+    color: var(--action-ink);
+    font: 500 14px/1.35 var(--f-body);
+    box-shadow: var(--shadow-dock);
+    animation: toast-in 0.18s ease-out;
+  }
+  .toast span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .toast.error { background: var(--bad); color: #fff; }
+  .toast.ok::before { content: '✓'; font-weight: 600; }
+  .toast.error::before { content: '!'; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid currentColor; display: grid; place-items: center; font-size: 11px; flex: none; }
+  .toast-close { border: 0; background: none; color: inherit; font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 6px; opacity: 0.75; }
+  .toast-close:hover { opacity: 1; }
+  .toast.leaving { opacity: 0; transform: translateY(6px); transition: opacity 0.18s, transform 0.18s; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+</style>
