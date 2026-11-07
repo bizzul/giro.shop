@@ -37,6 +37,10 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 - **Frasi al posto dei filtri.** «scrivania in legno sotto i 150 franchi vicino a Lugano» diventa categoria, prezzo,
   zona con raggio e materiale. Ogni filtro capito è un chip che si toglie con un clic; i risultati si aggiornano mentre
   scrivi, senza ricaricare la pagina.
+- **Tutte le categorie di un mercatino:** oggetti dell'usato, auto, moto, affitti e anche case e immobili, lavoro,
+  servizi, animali, libri e film, sport e hobby, eventi e biglietti, viaggi e vacanze, salute e bellezza, vini e
+  gastronomia, affari e attività (`src/core/categories.ts`). La frase le riconosce («cerco lavoro part time», «lezioni di
+  chitarra»); lavoro, servizi, immobili e affari a 0 franchi si leggono «Da concordare».
 - **Si scorre e basta.** Gli annunci arrivano a pagine da 24 mentre scorri, anche nella home; l'indirizzo ricorda fin
   dove sei arrivato. Senza JavaScript resta il bottone «Mostra altri».
 - **Ricerca per significato.** «sofà» trova il divano, «Fahrrad» le bici, «per fare il caffè» la macchina del caffè,
