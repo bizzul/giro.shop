@@ -216,8 +216,14 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUG
       timer = setTimeout(step, phase === 'hold' ? 1200 : 300);
     }
 
-    show('');
-    shown = 0;
+    // Si parte con una frase intera già scritta (quella del server, se è nella lista): a colpo d'occhio il campo
+    // non è mai vuoto. Poi si cancella e parte il giro.
+    const first = list.indexOf(input.placeholder);
+    if (first >= 0) i = first;
+    show(list[i]);
+    input.dataset.current = list[i];
+    shown = list[i].length;
+    phase = 'hold';
     start();
     const freeze = () => {
       touched = true;

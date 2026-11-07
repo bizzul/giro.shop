@@ -64,8 +64,9 @@ const featured = [...listings]
     --map-label-ink: var(--ink);
   }
   @media (prefers-color-scheme: dark) {
-    .ticino-map { --map-topo: #1c1c1f; --map-major: #2a2a2e; --map-edge: #46464b; }
+    :global(:root:not([data-tema='chiaro'])) .ticino-map { --map-topo: #1c1c1f; --map-major: #2a2a2e; --map-edge: #46464b; }
   }
+  :global(:root[data-tema='scuro']) .ticino-map { --map-topo: #1c1c1f; --map-major: #2a2a2e; --map-edge: #46464b; }
   /* Schermi medi: più piccola, tenue e senza etichette, per non disturbare il titolo */
   @media (max-width: 1199px) {
     .ticino-map { width: 300px; height: 340px; top: 16px; opacity: 0.55; }
@@ -398,6 +399,7 @@ const featured = [...listings]
     }).observe(cv);
     document.addEventListener('visibilitychange', run);
     dark.addEventListener('change', rebuild);
+    document.addEventListener('giro:tema', rebuild);
     still.addEventListener('change', run);
   }
 

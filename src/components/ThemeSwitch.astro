@@ -1,0 +1,78 @@
+---
+/**
+ * Tema a scelta: Automatico (segue il telefono o il computer), Chiaro, Scuro. La scelta resta nel browser
+ * (localStorage "giro:tema") e si applica prima del disegno con lo script in testa a Layout.astro (THEME_SCRIPT),
+ * così la pagina non lampeggia. Qui solo i tre bottoni e il cambio al tocco.
+ */
+const options = [
+  { value: 'auto', label: 'Automatico' },
+  { value: 'chiaro', label: 'Chiaro' },
+  { value: 'scuro', label: 'Scuro' },
+];
+---
+
+<div class="theme-switch" role="group" aria-label="Tema">
+  <span class="label">Tema</span>
+  <div class="theme-options">
+    {
+      options.map((o) => (
+        <button type="button" data-tema={o.value} aria-pressed={o.value === 'auto' ? 'true' : 'false'}>
+          {o.label}
+        </button>
+      ))
+    }
+  </div>
+</div>
+
+<script>
+  const KEY = 'giro:tema';
+  const DARK_BG = '#0b0b0c';
+  const LIGHT_BG = '#ffffff';
+  const root = document.documentElement;
+  const buttons = [...document.querySelectorAll<HTMLButtonElement>('.theme-switch button')];
+
+  const current = () => root.dataset.tema ?? 'auto';
+  const show = () => buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tema === current())));
+
+  function apply(value: string) {
+    if (value === 'auto') delete root.dataset.tema;
+    else root.dataset.tema = value;
+    // Colore della barra del browser: con una scelta a mano vale per entrambe le preferenze del sistema
+    const metas = document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]');
+    metas.forEach((m) => {
+      const forDark = m.media.includes('dark');
+      m.content = value === 'scuro' ? DARK_BG : value === 'chiaro' ? LIGHT_BG : forDark ? DARK_BG : LIGHT_BG;
+    });
+    try {
+      if (value === 'auto') localStorage.removeItem(KEY);
+      else localStorage.setItem(KEY, value);
+    } catch {
+      /* senza localStorage la scelta vale per questa pagina */
+    }
+    show();
+    // Per chi disegna da sé (la cartina del Ticino)
+    document.dispatchEvent(new CustomEvent('giro:tema'));
+  }
+
+  show();
+  buttons.forEach((b) => b.addEventListener('click', () => apply(b.dataset.tema ?? 'auto')));
+</script>
+
+<style>
+  .theme-switch { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .theme-switch .label { font: 500 11px/1.4 var(--f-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .theme-options { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
+  .theme-options button {
+    min-height: 36px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
+    font: 500 13px/1 var(--f-body);
+    cursor: pointer;
+  }
+  .theme-options button:hover { color: var(--ink); }
+  .theme-options button[aria-pressed='true'] { background: var(--action); color: var(--action-ink); }
+  .theme-options button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+</style>

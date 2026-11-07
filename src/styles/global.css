@@ -28,8 +28,10 @@
   --f-mono: 'Martian Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   color-scheme: light;
 }
+/* Tema scuro: segue il telefono o il computer, a meno che si sia scelto a mano (data-tema su <html>, vedi Layout.astro).
+   Gli stessi colori due volte: una per la scelta automatica, una per quella manuale. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-tema='chiaro']) {
     --bg: #0b0b0c;
     --surface: #151516;
     --surface-2: #1b1b1d;
@@ -53,6 +55,30 @@
     --shadow-dock: 0 10px 30px -8px rgba(0, 0, 0, 0.7);
     color-scheme: dark;
   }
+}
+:root[data-tema='scuro'] {
+  --bg: #0b0b0c;
+  --surface: #151516;
+  --surface-2: #1b1b1d;
+  --ink: #f4f4f2;
+  --muted: #9a9a97;
+  --line: #2a2a2d;
+  --line-strong: #6d6d70;
+  --topo: #232326;
+  --action: #f4f4f2;
+  --action-ink: #0b0b0c;
+  --volt: #7584ff;
+  --volt-ink: #0a0d16;
+  --volt-soft: #1d2350;
+  --sun: #ffc04d;
+  --sun-ink: #1f1600;
+  --ok: #3ccb95;
+  --ok-soft: #0e2c22;
+  --bad: #ff6b76;
+  --bad-soft: #3a161b;
+  --shadow-search: 0 20px 44px -20px rgba(0, 0, 0, 0.8);
+  --shadow-dock: 0 10px 30px -8px rgba(0, 0, 0, 0.7);
+  color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -258,11 +284,28 @@ h3 { font-size: 18px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01e
     margin: 0;
     min-height: 56px;
     padding: 6px 16px;
-    box-shadow: 0 0 0 1px var(--line), var(--shadow-dock);
+    padding-left: 8px;
+    gap: 10px;
+    /* Bordo pieno color inchiostro: si riconosce a colpo d'occhio anche sopra le foto degli annunci */
+    box-shadow: 0 0 0 1.5px var(--ink), var(--shadow-dock);
+    color: var(--ink);
     transform: translateY(calc(-1 * var(--kb, 0px)));
     transition: transform 0.22s ease-out;
   }
-  .search.dock:focus-within { box-shadow: 0 0 0 2px var(--ink), var(--shadow-dock); }
+  .search.dock:focus-within { box-shadow: 0 0 0 2.5px var(--ink), var(--shadow-dock); }
+  /* La lente in un tondo pieno, come il bottone Vendi: è il comando, non un dettaglio */
+  .search.dock > svg { width: 40px; height: 40px; padding: 11px; border-radius: 50%; background: var(--action); stroke: var(--action-ink); stroke-width: 2; }
+  .search.dock input::placeholder { color: color-mix(in srgb, var(--ink) 62%, transparent); }
+  /* Sotto la barra le schede sfumano nello sfondo, così non le fanno concorrenza */
+  body:has(.search.dock)::after {
+    content: '';
+    position: fixed;
+    z-index: 39;
+    inset: auto 0 0;
+    height: calc(100px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(to bottom, transparent, var(--bg) 60%);
+    pointer-events: none;
+  }
   /* Con la tastiera aperta la barra di sistema è coperta: basta un piccolo stacco */
   .kb-open .search.dock { bottom: 8px; }
   /* 16px evitano lo zoom automatico di iOS quando si tocca il campo */
@@ -337,7 +380,8 @@ h3 { font-size: 18px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01e
   transition: text-decoration-color 0.15s;
 }
 .foot-col a:hover, .foot-col a[aria-current='page'] { text-decoration-color: currentColor; }
-.foot-legal { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 20px; font-size: 13px; color: var(--muted); }
+.foot-legal { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; border-top: 1px solid var(--line); padding-top: 20px; font-size: 13px; color: var(--muted); }
+.foot-legal p { margin: 0; }
 @media (max-width: 760px) {
   .foot { padding-block: 40px calc(96px + env(safe-area-inset-bottom, 0px)); }
   .foot-in { grid-template-columns: minmax(0, 1fr); gap: 32px; }

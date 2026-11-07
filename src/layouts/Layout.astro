@@ -9,6 +9,7 @@ import UserMenu from '../components/UserMenu.astro';
 import PlacePicker from '../components/PlacePicker.astro';
 import PasskeyOffer from '../components/PasskeyOffer.astro';
 import Toasts from '../components/Toasts.astro';
+import ThemeSwitch from '../components/ThemeSwitch.astro';
 import { jsonLdScript } from '../core/seo.ts';
 import { siteOrigin } from '../lib/notify.ts';
 
@@ -85,6 +86,10 @@ const year = new Date().getFullYear();
 // così non salta da una parte all'altra (chiave come in core/hand.ts). Script inline: il suo hash va nella CSP.
 const HAND_SCRIPT = "try{if(localStorage.getItem('giro:mano')==='sinistra')document.documentElement.dataset.mano='sinistra'}catch{}";
 Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(HAND_SCRIPT).digest('base64')}`);
+// Tema scelto a mano (components/ThemeSwitch.astro): anche lui prima del disegno, per non far lampeggiare la pagina
+const THEME_SCRIPT =
+  "try{var t=localStorage.getItem('giro:tema');if(t==='chiaro'||t==='scuro'){document.documentElement.dataset.tema=t;var c=t==='scuro'?'#0b0b0c':'#ffffff';document.querySelectorAll('meta[name=theme-color]').forEach(function(m){m.content=c})}}catch{}";
+Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(THEME_SCRIPT).digest('base64')}`);
 ---
 
 <!doctype html>
@@ -129,6 +134,7 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(HAND_SCRIPT).d
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)" />
     <script is:inline set:html={HAND_SCRIPT} />
+    <script is:inline set:html={THEME_SCRIPT} />
   </head>
   <body>
     <a class="skip" href="#contenuto">Vai al contenuto</a>
@@ -215,7 +221,10 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(HAND_SCRIPT).d
             ))
           }
         </nav>
-        <p class="foot-legal">© {year} giro.shop</p>
+        <div class="foot-legal">
+          <p>© {year} giro.shop</p>
+          <ThemeSwitch />
+        </div>
       </div>
     </footer>
     <script>
