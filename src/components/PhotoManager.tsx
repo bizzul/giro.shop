@@ -1,12 +1,15 @@
 import { useRef, useState } from 'preact/hooks';
 import { makeCover, moveItem, MAX_LISTING_PHOTOS } from '../core/photos.ts';
-import { ACCEPTED_IMAGES, MAX_IMAGE_BYTES, shrinkImage } from '../lib/images.ts';
+import { ACCEPTED_IMAGES, MAX_IMAGE_BYTES, photoGps, shrinkImage } from '../lib/images.ts';
+import type { GpsPoint } from '../core/exif.ts';
 
 /** Una foto nei riquadri: già salvata (solo url) o appena scelta (con il file). */
 export interface PhotoItem {
   key: string;
   url: string;
   file?: File;
+  /** Dove è stata scattata (EXIF della foto originale): resta nel browser, serve a proporre il comune. */
+  gps?: GpsPoint;
 }
 
 interface Props {
@@ -30,12 +33,14 @@ async function toItems(files: File[]): Promise<{ items: PhotoItem[]; rejected: s
       rejected.push(original.name);
       continue;
     }
-    const file = await shrinkImage(original);
-    if (!ACCEPTED_IMAGES.includes(file.type) || file.size > MAX_IMAGE_BYTES) {
+    // Le coordinate si leggono dall'originale: la foto ridotta non le ha più, e con la posizione si ridisegna sempre
+    const gps = await photoGps(original);
+    const file = await shrinkImage(original, { stripMetadata: Boolean(gps) });
+    if (!ACCEPTED_IMAGES.includes(file.type) || file.size > MAX_IMAGE_BYTES || (gps && file === original)) {
       rejected.push(original.name);
       continue;
     }
-    items.push({ key: `nuova-${Date.now()}-${++counter}`, url: URL.createObjectURL(file), file });
+    items.push({ key: `nuova-${Date.now()}-${++counter}`, url: URL.createObjectURL(file), file, ...(gps ? { gps } : {}) });
   }
   return { items, rejected };
 }

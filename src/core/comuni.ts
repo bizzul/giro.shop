@@ -67,14 +67,30 @@ export function resolveComune(name: string | undefined | null): Comune | undefin
   return findComuneIn(normalize(name))?.comune;
 }
 
+type Point = Pick<Comune, 'lat' | 'lon'>;
+
 /** Distanza in linea d'aria, in km. */
-export function distanceKm(a: Comune, b: Comune): number {
+export function distanceKm(a: Point, b: Point): number {
   const R = 6371;
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat);
   const dLon = toRad(b.lon - a.lon);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Il comune più vicino a un punto (posizione del telefono, coordinate di una foto) e quanto dista, in km. */
+export function nearestComune(point: Point): { comune: Comune; km: number } {
+  let comune = COMUNI[0];
+  let km = Infinity;
+  for (const c of COMUNI) {
+    const d = distanceKm(point, c);
+    if (d < km) {
+      km = d;
+      comune = c;
+    }
+  }
+  return { comune, km };
 }
 
 /**

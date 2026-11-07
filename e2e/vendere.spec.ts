@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { admin, deleteUsers, login, testEmail } from './helpers.ts';
 import { zurichDay } from '../src/core/pickup.ts';
+import { hydrated } from './islands.ts';
 
 /**
  * Vendere e trattare, con due persone vere (due browser separati, ognuno con il suo accesso via email):
@@ -53,6 +54,7 @@ test.afterAll(async () => {
 
 test('Scatta e vendi: foto, bozza, pubblicazione', async () => {
   await seller.goto('/vendi');
+  await hydrated(seller, 'SellForm');
   await seller.locator('input[type="file"]').first().setInputFiles('public/foto/l-010.webp');
   await expect(seller.locator('.ph-grid img, .photos img').first()).toBeVisible();
   await seller.getByLabel('Due righe, se vuoi').fill('Divano angolare grigio, tre posti, sfoderabile, pochi segni d\'uso');

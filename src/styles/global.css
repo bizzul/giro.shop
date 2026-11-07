@@ -344,3 +344,12 @@ h3 { font-size: 18px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01e
   .foot-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .foot-col a { padding-block: 9px; }
 }
+
+/* Telefono: i campi da compilare hanno almeno 16px. Sotto i 16px Safari su iPhone ingrandisce la pagina quando si tocca
+   un campo, e la pagina resta ingrandita e scorre di lato. Lo zoom con due dita resta libero (niente maximum-scale).
+   !important perché molte pagine danno ai campi 15px nei propri stili; i prezzi più grandi restano come sono. */
+@media (max-width: 760px) {
+  :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='hidden']), select, textarea):not(.pb-input input, .house-price input) {
+    font-size: 16px !important;
+  }
+}

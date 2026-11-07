@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { admin, deleteUsers, login, testEmail } from './helpers.ts';
+import { hydrated } from './islands.ts';
 
 /**
  * Svuota casa (senza chiave di Claude): due foto, due righe sotto ognuna,
@@ -22,6 +23,7 @@ test.afterAll(async () => {
 
 test('due foto diventano due annunci pubblicati insieme', async ({ page }) => {
   await login(page, email, '/svuota-casa');
+  await hydrated(page, 'HouseForm');
   await page.locator('input[type="file"]').first().setInputFiles(['public/foto/l-010.webp', 'public/foto/l-001.webp']);
   await expect(page.locator('.house-hints li')).toHaveCount(2);
   await page.getByLabel("Cos'è nella foto 1").fill('Divano angolare grigio, tre posti');

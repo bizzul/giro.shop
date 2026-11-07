@@ -95,6 +95,9 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
   l'anello blu: si controllano prima di pubblicare. Senza chiave di Claude la bozza nasce dal testo con regole
   semplici, e la pagina lo dice.
 - Comune di ritiro con ricerca, spedizione con costo facoltativo, prezzo trattabile.
+- **Il comune si compila da solo** (anche in Svuota casa): dalle coordinate GPS della foto, lette nel browser, oppure, se
+  la foto non le ha, dalla posizione del telefono, che il browser chiede una volta sola. Vale il comune più vicino entro
+  25 km; quello scelto a mano non cambia più.
 - **I miei annunci:** modifica con salvataggio automatico (niente bottoni «Salva», una notifica conferma), foto da
   aggiungere e riordinare, venduto (con prezzo e a chi), archivia, rimetti in vendita, elimina, link al proprio
   profilo pubblico.
@@ -237,12 +240,16 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
 - **Scarica i tuoi dati** (un file JSON con tutto) ed **elimina l'account** dalla pagina dell'account.
 - Solo cookie tecnici, niente tracciamento. Accesso con link via email, senza password. Visite agli annunci e ricerche si
   contano solo in forma anonima (vedi l'informativa: «Conteggi anonimi»).
+- Coordinate delle foto e posizione del telefono restano nel browser: al server arriva solo il comune. Le foto con la
+  posizione si ridisegnano prima dell'invio, così nell'annuncio non resta dove sono state scattate.
 - I font (Archivo, Instrument Sans, Martian Mono) li serve il sito stesso da `public/fonts`, anche alle email: aprire una
   pagina o un'email non manda nessuna richiesta a Google.
 
 ### Sul telefono
 
 - La ricerca sta in basso, sotto il pollice, e sale sopra la tastiera.
+- I campi da compilare hanno almeno 16px: Safari su iPhone non ingrandisce la pagina quando li tocchi (lo zoom con due
+  dita resta libero).
 - Cerca, messaggi, avvisi, salvati, account e **Vendi** stanno in una barra sul lato, sopra la ricerca o la barra
   della scheda. Esce di lato scorrendo verso il basso e torna scorrendo verso l'alto.
 - Per chi è mancino la barra va a sinistra: si sceglie nella pagina dell'account e vale su tutti i dispositivi.
@@ -309,8 +316,8 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 
 | Comando | Cosa verifica |
 | --- | --- |
-| `pnpm test` | 136 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, SEO, intestazioni di sicurezza, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
-| `pnpm test:e2e` | 30 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi, avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente |
+| `pnpm test` | 140 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, SEO, intestazioni di sicurezza, coordinate GPS delle foto, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
+| `pnpm test:e2e` | 33 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi, comune dalla foto o dalla posizione (e foto inviate senza), avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente |
 | `pnpm test:db` | 118 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger, pagamenti, tariffe) |
 | `pnpm test:moderazione` | 37 controlli sull'agente di moderazione con un modello finto che segue un copione |
 | `pnpm test:oauth` | 25 controlli sul login OAuth del connettore con il client MCP ufficiale |
@@ -320,6 +327,12 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 | `pnpm email:modelli` | Rigenera i modelli delle email di Supabase dal disegno comune (`src/lib/email-design.ts`) |
 
 I test nel browser e i controlli servono `pnpm exec supabase start` e `pnpm dev` accesi; puliscono quello che creano.
+I test nel browser si aspettano il sito senza Claude (bozze, assistente venditore e Svuota casa con le regole): se in
+`.env` c'è `ANTHROPIC_API_KEY`, accendi il server senza chiave prima di lanciarli:
+
+```bash
+pnpm exec astro dev stop && ANTHROPIC_API_KEY= pnpm dev --background && pnpm test:e2e
+```
 
 ## Online sul Mac mini
 

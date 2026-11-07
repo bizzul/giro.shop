@@ -6,6 +6,7 @@ import { getCategory } from '../core/categories.ts';
 import { resolveComune } from '../core/comuni.ts';
 import PhotoManager, { type PhotoItem } from './PhotoManager.tsx';
 import ComunePicker from './ComunePicker.tsx';
+import { useAutoComune } from '../lib/auto-comune.ts';
 
 interface Props {
   signedIn?: boolean;
@@ -49,6 +50,12 @@ export default function HouseForm({ signedIn = false, aiOn = false, max = 10 }: 
   const [hints, setHints] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState('');
   const [comune, setComune] = useState('');
+  // Comune di ritiro, per tutti: dalle coordinate delle foto o dalla posizione del telefono
+  const auto = useAutoComune(comune, setComune);
+  const changePhotos = (next: PhotoItem[]) => {
+    setPhotos(next);
+    auto.photosChanged(next);
+  };
   const [status, setStatus] = useState<'idle' | 'working' | 'done' | 'publishing' | 'finished'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
@@ -223,7 +230,8 @@ export default function HouseForm({ signedIn = false, aiOn = false, max = 10 }: 
           <label class="label" for="house-comune">
             Comune di ritiro, per tutti
           </label>
-          <ComunePicker id="house-comune" value={comune} onChange={setComune} required />
+          <ComunePicker id="house-comune" value={comune} onChange={auto.choose} required />
+          <small role="status">{auto.note}</small>
         </div>
 
         {error && (
@@ -267,7 +275,8 @@ export default function HouseForm({ signedIn = false, aiOn = false, max = 10 }: 
 
   return (
     <form class="panel sellform" onSubmit={prepare}>
-      <PhotoManager items={photos} onChange={setPhotos} max={max} />
+      <PhotoManager items={photos} onChange={changePhotos} max={max} />
+      <p class="muted small auto-note" role="status">{auto.note}</p>
 
       {!aiOn && photos.length > 0 && (
         <div class="fld">

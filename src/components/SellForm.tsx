@@ -6,6 +6,7 @@ import { CONDITION_LABEL, formatChf } from '../core/format.ts';
 import { getCategory } from '../core/categories.ts';
 import PhotoManager, { type PhotoItem } from './PhotoManager.tsx';
 import ComunePicker from './ComunePicker.tsx';
+import { useAutoComune } from '../lib/auto-comune.ts';
 
 interface Props {
   /** Chi ha fatto l'accesso può pubblicare; gli altri vengono portati all'accesso. */
@@ -28,6 +29,12 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
   const [shipping, setShipping] = useState(false);
   const [shippingChf, setShippingChf] = useState('');
   const [demand, setDemand] = useState<Demand | null>(null);
+  // Comune di ritiro dalle coordinate della foto o, se non ci sono, dalla posizione del telefono
+  const auto = useAutoComune(comune || draft?.comune?.name || '', setComune);
+  const changePhotos = (next: PhotoItem[]) => {
+    setPhotos(next);
+    auto.photosChanged(next);
+  };
 
   useEffect(() => () => photos.forEach((p) => URL.revokeObjectURL(p.url)), []);
 
@@ -138,7 +145,7 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
 
         <PhotoManager
           items={photos}
-          onChange={setPhotos}
+          onChange={changePhotos}
           keepOne={photos.length > 0}
           message={photos.length === 0 ? "Aggiungi almeno una foto per pubblicare: la prima è la copertina." : null}
         />
@@ -245,7 +252,8 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
           <label class="label" for="draft-comune">
             {draft.comune && !comune && <span class="ai-mark sm" />}Comune di ritiro
           </label>
-          <ComunePicker id="draft-comune" value={comune || draft.comune?.name || ''} onChange={setComune} required />
+          <ComunePicker id="draft-comune" value={comune || draft.comune?.name || ''} onChange={auto.choose} required />
+          <small role="status">{auto.note}</small>
         </div>
 
         <div class="fld">
@@ -313,7 +321,7 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
 
   return (
     <form class="panel sellform" onSubmit={submit}>
-      <PhotoManager items={photos} onChange={setPhotos} />
+      <PhotoManager items={photos} onChange={changePhotos} />
 
       <label class="fld">
         <span class="label">Due righe, se vuoi</span>
@@ -331,7 +339,8 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
         <label class="label" for="comune">
           Comune di ritiro
         </label>
-        <ComunePicker id="comune" value={comune} onChange={setComune} />
+        <ComunePicker id="comune" value={comune} onChange={auto.choose} />
+        <small role="status">{auto.note}</small>
       </div>
 
       {error && (

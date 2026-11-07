@@ -29,7 +29,7 @@ import ComunePicker from './ComunePicker.tsx';
 </dialog>
 
 <script>
-  import { COMUNI, distanceKm, getComune, resolveComune } from '../core/comuni.ts';
+  import { distanceKm, getComune, nearestComune, resolveComune } from '../core/comuni.ts';
   import { formatKm } from '../core/format.ts';
   import { toast } from '../lib/toast.ts';
 
@@ -151,9 +151,8 @@ import ComunePicker from './ComunePicker.tsx';
     if (msg) msg.textContent = 'Cerco la tua posizione…';
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const here = { lat: pos.coords.latitude, lon: pos.coords.longitude } as (typeof COMUNI)[number];
-        const nearest = [...COMUNI].sort((a, b) => distanceKm(here, a) - distanceKm(here, b))[0];
-        const far = distanceKm(here, nearest) > 40;
+        const { comune: nearest, km } = nearestComune({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        const far = km > 40;
         setField(nearest.name);
         use(nearest.name, far ? `Sei lontano dal Ticino: distanze da ${nearest.name}, il comune più vicino` : `Distanze da ${nearest.name}, vicino a te`);
       },

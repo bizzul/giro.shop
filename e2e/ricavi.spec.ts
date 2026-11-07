@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { admin, deleteUsers, login, testEmail } from './helpers.ts';
+import { hydrated } from './islands.ts';
 
 /**
  * Ricavi, con il pagamento di prova: vetrina mirata, pubblicazione a pagamento in Auto, negozio Pro
@@ -85,6 +86,7 @@ test('vetrina mirata: si paga, va in cima e chi lo cerca riceve un avviso', asyn
 
 test('auto: senza Pro la pubblicazione si paga, poi va in vendita', async () => {
   await seller.goto('/vendi');
+  await hydrated(seller, 'SellForm');
   await seller.locator('input[type="file"]').first().setInputFiles('public/foto/l-010.webp');
   await expect(seller.locator('.ph-grid img, .photos img').first()).toBeVisible();
   await seller.getByLabel('Due righe, se vuoi').fill("Auto Fiat Panda del 2015, 90'000 km");

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { hydrated } from './islands.ts';
 
 test.describe('senza account', () => {
   test('la home mostra gli ultimi annunci', async ({ page }) => {
@@ -49,6 +50,46 @@ test.describe('senza account', () => {
     await expect(page.getByRole('button', { name: 'Distanze da Bellinzona' })).toBeVisible();
     await expect(page.locator('.lcard').first()).toContainText('km da te');
     await expect(page.getByRole('status').filter({ hasText: 'Distanze da Bellinzona' })).toBeVisible();
+  });
+
+  test('Vendi: il comune arriva dalle coordinate della foto, che parte senza posizione', async ({ page }) => {
+    await page.goto('/vendi');
+    await hydrated(page, 'SellForm');
+    await page.locator('input[type="file"]').first().setInputFiles('e2e/fixtures/foto-gps-locarno.jpg');
+    await expect(page.locator('#comune')).toHaveValue('Locarno');
+    await expect(page.getByRole('status').filter({ hasText: 'Dalle coordinate della foto: Locarno' })).toBeVisible();
+    // Si guarda cosa partirebbe verso il server, senza mandarlo: il comune sì, i metadati con la posizione no
+    let sent: Buffer | null = null;
+    await page.route('**/_actions/createDraft**', async (route) => {
+      sent = route.request().postDataBuffer();
+      await route.abort();
+    });
+    await page.getByRole('button', { name: 'Prepara la bozza' }).click();
+    await expect.poll(() => sent?.length ?? 0).toBeGreaterThan(0);
+    expect(sent!.includes('Locarno')).toBe(true);
+    expect(sent!.includes('Exif')).toBe(false);
+  });
+
+  test('Vendi: il comune scelto dalla persona resta, anche con una foto che dice altro', async ({ page }) => {
+    await page.goto('/vendi');
+    await hydrated(page, 'SellForm');
+    await page.locator('#comune').fill('Lugano');
+    await page.getByRole('option', { name: /^Lugano/ }).click();
+    await page.locator('input[type="file"]').first().setInputFiles('e2e/fixtures/foto-gps-locarno.jpg');
+    await expect(page.locator('.ph-grid img, .photos img').first()).toBeVisible();
+    await expect(page.locator('#comune')).toHaveValue('Lugano');
+  });
+
+  test.describe('con la posizione del telefono permessa', () => {
+    test.use({ geolocation: { latitude: 46.1946, longitude: 9.0244 }, permissions: ['geolocation'] });
+
+    test('Vendi: senza coordinate nella foto il comune arriva dalla posizione', async ({ page }) => {
+      await page.goto('/vendi');
+      await hydrated(page, 'SellForm');
+      await page.locator('input[type="file"]').first().setInputFiles('public/foto/l-010.webp');
+      await expect(page.locator('#comune')).toHaveValue('Bellinzona');
+      await expect(page.getByRole('status').filter({ hasText: 'Dalla tua posizione: Bellinzona' })).toBeVisible();
+    });
   });
 
   test('le pagine personali portano al login e poi indietro', async ({ page }) => {
