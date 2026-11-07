@@ -139,7 +139,7 @@ export function emailLayout({ origin, preheader, body, footer = '' }: LayoutInpu
 <tr><td class="giro-outer" align="center" style="padding:32px 16px">
   <table role="presentation" width="560" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:560px">
     <tr><td style="padding:0 4px 18px">
-      <a href="${origin}/" style="text-decoration:none"><img src="${origin}/email/giro-logo.png" width="122" height="27" alt="giro.shop" style="display:block;border:0"></a>
+      <a href="${origin}/" style="text-decoration:none"><img src="${origin}/email/giro-logo.png" width="175" height="27" alt="Mercatino Ticino" style="display:block;border:0"></a>
     </td></tr>
     <tr><td class="giro-pad" style="background:${C.card};border-radius:8px;padding:32px">
       ${body}
