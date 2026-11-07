@@ -19,7 +19,9 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
   - [Avvisi ed email](#avvisi-ed-email)
   - [Fiducia e moderazione](#fiducia-e-moderazione)
   - [Assistente AI (MCP)](#assistente-ai-mcp)
+  - [Ricavi](#ricavi)
   - [Privacy e dati](#privacy-e-dati)
+  - [Sul telefono](#sul-telefono)
 - [Come è fatto](#come-è-fatto)
 - [Avvio in locale](#avvio-in-locale)
 - [Test](#test)
@@ -68,6 +70,8 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 - **Storico del prezzo** con grafico; chi ha salvato l'annuncio viene avvisato quando il prezzo cala.
 - **Traduzione** in tedesco, francese e inglese (con Claude).
 - Salva (cuore), confronta, scrivi a chi vende, segnala. Profilo di chi vende con valutazioni e tempi di risposta.
+- Etichette **«In vetrina»** (vetrina mirata pagata) e **«Negozio»** (account Pro); sui mobili grandi senza spedizione,
+  le ditte di trasporto della zona.
 - Per Google: dati strutturati (Product/Offer), link canonici, sitemap e robots.txt.
 
 <p>
@@ -83,14 +87,15 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
   semplici, e la pagina lo dice.
 - Comune di ritiro con ricerca, spedizione con costo facoltativo, prezzo trattabile.
 - **I miei annunci:** modifica con salvataggio automatico (niente bottoni «Salva», una notifica conferma), foto da
-  aggiungere e riordinare, venduto (con prezzo e a chi), archivia, rimetti in vendita, elimina.
+  aggiungere e riordinare, venduto (con prezzo e a chi), archivia, rimetti in vendita, elimina, link al proprio
+  profilo pubblico.
 - **Scadenza:** gli annunci restano online 90 giorni, con promemoria 3 giorni prima e rinnovo con un tocco.
 - **Valutazioni** reciproche dopo una vendita, solo tra chi ha davvero trattato.
 - **Lo cercano in 4:** nella bozza, quante persone hanno una ricerca salvata per un oggetto così e con che budget
   (anche chi cerca a un prezzo più basso), e se il prezzo scelto è sopra il budget di tutti.
 - **Svuota casa:** fino a 10 foto di stanze, cantina o trasloco. Con Claude ogni oggetto vendibile diventa una bozza,
   ritagliata dalla foto nel browser; senza chiave, una bozza per foto dal testo scritto sotto. Si controllano titoli e
-  prezzi e si pubblica tutto in un colpo.
+  prezzi e si pubblica tutto in un colpo. In cima a Vendi e a Svuota casa si sceglie: «Un oggetto» o «Tante cose».
 - **Statistiche** per annuncio: visite (anonime, una per sessione, quelle di chi vende non contano), salvati, contatti,
   domande, quante persone lo cercano, prezzo rispetto al mercato, giorni per vendere.
 - **Ribasso automatico:** −5/10/15/20% ogni 7–30 giorni, mai sotto il minimo scelto; chi ha salvato l'annuncio riceve
@@ -168,7 +173,8 @@ Due indirizzi per Claude o un altro client MCP:
 - **Pagina di consenso** che dice cosa l'assistente potrà e non potrà fare; permessi separati per ricerche e annunci.
 - **Assistenti collegati** in «I miei annunci», da scollegare con un clic (smettono subito di funzionare).
 - `publish_listing` accetta foto come indirizzi https, scaricate in modo sicuro (niente reti interne, solo immagini
-  vere fino a 5 MB); senza foto l'annuncio resta in bozza.
+  vere fino a 5 MB); senza foto l'annuncio resta in bozza. In auto, moto e affitti, senza negozio Pro, resta in bozza
+  anche con le foto: la pubblicazione si paga dal sito («Paga e pubblica» in I miei annunci).
 - Le risposte segnalano che titoli e descrizioni sono testo degli utenti, da trattare come dati.
 
 <p>
@@ -223,7 +229,8 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
 - **Astro 7** con rendering sul server (adapter Node), isole **Preact** per le parti interattive, Astro Actions per i
   moduli, server islands per le parti personali delle pagine in cache.
 - **Supabase**: Postgres con regole RLS (ognuno vede e modifica solo ciò che può), accesso con link via email (PKCE),
-  Storage per le foto. Funzioni e trigger nel database per offerte, scadenze, segnalazioni e sospensioni.
+  Storage per le foto. Funzioni e trigger nel database per offerte, ritiri, scadenze, segnalazioni, sospensioni e
+  tariffe di pubblicazione.
 - **Un solo nucleo** in `src/core` (frase → filtri, ricerca, stime, bozze, comuni) usato dal sito, dalle Actions e dal
   server MCP: le stesse regole per persone e agenti. Il server tiene in memoria una copia degli annunci pubblicati,
   aggiornata dopo ogni modifica.
@@ -233,7 +240,8 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
 - **EmbeddingGemma** (via transformers.js, sul server, circa 200 MB scaricati una volta) per la ricerca per significato;
   i vettori stanno in una tabella che solo il server legge e scrive.
 - Lavori periodici (promemoria di scadenza, annunci scaduti, ribassi automatici, consigli sul prezzo, promemoria dei
-  ritiri, riassunto delle email, vettori nuovi) agganciati alle richieste, al massimo ogni 15 minuti.
+  ritiri, prezzi di prima alla fine delle modifiche in blocco, pagamenti protetti rilasciati dopo il ritiro, riassunto
+  delle email, vettori nuovi) agganciati alle richieste, al massimo ogni 15 minuti.
 
 ## Avvio in locale
 
@@ -302,8 +310,8 @@ src/
   lib/         lato server: Supabase, email, avvisi, moderazione, ricerca per significato, OAuth, manutenzione
   actions/     Astro Actions (moduli del sito)
   mcp/         server MCP (HTTP e stdio) e strumenti dell'account
-  pages/       pagine ed endpoint (anche /oauth e /.well-known)
-  components/  schede, ricerca, isole Preact (Scatta e vendi, comune ricercabile, foto)
+  pages/       pagine ed endpoint (anche /pro, /partner, /pagamento, /oauth e /.well-known)
+  components/  schede, ricerca, isole Preact (Scatta e vendi, Svuota casa, comune ricercabile, foto)
 supabase/      configurazione, migrazioni e dati di prova
 tests/         test unitari (vitest)
 e2e/           test nel browser (Playwright)
@@ -325,6 +333,7 @@ rilancia `build`.
 - Fornitore di pagamento vero (Stripe o Payrexx, con TWINT): ora tutti i pagamenti sono di prova
 - Parere di un giurista sul pagamento protetto (legge sul riciclaggio) prima di accenderlo online
 - Fornitore SMS per verificare il cellulare online
-- Chiave di Claude online per bozze da foto, traduzioni, ricerca con foto e agente di moderazione
+- Chiave di Claude online per bozze da foto, Svuota casa con il ritaglio degli oggetti, risposte dell'assistente
+  venditore, traduzioni, ricerca con foto e agente di moderazione
 - Elenco ufficiale dei comuni con coordinate swisstopo (ora 33 comuni con coordinate approssimative)
 - Testi legali: dati tra parentesi quadre da completare e revisione di un giurista
