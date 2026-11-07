@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { demandFor, demandGroups } from '../src/core/demand.ts';
+import { demandFor, demandGroups, searchedObject, wantedBoard } from '../src/core/demand.ts';
 import type { Listing } from '../src/core/types.ts';
 
 const bike: Listing = {
@@ -54,6 +54,32 @@ describe('Cercasi', () => {
     expect(groups).toEqual([
       { label: 'Bici da corsa', query: 'bici da corsa', district: null, people: 3, budget: 700 },
       { label: 'Mountain bike', query: 'mountain bike', district: 'Bellinzona', people: 2, budget: null },
+    ]);
+  });
+});
+
+describe('ricerche contate, anonime', () => {
+  it("si tiene solo l'oggetto riconosciuto e la zona, mai la frase", () => {
+    expect(searchedObject('bici da corsa Bianchi sotto i 900 franchi a Bellinzona')).toEqual({ term: 'bici da corsa', label: 'Bici da corsa', district: 'Bellinzona' });
+    expect(searchedObject('regalo per mia nonna')).toBeNull();
+  });
+
+  it('persone e ricerche insieme, per oggetto e zona', () => {
+    const board = wantedBoard(
+      [
+        { userId: 'a', query: 'bici da corsa' },
+        { userId: 'b', query: 'bici da corsa max 700' },
+        { userId: 'c', query: 'passeggino trio' },
+      ],
+      [
+        { label: 'Bici da corsa', district: '', searches: 4 },
+        { label: 'Snowboard', district: 'Lugano', searches: 3 },
+        { label: 'Passeggini', district: '', searches: 2 },
+      ],
+    );
+    expect(board).toEqual([
+      { label: 'Bici da corsa', query: 'bici da corsa', district: null, people: 2, budget: null, searches: 4 },
+      { label: 'Snowboard', query: 'snowboard', district: 'Lugano', people: 0, budget: null, searches: 3 },
     ]);
   });
 });

@@ -55,6 +55,13 @@ import Layout from '../layouts/Layout.astro';
           Chi viene segnalato non sa chi l'ha segnalato. Per decidere, chi modera vede da quanto è iscritto chi segnala e quante sue
           segnalazioni sono state fondate, non il suo nome.
         </dd>
+        <dt>Conteggi anonimi</dt>
+        <dd>
+          Contiamo le visite a ogni annuncio, per giorno, e le mostriamo solo a chi l'ha pubblicato. Delle ricerche fatte sul sito
+          teniamo solo l'oggetto riconosciuto (per esempio «bici da corsa») e la zona, con il numero di ricerche al giorno: servono a
+          mostrare in «Cercasi» e in home cosa si cerca. In nessuno dei due casi teniamo chi guarda o cerca, la frase intera o
+          l'indirizzo IP; i conteggi delle ricerche si cancellano dopo 60 giorni.
+        </dd>
         <dt>Dati tecnici</dt>
         <dd>
           L'indirizzo IP resta solo nella memoria del server, per poco, per limitare l'uso delle funzioni che costano (ricerca con
@@ -68,7 +75,8 @@ import Layout from '../layouts/Layout.astro';
       <p>
         Usiamo solo cookie tecnici, per tenerti collegato: niente cookie pubblicitari, niente tracciamento, niente statistiche di terzi.
         Ricerche recenti, annunci da confrontare e comune per le distanze restano nel tuo browser e non li riceviamo, tranne il comune
-        quando scegli «Più vicini a te». Se tocchi «Usa la mia posizione», la posizione serve solo a trovare il comune più vicino e non
+        quando scegli «Più vicini a te». Per contare una sola volta visite e ricerche, il browser ricorda fino alla chiusura della
+        scheda cosa ha già contato. Se tocchi «Usa la mia posizione», la posizione serve solo a trovare il comune più vicino e non
         viene salvata.
       </p>
     </section>

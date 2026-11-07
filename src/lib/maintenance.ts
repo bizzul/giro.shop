@@ -12,6 +12,7 @@ import { claudeKey } from './claude.ts';
 import { moderateWithAgent, pendingTargets } from './moderation-agent.ts';
 import { applyPriceDrops, pickupReminders, sendPriceTips } from './seller-jobs.ts';
 import { restoreExpiredBulk } from './pro.ts';
+import { pruneSearchCounts } from './demand.ts';
 import { autoReleaseProtected } from './protected.ts';
 
 /**
@@ -96,6 +97,7 @@ export async function runMaintenance(
   await pickupReminders(admin, origin, now);
   await restoreExpiredBulk(invalidate, now);
   await autoReleaseProtected(origin, invalidate, now);
+  await pruneSearchCounts();
   // Segnalazioni che l'agente non ha ancora esaminato (server spento, errore, chiave aggiunta dopo)
   if (claudeKey()) {
     for (const target of await pendingTargets(admin)) {

@@ -1,6 +1,7 @@
 ---
 /**
- * In home, sotto l'affare del giorno: le richieste più frequenti delle ricerche salvate, come striscia di etichette.
+ * In home, sotto l'affare del giorno: le richieste più frequenti, come striscia di etichette. Vengono dalle ricerche
+ * salvate (persone che aspettano un avviso) e dalle ricerche fatte sul sito negli ultimi 7 giorni (solo l'oggetto).
  * Toccandone una: "Ce l'ho, lo vendo" (Vendi con l'oggetto già scritto), "Lo cerco anch'io" (salva la stessa
  * ricerca), "Vedi gli annunci". Le richieste della propria zona ("Distanze da te", nel browser) vanno per prime.
  *
@@ -56,11 +57,12 @@ const savedQuery = (g: { query: string; district: string | null }) => (g.distric
             data-query={g.query}
             data-save={savedQuery(g)}
             data-people={g.people}
+            data-searches={g.searches}
             data-budget={g.budget ?? ''}
             data-district={g.district ?? ''}
           >
             {`${g.label} · `}
-            <b>{g.people}</b>
+            <b>{g.people ? (g.people === 1 ? '1 persona' : `${g.people} persone`) : `${g.searches} ricerche`}</b>
             {g.budget != null && <span class="ws-extra"> · fino a {formatChf(g.budget)}</span>}
             {g.district && <span class="ws-extra"> · {g.district}</span>}
           </a>
@@ -129,10 +131,12 @@ const savedQuery = (g: { query: string; district: string | null }) => (g.distric
         return;
       }
       chip.classList.add('on');
-      const { label = '', query = '', save = '', people = '0', budget, district } = chip.dataset;
+      const { label = '', query = '', save = '', people = '0', searches = '0', budget, district } = chip.dataset;
       const n = Number(people);
+      const s = Number(searches);
       pick.querySelector('.ws-what')!.textContent = [
-        `${n === 1 ? '1 persona cerca' : `${n} persone cercano`} «${label}»`,
+        n ? `${n === 1 ? '1 persona cerca' : `${n} persone cercano`} «${label}»` : `«${label}»`,
+        s ? `${s === 1 ? '1 ricerca' : `${s} ricerche`} in 7 giorni` : '',
         budget ? `budget tipico fino a ${formatChf(Number(budget))}` : '',
         district ? `zona ${district}` : 'tutto il Ticino',
       ]

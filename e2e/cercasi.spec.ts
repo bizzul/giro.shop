@@ -22,6 +22,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await deleteUsers([...searchers, sellerEmail]);
+  await admin.from('search_counts').delete().eq('term', 'snowboard');
 });
 
 test('Cercasi mostra cosa cercano le persone, senza nomi', async ({ page }) => {
@@ -48,6 +49,19 @@ test('in home la striscia «Si cerca»: un tocco e si vende o si cerca anche', a
   await expect(pick.getByRole('link', { name: "Ce l'ho, lo vendo" })).toHaveAttribute('href', '/vendi?nota=bici%20da%20corsa');
   await pick.getByRole('button', { name: "Lo cerco anch'io" }).click();
   await expect(page).toHaveURL(/\/accedi\?next=%2F/);
+});
+
+test('le ricerche fatte sul sito contano: tre ricerche di snowboard e compare nella striscia', async ({ page, request }) => {
+  await admin.from('search_counts').delete().eq('term', 'snowboard');
+  for (const q of ['snowboard', 'snowboard freestyle', 'snowboard usato sotto i 200 franchi']) await request.post(`/cercato?q=${encodeURIComponent(q)}`);
+  await request.post(`/cercato?q=${encodeURIComponent('regalo per mia nonna')}`);
+  const { data } = await admin.from('search_counts').select('label, n').eq('term', 'snowboard');
+  expect(data).toEqual([{ label: 'Snowboard', n: 3 }]);
+  // Il sito rilegge i conteggi al massimo ogni 20 secondi
+  await expect(async () => {
+    await page.goto('/');
+    await expect(page.locator('.ws-chip', { hasText: 'Snowboard' })).toContainText('3 ricerche', { timeout: 1000 });
+  }).toPass({ timeout: 40_000 });
 });
 
 test('nella bozza: lo cercano in 3, con i budget', async ({ page }) => {

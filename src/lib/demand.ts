@@ -1,5 +1,5 @@
 import type { Listing } from '../core/types.ts';
-import { demandFor, demandGroups, type Demand, type DemandGroup, type SavedSearch } from '../core/demand.ts';
+import { demandFor, searchedObject, wantedBoard, type Demand, type SavedSearch, type SearchCount, type WantedItem } from '../core/demand.ts';
 import { adminClient } from './admin.ts';
 import { similaritiesFor, similaritiesToText } from './semantic.ts';
 
@@ -50,7 +50,44 @@ export async function demandForListings(listings: Listing[]): Promise<Map<string
   return out;
 }
 
-/** La pagina Cercasi. */
-export async function cercasi(): Promise<DemandGroup[]> {
-  return demandGroups(await savedSearches());
+let counted: { at: number; counts: SearchCount[] } | null = null;
+
+/** Le ricerche fatte sul sito negli ultimi 7 giorni, per oggetto e zona (copia di al massimo 20 secondi). */
+export async function searchCounts(): Promise<SearchCount[]> {
+  if (counted && Date.now() - counted.at < 20_000) return counted.counts;
+  const admin = adminClient();
+  if (!admin) return [];
+  const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+  const { data } = await admin.from('search_counts').select('label, district, n').gte('day', since).limit(5000);
+  const sums = new Map<string, SearchCount>();
+  for (const r of data ?? []) {
+    const key = `${r.label}|${r.district}`;
+    const c = sums.get(key) ?? { label: r.label as string, district: r.district as string, searches: 0 };
+    c.searches += Number(r.n);
+    sums.set(key, c);
+  }
+  counted = { at: Date.now(), counts: [...sums.values()] };
+  return counted.counts;
+}
+
+/** Le richieste per la pagina Cercasi e la striscia in home: ricerche salvate e ricerche fatte. */
+export async function cercasi(): Promise<WantedItem[]> {
+  const [searches, counts] = await Promise.all([savedSearches(), searchCounts()]);
+  return wantedBoard(searches, counts);
+}
+
+/** Conta una ricerca fatta sul sito: solo l'oggetto riconosciuto e la zona. false se non nomina un oggetto conosciuto. */
+export async function countSearch(q: string): Promise<boolean> {
+  const object = searchedObject(q);
+  const admin = adminClient();
+  if (!object || !admin) return false;
+  const { error } = await admin.rpc('count_search', { p_term: object.term, p_label: object.label, p_district: object.district });
+  return !error;
+}
+
+/** Dalla manutenzione: i conteggi più vecchi di 60 giorni non servono più e si tolgono. */
+export async function pruneSearchCounts(): Promise<void> {
+  const admin = adminClient();
+  if (!admin) return;
+  await admin.from('search_counts').delete().lt('day', new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10));
 }

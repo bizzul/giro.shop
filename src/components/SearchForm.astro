@@ -49,6 +49,28 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUG
   // Ricerca dal vivo: mentre scrivi, il server rimanda solo la griglia dei risultati.
   // Senza JavaScript il form continua a funzionare: Invio apre /cerca?q=…
   // Il menu "Ordina per" sta nei risultati ma appartiene a questo form (attributo form="ricerca").
+
+  // Ricerche contate per "Si cerca in Ticino": quando la ricerca si ferma, una volta per sessione e frase.
+  // Il server tiene solo l'oggetto riconosciuto e la zona, mai la frase o chi cerca (vedi /cercato).
+  const counted = (() => {
+    try {
+      return new Set<string>(JSON.parse(sessionStorage.getItem('giro:cercato') ?? '[]'));
+    } catch {
+      return new Set<string>();
+    }
+  })();
+  const countSearch = (q: string) => {
+    const key = q.trim().toLowerCase();
+    if (key.length < 2 || counted.has(key)) return;
+    counted.add(key);
+    try {
+      sessionStorage.setItem('giro:cercato', JSON.stringify([...counted].slice(-50)));
+    } catch {
+      /* senza sessionStorage si conta una volta per pagina */
+    }
+    navigator.sendBeacon?.(`/cercato?q=${encodeURIComponent(key)}`);
+  };
+
   for (const form of document.querySelectorAll<HTMLFormElement>('form[data-live]')) {
     const input = form.querySelector<HTMLInputElement>('input[name="q"]');
     const target = document.getElementById(form.dataset.target ?? '');
@@ -57,6 +79,7 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUG
     if (!input || !target) continue;
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let settle: ReturnType<typeof setTimeout> | undefined;
     let controller: AbortController | undefined;
 
     // q e ordine, senza i valori vuoti: è anche l'indirizzo di /cerca
@@ -83,6 +106,9 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUG
         if (!res.ok) throw new Error(String(res.status));
         target.innerHTML = await res.text();
         shown = key;
+        // Due secondi e mezzo senza scrivere: la ricerca è quella
+        clearTimeout(settle);
+        if (q) settle = setTimeout(() => countSearch(q), 2500);
         if (mode === 'cerca') {
           history.replaceState(null, '', key ? `/cerca?${key}` : '/cerca');
           document.title = q ? `${q} · giro.shop` : 'Cerca · giro.shop';
@@ -117,9 +143,13 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUG
       // Campo vuoto con un suggerimento in vista: Invio cerca proprio quello
       if (!input.value.trim() && input.dataset.current) input.value = input.dataset.current;
       update();
+      countSearch(input.value);
       input.blur();
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+
+    // Arrivati su /cerca?q=… (link, Invio senza JavaScript): anche questa è una ricerca
+    if (mode === 'cerca' && input.value.trim()) countSearch(input.value);
   }
 
   // Suggerimenti nel campo vuoto: una frase si scrive lettera per lettera, resta un attimo,

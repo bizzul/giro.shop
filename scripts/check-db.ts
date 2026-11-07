@@ -304,6 +304,7 @@ try {
   const { data: fees } = await anon.from('listing_fees').select('category_id, price_chf');
   const dbFees = Object.fromEntries((fees ?? []).map((f) => [f.category_id, Number(f.price_chf)]));
   expect('tariffe del database uguali a src/core/pricing.ts', JSON.stringify(dbFees, Object.keys(dbFees).sort()) === JSON.stringify(PAID_CATEGORIES, Object.keys(dbFees).sort()), JSON.stringify(dbFees));
+  expect('le ricerche contate le scrive e le legge solo il server', Boolean((await anon.rpc('count_search', { p_term: 'x', p_label: 'xx', p_district: '' })).error) && denied(await buyer.client.from('search_counts').select('term')));
   expect('le vetrine le crea solo il server', Boolean((await seller.client.from('promotions').insert({ listing_id: listingId, user_id: seller.id, ends_at: future })).error));
   const { data: partner } = await admin.from('partners').insert({ name: 'Ditta di prova', service: 'sgombero', email: `ditta-${tag}@esempio.test` }).select('id').single();
   try {

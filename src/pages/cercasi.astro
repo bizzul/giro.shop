@@ -1,7 +1,8 @@
 ---
 /**
- * Cercasi: cosa cercano le persone in Ticino, dalle ricerche salvate.
- * Solo numeri aggregati per oggetto e zona, e solo dove le persone sono almeno due: nessun nome, nessuna frase intera.
+ * Cercasi: cosa cercano le persone in Ticino, dalle ricerche salvate e da quelle fatte sul sito.
+ * Solo numeri aggregati per oggetto e zona: persone solo se almeno due, ricerche solo se almeno tre in una settimana.
+ * Nessun nome, nessuna frase intera.
  */
 import Layout from '../layouts/Layout.astro';
 import { cercasi } from '../lib/demand.ts';
@@ -16,16 +17,20 @@ const groups = await cercasi();
       <span class="label">Cercasi</span>
       <h1>Qualcuno lo sta aspettando.</h1>
       <p class="muted">
-        Le cose che le persone cercano di più in Ticino, dalle ricerche salvate. Se ne hai una in cantina, mettila in vendita: chi la cerca riceve
-        subito un avviso. Qui ci sono solo numeri, raggruppati: nessun nome e nessuna ricerca di una persona sola.
+        Le cose che si cercano di più in Ticino: dalle ricerche salvate e da quelle fatte sul sito nell'ultima settimana. Se ne hai una in cantina,
+        mettila in vendita: chi ha salvato la ricerca riceve subito un avviso. Qui ci sono solo numeri, raggruppati: delle ricerche contiamo solo
+        l'oggetto e la zona, mai chi cerca.
       </p>
     </header>
 
     {
       groups.length === 0 ? (
         <div class="panel">
-          <h3>Ancora poche ricerche salvate.</h3>
-          <p class="muted">Quando almeno due persone cercano la stessa cosa, compare qui. Puoi salvare una ricerca dai risultati con «Avvisami».</p>
+          <h3>Ancora poche ricerche.</h3>
+          <p class="muted">
+            Un oggetto compare qui quando almeno due persone hanno salvato la stessa ricerca, o quando è stato cercato almeno tre volte in una
+            settimana. Puoi salvare una ricerca dai risultati con «Avvisami».
+          </p>
           <a class="btn" href="/cerca">Cerca</a>
         </div>
       ) : (
@@ -39,10 +44,12 @@ const groups = await cercasi();
                 <span class="muted small">
                   {g.district ? `zona ${g.district}` : 'tutto il Ticino'}
                   {g.budget != null && ` · budget tipico fino a ${formatChf(g.budget)}`}
+                  {g.people > 0 && g.searches > 0 && ` · ${g.searches} ricerche in 7 giorni`}
                 </span>
               </div>
               <span class="people">
-                <b>{g.people}</b> <span class="muted small">{g.people === 1 ? 'persona' : 'persone'}</span>
+                <b>{g.people || g.searches}</b>{' '}
+                <span class="muted small">{g.people ? 'persone' : 'ricerche in 7 giorni'}</span>
               </span>
               <a class="btn" href={`/vendi?nota=${encodeURIComponent(g.query)}`}>
                 Ce l'ho, lo vendo
