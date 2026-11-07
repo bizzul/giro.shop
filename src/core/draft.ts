@@ -46,6 +46,8 @@ export interface Draft {
   source: 'claude' | 'regole';
   model: string | null;
   warnings: string[];
+  /** Bozza importata da un altro portale (es. "tutti.ch"): chi vende la controlla come le altre. */
+  importedFrom?: string | null;
   createdAt: string;
 }
 

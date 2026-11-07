@@ -30,6 +30,14 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
   const [shipping, setShipping] = useState(false);
   const [shippingChf, setShippingChf] = useState('');
   const [demand, setDemand] = useState<Demand | null>(null);
+  // "Importa da un altro sito": link di un proprio annuncio su tutti.ch, anibis.ch o ricardo.ch
+  const [importOpen, setImportOpen] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  // Se il sito blocca il nostro server: si incolla il testo e la bozza la prepara l'assistente
+  const [pasteMode, setPasteMode] = useState(false);
+  const [pasted, setPasted] = useState('');
   // Comune di ritiro dalle coordinate della foto o, se non ci sono, dalla posizione del telefono
   const auto = useAutoComune(comune || draft?.comune?.name || '', setComune);
   const changePhotos = (next: PhotoItem[]) => {
@@ -153,6 +161,47 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
     setStatus('done');
   }
 
+  /** Legge il proprio annuncio da un altro portale e apre la bozza già compilata, foto comprese. */
+  async function importFromSite(event: Event) {
+    event.preventDefault();
+    setImportError(null);
+    setPasteMode(false);
+    if (!importUrl.trim()) return setImportError("Incolla il link del tuo annuncio.");
+    setImporting(true);
+    const { data, error: actionError } = await actions.importListing({ url: importUrl.trim() });
+    setImporting(false);
+    if (actionError || !data) {
+      setImportError(actionError?.message ?? 'Importazione non riuscita. Riprova.');
+      // Sito che blocca o pagina illeggibile: resta la strada del testo incollato
+      if (actionError && (actionError.code === 'FAILED_DEPENDENCY' || actionError.code === 'UNPROCESSABLE_CONTENT')) setPasteMode(true);
+      return;
+    }
+    photos.forEach((p) => URL.revokeObjectURL(p.url));
+    const files = data.photos.map((p, i) => {
+      const bytes = Uint8Array.from(atob(p.data), (c) => c.charCodeAt(0));
+      return new File([bytes], `importata-${i + 1}.jpg`, { type: p.type });
+    });
+    setPhotos(files.map((file, i) => ({ key: `importata-${Date.now()}-${i}`, url: URL.createObjectURL(file), file })));
+    setDraft(data.draft);
+    setTitle(data.draft.title);
+    setDescription(data.draft.description);
+    setPrice(data.priceChf != null ? String(data.priceChf) : data.draft.price ? String(data.draft.price.mid) : '');
+    if (data.draft.comune) setComune(data.draft.comune.name);
+    setImportOpen(false);
+    setStatus('done');
+  }
+
+  /** Fallback: il testo incollato va nelle "due righe" e l'assistente prepara la bozza come sempre. */
+  function usePasted() {
+    const text = pasted.trim();
+    if (!text) return setImportError("Incolla il testo dell'annuncio.");
+    setNotes([notes.trim(), text].filter(Boolean).join('\n\n').slice(0, 2000));
+    setPasted('');
+    setPasteMode(false);
+    setImportError(null);
+    setImportOpen(false);
+  }
+
   /** Pubblica la bozza così come l'hai modificata, con le foto già ridotte. */
   async function publish() {
     if (!draft) return;
@@ -215,7 +264,9 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
           <div>
             <b>{draft.object}</b>
             <span>
-              {draft.source === 'claude'
+              {draft.importedFrom
+                ? `Importato da ${draft.importedFrom}: controlla ogni campo prima di pubblicare`
+                : draft.source === 'claude'
                 ? `Riconosciuto ${photos.length ? `da ${photos.length} foto` : 'dal testo'} · affidabilità ${Math.round(draft.confidence * 100)}%`
                 : 'Bozza dal testo, senza AI'}
             </span>
@@ -443,6 +494,58 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
 
   return (
     <form class="panel sellform" onSubmit={submit}>
+      <div class="import">
+        {!importOpen ? (
+          <button type="button" class="btn import-open" onClick={() => setImportOpen(true)}>
+            Importa da un altro sito
+          </button>
+        ) : (
+          <div class="import-box" role="group" aria-labelledby="import-label">
+            <label class="label" id="import-label" for="import-url">
+              Link del tuo annuncio su tutti.ch, anibis.ch o ricardo.ch
+            </label>
+            <div class="import-row">
+              <input
+                id="import-url"
+                type="url"
+                inputMode="url"
+                autoComplete="off"
+                placeholder="https://www.tutti.ch/it/vi/…"
+                value={importUrl}
+                onInput={(e) => setImportUrl((e.target as HTMLInputElement).value)}
+                onKeyDown={(e) => e.key === 'Enter' && importFromSite(e)}
+              />
+              <button type="button" class="btn primary" onClick={importFromSite} disabled={importing}>
+                {importing ? 'Importo…' : 'Importa'}
+              </button>
+            </div>
+            <small>
+              Solo annunci tuoi, uno alla volta. Prendiamo titolo, testo, prezzo, luogo e foto; poi controlli tu e pubblichi.{' '}
+              <button type="button" class="link-button" onClick={() => { setImportOpen(false); setImportError(null); setPasteMode(false); }}>
+                Chiudi
+              </button>
+            </small>
+            {importError && (
+              <p class="error" role="alert">
+                {importError}
+              </p>
+            )}
+            {pasteMode && (
+              <div class="fld">
+                <label class="label" for="import-text">
+                  Incolla qui il testo del tuo annuncio
+                </label>
+                <textarea id="import-text" rows={5} maxLength={2000} value={pasted} onInput={(e) => setPasted((e.target as HTMLTextAreaElement).value)} />
+                <small>Copia titolo, descrizione e prezzo dalla pagina dell'annuncio. Poi aggiungi qui sotto le foto: la bozza la prepara l'assistente.</small>
+                <button type="button" class="btn" onClick={usePasted}>
+                  Usa questo testo
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <PhotoManager items={photos} onChange={changePhotos} />
 
       <label class="fld">

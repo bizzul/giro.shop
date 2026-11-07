@@ -101,6 +101,14 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
   dettagli e parole chiave e propone una fascia di prezzo dagli annunci simili. I campi scritti dall'assistente hanno
   l'anello blu: si controllano prima di pubblicare. Senza chiave di Claude la bozza nasce dal testo con regole
   semplici, e la pagina lo dice.
+- **Importa da un altro sito:** in Vendi si incolla il link di un proprio annuncio su tutti.ch, anibis.ch o ricardo.ch.
+  Il server legge quella sola pagina (JSON-LD `schema.org/Product`, `__NEXT_DATA__` e meta og:) e apre la bozza con
+  titolo, testo, prezzo in CHF, categoria più vicina, comune (dal CAP o dal nome, solo in Ticino) e fino a 5 foto,
+  ridisegnate senza metadati. Un link alla volta, solo su richiesta, al massimo 15 all'ora per persona, User-Agent del
+  sito senza email; si leggono solo gli host dei tre portali e delle loro CDN. Annuncio scaduto o link sbagliato hanno
+  un messaggio chiaro. ricardo.ch di solito blocca il server con un captcha: allora si incolla il testo dell'annuncio
+  e la bozza la prepara l'assistente, come con le foto. Parser in `src/core/import-listing.ts`, test su pagine di
+  esempio in `tests/fixtures/import/`.
 - Comune di ritiro con ricerca, spedizione con costo facoltativo, prezzo trattabile.
 - **Primo annuncio senza lasciare la pagina:** chi non ha un account scrive l'email sotto la bozza, riceve un codice di 6
   cifre e lo scrive lì; l'account nasce, l'annuncio si pubblica e subito dopo il sito propone una passkey. Lo stesso
@@ -340,7 +348,7 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 
 | Comando | Cosa verifica |
 | --- | --- |
-| `pnpm test` | 157 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, passkey, SEO, indirizzi con il titolo e pagine /usato, categorie, intestazioni di sicurezza, coordinate GPS e miniature delle foto, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
+| `pnpm test` | 175 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, passkey, SEO, indirizzi con il titolo e pagine /usato, categorie, intestazioni di sicurezza, coordinate GPS e miniature delle foto, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, import di un annuncio da tutti.ch, anibis.ch e ricardo.ch, commissioni |
 | `pnpm test:e2e` | 38 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi (con la miniatura della foto nelle schede), bozza ritrovata dopo l'accesso, primo annuncio e accesso con il codice a 6 cifre, comune dalla foto o dalla posizione (e foto inviate senza), avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente, passkey (proposta dopo l'accesso, aggiunta, accesso senza email e rimozione, con un autenticatore virtuale) |
 | `pnpm test:db` | 118 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger, pagamenti, tariffe) |
 | `pnpm test:moderazione` | 37 controlli sull'agente di moderazione con un modello finto che segue un copione |

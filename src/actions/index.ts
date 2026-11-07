@@ -8,6 +8,8 @@ import { resolveComune } from '../core/comuni.ts';
 import { demandForDraft } from '../lib/demand.ts';
 import { houseDrafts, MAX_HOUSE_PHOTOS } from '../core/house.ts';
 import { allow } from '../lib/claude.ts';
+import { ImportError } from '../core/import-listing.ts';
+import { importListing } from '../lib/import-listing.ts';
 import { account } from './account.ts';
 import { alerts } from './alerts.ts';
 import { appeals } from './appeals.ts';
@@ -70,6 +72,28 @@ export const server = {
         });
       } catch (error) {
         if (error instanceof DraftError) throw new ActionError({ code: 'BAD_REQUEST', message: error.message });
+        throw error;
+      }
+    },
+  }),
+
+  /**
+   * "Importa da un altro sito": un PROPRIO annuncio di tutti.ch, anibis.ch o ricardo.ch diventa la bozza di Vendi.
+   * Un link alla volta, solo su richiesta, con un limite per persona: niente import in massa.
+   */
+  importListing: defineAction({
+    input: z.object({ url: z.string().trim().min(5).max(500) }),
+    handler: async ({ url }, context) => {
+      if (!allow(`importa:${context.locals.user?.id ?? context.clientAddress}`, 15, 60 * 60_000)) {
+        throw new ActionError({ code: 'TOO_MANY_REQUESTS', message: 'Hai importato molti annunci in poco tempo: riprova tra un po\'.' });
+      }
+      try {
+        return await importListing(url);
+      } catch (error) {
+        if (error instanceof ImportError) {
+          const code = ({ link: 'BAD_REQUEST', scaduto: 'GONE', bloccato: 'FAILED_DEPENDENCY', pagina: 'UNPROCESSABLE_CONTENT' } as const)[error.kind];
+          throw new ActionError({ code, message: error.message });
+        }
         throw error;
       }
     },
