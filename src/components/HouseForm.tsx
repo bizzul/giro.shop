@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { actions } from 'astro:actions';
 import type { Box, HouseItem, HouseResult } from '../core/house.ts';
-import { CONDITION_LABEL, formatChf } from '../core/format.ts';
+import { CONDITION_LABEL, formatChf, formatChfRange } from '../core/format.ts';
 import { getCategory } from '../core/categories.ts';
 import { resolveComune } from '../core/comuni.ts';
 import PhotoManager, { type PhotoItem } from './PhotoManager.tsx';
@@ -190,7 +190,7 @@ export default function HouseForm({ signedIn = false, aiOn = false, max = 10 }: 
                 />
                 <span class="small muted">
                   {getCategory(r.category).name} · {CONDITION_LABEL[r.condition]}
-                  {r.price && ` · simili ${formatChf(r.price.low)}–${formatChf(r.price.high)}`}
+                  {r.price && ` · simili ${formatChfRange(r.price.low, r.price.high)}`}
                 </span>
                 {r.description && <span class="small house-desc">{r.description}</span>}
                 {r.state === 'pubblicato' && r.listingId && (

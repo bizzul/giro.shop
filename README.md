@@ -60,6 +60,7 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 </p>
 <p>
   <img src="docs/screenshots/05-distanze.webp" alt="Da dove parti? Il comune si scrive e si sceglie" width="49%">
+  <img src="docs/screenshots/14-cercasi.webp" alt="Cercasi: cosa cercano le persone, per oggetto e zona, solo numeri" width="49%">
 </p>
 
 ### La scheda annuncio
@@ -105,6 +106,11 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 
 ![Scatta e vendi: foto, bozza, prezzo dagli annunci simili](docs/screenshots/06-vendi.webp)
 
+<p>
+  <img src="docs/screenshots/15-svuota-casa.webp" alt="Svuota casa: una bozza per oggetto, da controllare e pubblicare in un colpo" width="49%">
+  <img src="docs/screenshots/18-statistiche-vetrina.webp" alt="I miei annunci: visite, salvati, contatti, quante persone lo cercano e vetrina mirata" width="49%">
+</p>
+
 ### Trattare
 
 - Messaggi tra chi compra e chi vende, con **offerte**: accetta, rifiuta, ritira, controfferta. Un'offerta accettata
@@ -121,7 +127,10 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
   «suoi», link esterni, inviti a uscire dal sito. Li vede solo chi riceve, con il link per segnalare.
 - Consigli di sicurezza nella conversazione e la guida «Comprare e vendere sicuri».
 
-![Conversazione con offerte](docs/screenshots/07-messaggi.webp)
+<p>
+  <img src="docs/screenshots/07-messaggi.webp" alt="Conversazione con offerte" width="49%">
+  <img src="docs/screenshots/16-assistente-ritiro.webp" alt="Assistente venditore: risposta automatica, proposta di ritiro e pagamento protetto" width="49%">
+</p>
 
 ### Avvisi ed email
 
@@ -156,7 +165,7 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 - **Contestazioni:** chi riceve una decisione la può contestare; la rivede sempre una persona.
 - Sospensione degli account per violazioni gravi o ripetute.
 
-![Pagina di moderazione](docs/screenshots/12-moderazione.webp)
+![Pagina di moderazione: rischio truffa in cima, segnalazioni, contestazioni, partner](docs/screenshots/12-moderazione.webp)
 
 ### Assistente AI (MCP)
 
@@ -207,6 +216,11 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
   problema» li blocca finché decide chi modera, chi vende può rimborsare. Senza problemi vanno a chi vende 2 giorni dopo
   il ritiro. **Spento online** finché non c'è il parere di un giurista: si accende con `PIAZZA_PAGAMENTO_PROTETTO=on`
   (in sviluppo è sempre acceso).
+
+<p>
+  <img src="docs/screenshots/17-pro.webp" alt="Pro: numeri del negozio, dati del negozio, prezzi in blocco a parole, import del catalogo" width="49%">
+  <img src="docs/screenshots/19-partner.webp" alt="Partner: sgombero, traslochi e trasporto in Ticino" width="49%">
+</p>
 
 ### Privacy e dati
 

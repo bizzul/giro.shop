@@ -1,7 +1,8 @@
 /**
  * Screenshot del README (docs/screenshots/*.webp), con il Chrome installato e il sito in sviluppo.
  * Per le schermate che ne hanno bisogno aggiunge per poco dati d'esempio al database locale
- * (storico del prezzo, una domanda, alcuni avvisi, una segnalazione) e li toglie alla fine.
+ * (storico del prezzo, una domanda, alcuni avvisi, una segnalazione, ricerche salvate di altre persone, partner,
+ * un annuncio a rischio, un negozio Pro, l'assistente venditore acceso) e li toglie alla fine.
  * Accede come l'utente di prova (prova@esempio.test) con il link via email letto da Mailpit.
  * Uso: pnpm screenshots   (con `supabase start` e `pnpm dev` accesi)
  */
@@ -116,6 +117,45 @@ const { data: report } = await admin
   .single();
 cleanup.push(() => admin.from('reports').delete().eq('id', report!.id));
 
+// Ricerche salvate di altre persone: Cercasi e "lo cercano in" (solo numeri nelle pagine)
+const { data: people } = await admin.from('profiles').select('id').neq('id', provaId).limit(8);
+const wanted: Array<[string, number]> = [
+  ['bici da corsa sotto i 900 franchi', 0],
+  ['bici da corsa max 700', 1],
+  ['bici da corsa', 2],
+  ['passeggino trio', 3],
+  ['passeggino trio sotto i 300 franchi', 4],
+  ['mountain bike a Bellinzona', 5],
+  ['mountain bike a Bellinzona max 600', 6],
+  ['moto', 7],
+  ['moto sotto i 3000 franchi', 0],
+];
+const { data: alerts } = await admin
+  .from('alerts')
+  .insert(wanted.map(([query, i]) => ({ user_id: people![i % people!.length].id, query, filters: {} })))
+  .select('id');
+cleanup.push(() => admin.from('alerts').delete().in('id', alerts!.map((a) => a.id)));
+
+// Partner locali (anche il trasporto per i mobili grandi, nella scheda annuncio)
+const { data: partners } = await admin
+  .from('partners')
+  .insert([
+    { name: 'Sgomberi Ceresio', service: 'sgombero', districts: ['Lugano', 'Mendrisio'], about: 'Cantine, solai e appartamenti: ritiriamo tutto, il riutilizzabile va in beneficenza.', phone: '091 123 45 67', email: 'info@esempio.test', active: true },
+    { name: 'Traslochi Ticino Express', service: 'traslochi', districts: [], about: 'Traslochi in tutto il Ticino, con montamobili.', website: 'https://esempio.test', email: 'traslochi@esempio.test', active: true },
+    { name: 'Furgone & Co.', service: 'trasporto', districts: ['Lugano'], about: 'Un mobile grande da portare a casa? Lo carichiamo noi.', phone: '079 765 43 21', email: 'furgone@esempio.test', active: true },
+  ])
+  .select('id');
+cleanup.push(() => admin.from('partners').delete().in('id', partners!.map((p) => p.id)));
+
+// Un annuncio a rischio truffa, in cima alla moderazione
+await admin.from('listing_risk').upsert({
+  listing_id: 'l-031',
+  score: 0.55,
+  signals: ['copia'],
+  reasons: ["Testo quasi uguale a un annuncio di un'altra persona", 'Cellulare non verificato'],
+});
+cleanup.push(() => admin.from('listing_risk').delete().eq('listing_id', 'l-031'));
+
 // Un assistente collegato e la sua richiesta di consenso
 const reg = await (await fetch(`${BASE}/oauth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_name: 'Claude', redirect_uris: ['https://claude.ai/api/mcp/auth_callback'] }) })).json();
 cleanup.push(() => admin.from('oauth_clients').delete().eq('id', reg.client_id));
@@ -216,6 +256,68 @@ try {
 
   await page.goto(`${BASE}/moderazione`);
   await shot(page, '12-moderazione', { full: true, maxHeight: 1400 });
+
+  // ── Funzioni smart e ricavi ──
+  await page.goto(`${BASE}/cercasi`);
+  await shot(page, '14-cercasi');
+
+  await page.goto(`${BASE}/partner`);
+  await shot(page, '19-partner', { full: true, maxHeight: 1300 });
+
+  // I miei annunci: statistiche, quante persone lo cercano, vetrina mirata
+  await page.goto(`${BASE}/miei-annunci`);
+  await page.locator('ul.rows').scrollIntoViewIfNeeded();
+  await page.evaluate(() => document.fonts.ready);
+  await save('18-statistiche-vetrina', await page.locator('ul.rows').screenshot(), 1400);
+
+  // Assistente venditore e ritiro: Laura ha l'assistente acceso, la persona di prova chiede della macchina del caffè
+  const { data: laura } = await admin.from('profiles').select('id').eq('display_name', 'Laura').maybeSingle();
+  if (laura) {
+    await admin.from('seller_settings').upsert({ user_id: laura.id, assistant_on: true, availability: ['sab-mattina', 'sere'] });
+    cleanup.push(() => admin.from('seller_settings').delete().eq('user_id', laura.id));
+    cleanup.push(() => admin.from('conversations').delete().eq('listing_id', 'l-041').eq('buyer_id', provaId));
+    await page.goto(`${BASE}/annuncio/l-041`);
+    await page.locator('form.contact-form textarea[name="body"]').fill('Ciao, è ancora disponibile? Quando posso passare a vederla?');
+    await page.locator('form.contact-form').getByRole('button', { name: 'Invia' }).click();
+    await page.waitForURL(/\/messaggi\/[^/]+/);
+    for (let i = 0; i < 20 && !(await page.getByText('Ritiro proposto da').count()); i++) {
+      await wait(500);
+      await page.reload();
+    }
+    await page.setViewportSize({ width: 1280, height: 1240 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await shot(page, '16-assistente-ritiro');
+    await page.setViewportSize({ width: 1280, height: 860 });
+  }
+
+  // Pro: la persona di prova ha un negozio per qualche secondo, con l'anteprima di una modifica in blocco
+  await admin.from('shops').upsert({
+    user_id: provaId,
+    name: 'Usato & Co. Lugano',
+    about: 'Mobili, moto e oggetti di casa, controllati e puliti.',
+    address: 'Via Cantonale 12, Lugano',
+    hours: 'Ma–Ve 9–12, 14–18.30; Sa 9–16',
+    active_until: new Date(Date.now() + 300 * 864e5).toISOString(),
+  });
+  cleanup.push(() => admin.from('shops').delete().eq('user_id', provaId));
+  await page.goto(`${BASE}/pro`);
+  await page.locator('#phrase').fill('tutto −10% per 7 giorni');
+  await page.getByRole('button', { name: 'Vedi cosa cambia' }).click();
+  await page.locator('.changes').waitFor();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await shot(page, '17-pro', { full: true, maxHeight: 1900 });
+
+  // Svuota casa: tre foto, una bozza per foto (senza la chiave di Claude)
+  await page.goto(`${BASE}/svuota-casa`);
+  await page.waitForFunction(() => !document.querySelector('astro-island[ssr]'));
+  await page.locator('.photos-field input[type="file"]').setInputFiles(['public/foto/l-010.webp', 'public/foto/l-002.webp', 'public/foto/l-041.webp']);
+  await page.locator('.house-hints li').nth(2).waitFor();
+  await page.getByLabel("Cos'è nella foto 1").fill('Divano tre posti grigio, sfoderabile');
+  await page.getByLabel("Cos'è nella foto 2").fill('Scrivania vintage con tre cassetti');
+  await page.getByLabel("Cos'è nella foto 3").fill('Macchina del caffè Jura, funziona');
+  await page.getByRole('button', { name: 'Prepara le bozze' }).click();
+  await page.locator('.house-item').nth(2).waitFor();
+  await shot(page, '15-svuota-casa', { full: true, maxHeight: 1700 });
 
   // Telefono: ricerca e scheda, affiancate. Con l'accesso di prova, per vedere tutta la barra dei comandi sul lato
   const phone = await browser.newContext({

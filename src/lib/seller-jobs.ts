@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { dropPrice, priceTip, QUIET_DAYS } from '../core/insights.ts';
 import { estimatePrice } from '../core/price.ts';
 import { getListing, refreshListings } from '../core/store.ts';
-import { formatChf } from '../core/format.ts';
+import { formatChf, formatChfRange } from '../core/format.ts';
 import { formatPickup } from '../core/pickup.ts';
 import { afterPriceChange } from './listing-events.ts';
 import { notify, type Notice } from './notify.ts';
@@ -104,7 +104,7 @@ export async function sendPriceTips(admin: SupabaseClient, origin: string, now =
       userId: row.seller_id,
       kind: 'consiglio',
       title: `«${listing.title}»: nessun contatto da ${tip.quietDays} giorni`,
-      body: `Costa il ${tip.overPct}% in più degli annunci simili (${formatChf(tip.low)}–${formatChf(tip.high)}). Con ${formatChf(tip.suggested)} o con il ribasso automatico lo vedono più persone.`,
+      body: `Costa il ${tip.overPct}% in più degli annunci simili (${formatChfRange(tip.low, tip.high)}). Con ${formatChf(tip.suggested)} o con il ribasso automatico lo vedono più persone.`,
       url: `/miei-annunci#a-${listing.id}`,
       listingId: listing.id,
     });

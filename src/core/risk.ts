@@ -1,5 +1,5 @@
 import type { PriceEstimate } from './types.ts';
-import { formatChf } from './format.ts';
+import { formatChfRange } from './format.ts';
 import { normalize } from './text.ts';
 
 /**
@@ -104,7 +104,7 @@ export function listingRisk(input: {
   const hits: Array<{ signal: Signal; weight: number; reason: string }> = RULES.filter((r) => r.test(text, n)).map((r) => ({ signal: r.signal, weight: r.weight, reason: r.reason }));
   const est = input.estimate;
   if (est && est.basis === 'simili' && est.comparables >= 3 && input.priceChf > 0 && input.priceChf < est.low * 0.4) {
-    hits.push({ signal: 'prezzo', weight: 0.4, reason: `Prezzo molto sotto gli annunci simili (${formatChf(est.low)}–${formatChf(est.high)})` });
+    hits.push({ signal: 'prezzo', weight: 0.4, reason: `Prezzo molto sotto gli annunci simili (${formatChfRange(est.low, est.high)})` });
   }
   if (input.copiedFrom) hits.push({ signal: 'copia', weight: 0.5, reason: "Testo quasi uguale a un annuncio di un'altra persona" });
   if (hits.length && input.verified === false) hits.push({ signal: 'fuori', weight: 0.1, reason: 'Cellulare non verificato' });

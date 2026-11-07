@@ -4,7 +4,7 @@ import { actions } from 'astro:actions';
 import { getListing, photoUrl } from '../core/store.ts';
 import { demandForListings } from '../lib/demand.ts';
 import type { Listing } from '../core/types.ts';
-import { formatAge, formatChf, formatDay } from '../core/format.ts';
+import { formatAge, formatChf, formatChfRange, formatDay } from '../core/format.ts';
 import { maskSwissMobile } from '../core/phone.ts';
 import { EMAIL_GROUPS, EMAIL_MODES, EMAIL_MODE_LABEL, groupIsOn, type EmailPrefs } from '../core/email-prefs.ts';
 import { SCOPES } from '../core/oauth.ts';
@@ -488,7 +488,7 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
                     {l.market && l.estimate && (
                       <>
                         Prezzo <b class:list={['market', l.market === 'sopra' && 'high']}>{l.market === 'in linea' ? 'in linea con' : `${l.market} il`} mercato</b> (simili{' '}
-                        {formatChf(l.estimate.low)}–{formatChf(l.estimate.high)})
+                        {formatChfRange(l.estimate.low, l.estimate.high)})
                       </>
                     )}
                     {l.market && l.drop && ' · '}
