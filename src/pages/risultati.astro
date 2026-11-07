@@ -2,6 +2,7 @@
 /**
  * Solo la griglia dei risultati, senza layout: la usa la ricerca dal vivo.
  * GET /risultati?vista=home|cerca&q=…&ordine=prezzo&n=48
+ * Con inizio=24 solo la pagina successiva, che la griglia aggiunge in fondo mentre si scorre.
  */
 import SearchResults from '../components/SearchResults.astro';
 import { parseSort } from '../core/search.ts';
@@ -14,6 +15,7 @@ const mode = params.get('vista') === 'home' ? 'home' : 'cerca';
 const sort = parseSort(params.get('ordine'));
 const n = Number(params.get('n')) || undefined;
 const from = params.get('da') ?? undefined;
+const start = Number(params.get('inizio')) || undefined;
 ---
 
-<SearchResults q={q} mode={mode} sort={sort} n={n} from={from} />
+<SearchResults q={q} mode={mode} sort={sort} n={n} start={start} from={from} />

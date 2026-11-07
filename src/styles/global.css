@@ -201,15 +201,15 @@ h3 { font-size: 18px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01e
   .top nav .nav-sell .rail-ico { stroke-width: 1.9; }
   .top nav .rail-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-  /* Fuori di lato: scorrendo verso il basso, o mentre si scrive (la tastiera prende il posto) */
+  /* Fuori di lato: scorrendo verso il basso, o con la tastiera aperta (classi messe da lib/rail.ts) */
   .rail-away .top nav,
-  body:has(:is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='button'], [type='submit'], [type='file']), textarea, select):focus) .top nav {
+  .rail-kb .top nav {
     transform: translateX(calc(100% + 24px));
     opacity: 0;
     pointer-events: none;
   }
   :root[data-mano='sinistra'].rail-away .top nav,
-  :root[data-mano='sinistra'] body:has(:is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='button'], [type='submit'], [type='file']), textarea, select):focus) .top nav {
+  :root[data-mano='sinistra'].rail-kb .top nav {
     transform: translateX(calc(-100% - 24px));
   }
 }

@@ -7,26 +7,34 @@ import { meaningFor } from '../lib/semantic.ts';
 
 interface Props {
   q: string;
-  /** "home": a campo vuoto gli ultimi 8 annunci; "cerca": tutti, a pagine. */
+  /** "home": a campo vuoto prima gli ultimi 8 annunci; "cerca": tutti. Poi altri scorrendo, a pagine. */
   mode: 'home' | 'cerca';
   sort?: SortOrder;
-  /** Quanti annunci mostrare: cresce con "Mostra altri". */
+  /** Quanti annunci mostrare dall'inizio (es. /cerca?n=48 dopo aver scorso due pagine). */
   n?: number;
+  /** Solo la pagina che parte da qui: la griglia la aggiunge in fondo mentre si scorre (/risultati?inizio=24). */
+  start?: number;
   /** Comune di chi cerca (scelto nel browser), per "Più vicini a te". */
   from?: string;
 }
 
 /** Annunci per pagina: si divide bene in 2, 3 e 4 colonne. */
 const PAGE = 24;
+/** Nella home, a campo vuoto, la prima pagina è più corta: sotto ci sono altre sezioni. */
+const HOME_FIRST = 8;
+/** Oltre non si va, nemmeno scorrendo. */
+const MAX = 480;
 
-const { q, mode, sort, n = PAGE, from: fromParam } = Astro.props;
+const { q, mode, sort, n, start: startProp, from: fromParam } = Astro.props;
 const from = fromParam && getComune(fromParam) ? fromParam : undefined;
-const limit = Math.min(Math.max(PAGE, n), 240);
+const first = mode === 'home' && !q ? HOME_FIRST : PAGE;
+const start = startProp && startProp > 0 ? Math.min(Math.floor(startProp), MAX) : 0;
+const limit = start ? Math.min(start + PAGE, MAX) : Math.min(Math.max(first, n ?? first), MAX);
 // Anche per significato ("sofà" → divano), se il modello locale è pronto; altrimenti solo per parole
 const meaning = q ? await meaningFor(q) : null;
 const result = q ? search(q, { sort, limit, from, meaning: meaning ?? undefined }) : null;
 const onlyByMeaning = Boolean(result && result.total > 0 && result.byMeaning === result.total);
-const browse = result ? null : browseListings(sort, mode === 'home' ? 8 : limit, from);
+const browse = result ? null : browseListings(sort, limit, from);
 const total = result?.total ?? browse?.total ?? 0;
 const shown = result?.hits.length ?? browse?.listings.length ?? 0;
 
@@ -41,8 +49,8 @@ const orders: Array<[SortOrder | '', string]> = result
 const selected = orders.some(([v]) => v && v === sort) ? sort : '';
 const showSort = total > 1 && !(mode === 'home' && !result);
 
-// "Mostra altri": un link vero (senza JavaScript ricarica /cerca con più annunci),
-// il JavaScript lo intercetta e carica solo la griglia.
+// Altri annunci scorrendo: il JavaScript chiede la pagina dopo (/risultati?inizio=…) e l'aggiunge in fondo.
+// Senza JavaScript "Mostra altri" è un link vero, che ricarica /cerca con più annunci.
 const params = (extra: Record<string, string>) => {
   const p = new URLSearchParams();
   if (q) p.set('q', q);
@@ -51,13 +59,46 @@ const params = (extra: Record<string, string>) => {
   for (const [k, v] of Object.entries(extra)) p.set(k, v);
   return p.toString();
 };
-const next = shown + PAGE;
-const moreHref = `/cerca?${params({ n: String(next) })}`;
-const morePartial = `/risultati?${params({ vista: mode, n: String(next) })}`;
-const hasMore = shown < total && !(mode === 'home' && !result);
+const moreHref = `/cerca?${params({ n: String(shown + PAGE) })}`;
+const nextPage = `/risultati?${params({ vista: mode, inizio: String(shown) })}`;
+// L'indirizzo di /cerca con gli annunci caricati finora: ricaricando o tornando indietro si ritrovano
+const hereQuery = params(shown > PAGE ? { n: String(shown) } : {});
+const hereUrl = hereQuery ? `/cerca?${hereQuery}` : '/cerca';
+const hasMore = shown < total && shown < MAX;
+const hits = result ? result.hits.slice(start) : [];
+const listings = browse ? browse.listings.slice(start) : [];
 const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}` : '/cerca');
 ---
 
+{
+  start > 0 ? (
+    <>
+      <div class="cards">
+        {hits.map((h) => (
+          <ListingCard listing={h.listing} distanceKm={placeInQuery ? h.distanceKm : undefined} reasons={h.reasons} verdict={h.verdict} />
+        ))}
+        {listings.map((l) => (
+          <ListingCard listing={l} verdict={priceVerdict(l)} />
+        ))}
+      </div>
+      {hasMore ? (
+        <div class="more" data-more data-url={hereUrl}>
+          <span class="muted">
+            {shown} di {total}
+          </span>
+          <a class="btn" href={moreHref} data-page={nextPage}>
+            <span class="idle">Mostra altri {Math.min(PAGE, total - shown)}</span>
+            <span class="busy">Carico altri annunci…</span>
+          </a>
+        </div>
+      ) : (
+        <p class="more-end muted" data-url={hereUrl}>
+          {total === 1 ? 'Hai visto l\'unico annuncio.' : `Hai visto tutti i ${total} annunci.`}
+        </p>
+      )}
+    </>
+  ) : (
+  <>
 {
   result && result.chips.length > 0 && (
     <div class="understood">
@@ -130,11 +171,10 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
 {
   shown > 0 ? (
     <div class="cards">
-      {result
-        ? result.hits.map((h, i) => (
-            <ListingCard listing={h.listing} distanceKm={placeInQuery ? h.distanceKm : undefined} reasons={h.reasons} verdict={h.verdict} eager={i < 4} />
-          ))
-        : browse?.listings.map((l, i) => <ListingCard listing={l} verdict={priceVerdict(l)} eager={i < 4} />)}
+      {hits.map((h, i) => (
+        <ListingCard listing={h.listing} distanceKm={placeInQuery ? h.distanceKm : undefined} reasons={h.reasons} verdict={h.verdict} eager={i < 4} />
+      ))}
+      {listings.map((l, i) => <ListingCard listing={l} verdict={priceVerdict(l)} eager={i < 4} />)}
     </div>
   ) : (
     result && (
@@ -152,21 +192,119 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
 
 {
   hasMore && (
-    <div class="more">
+    <div class="more" data-more data-url={hereUrl}>
       <span class="muted">
         {shown} di {total}
       </span>
-      <a class="btn" href={moreHref} data-more={morePartial}>
-        Mostra altri {Math.min(PAGE, total - shown)}
+      <a class="btn" href={moreHref} data-page={nextPage}>
+        <span class="idle">Mostra altri {Math.min(PAGE, total - shown)}</span>
+        <span class="busy">Carico altri annunci…</span>
       </a>
     </div>
   )
 }
+  </>
+  )
+}
 
 <script>
-  // Chip "togli filtro" e "Mostra altri" dentro i risultati dal vivo.
+  // Chip "togli filtro" e altri annunci scorrendo (o con "Mostra altri") dentro i risultati dal vivo.
   // Il blocco dei risultati viene sostituito a ogni ricerca: si ascolta sul documento.
   let refocus: 'chips' | null = null;
+
+  /** Caricamenti in corso, per riquadro "altri": un clic durante uno scorrimento aspetta quello. */
+  const pending = new WeakMap<HTMLElement, Promise<HTMLElement[]>>();
+
+  /**
+   * Aggiunge in fondo alla griglia la pagina dopo. `byHand`: "Mostra altri" toccato (o Invio),
+   * allora il fuoco va sul primo annuncio nuovo; scorrendo invece resta dov'è.
+   */
+  async function loadMore(box: HTMLElement, byHand: boolean) {
+    // Dopo un errore si riprova solo a mano, non a ogni scorrimento
+    if (!byHand && box.dataset.failed != null) return;
+    let load = pending.get(box);
+    if (!load) {
+      load = fetchPage(box, byHand);
+      pending.set(box, load);
+    }
+    const fresh = await load;
+    if (byHand) fresh[0]?.focus({ preventScroll: true });
+  }
+
+  async function fetchPage(box: HTMLElement, byHand: boolean): Promise<HTMLElement[]> {
+    const link = box.querySelector<HTMLAnchorElement>('a[data-page]');
+    const results = box.closest<HTMLElement>('.results');
+    const cards = results?.querySelector<HTMLElement>('.cards');
+    if (!link || !results || !cards) return [];
+    box.dataset.loading = '';
+    box.setAttribute('aria-busy', 'true');
+    const res = await fetch(link.dataset.page ?? '').catch(() => null);
+    const html = res?.ok ? await res.text().catch(() => null) : null;
+    if (!box.isConnected) return []; // nel frattempo è partita un'altra ricerca
+    if (html == null) {
+      delete box.dataset.loading;
+      box.removeAttribute('aria-busy');
+      box.dataset.failed = '';
+      pending.delete(box);
+      if (byHand) location.href = link.href;
+      return [];
+    }
+    const page = document.createElement('template');
+    page.innerHTML = html;
+
+    // Se nel frattempo è arrivato un annuncio nuovo l'ordine scala di uno: niente doppioni
+    const seen = new Set([...cards.querySelectorAll('a.lcard')].map((a) => a.getAttribute('href')));
+    const fresh = [...page.content.querySelectorAll<HTMLElement>('.cards > a.lcard')].filter((a) => !seen.has(a.getAttribute('href')));
+    const next = page.content.querySelector<HTMLElement>('[data-more], .more-end');
+    // Gli annunci nuovi compaiono dove si sta guardando: senza questo Chrome resterebbe "agganciato"
+    // al piè di pagina e li metterebbe sopra lo schermo, se si è già arrivati in fondo
+    // Chi era sul bottone con la tastiera non deve perdere il fuoco quando il bottone se ne va
+    const hadFocus = box.contains(document.activeElement);
+    const root = document.documentElement;
+    root.style.overflowAnchor = 'none';
+    cards.append(...fresh);
+    if (next) box.replaceWith(next);
+    else box.remove();
+    void root.offsetHeight;
+    root.style.removeProperty('overflow-anchor');
+
+    if (location.pathname === '/cerca' && next?.dataset.url) history.replaceState(null, '', next.dataset.url);
+    const status = document.getElementById('risultati-stato');
+    const count = cards.querySelectorAll('a.lcard').length;
+    if (status) status.textContent = next?.matches('.more-end') ? (next.textContent?.trim() ?? '') : `${count} annunci caricati`;
+    // Distanze da te e simili si ridisegnano anche sugli annunci nuovi
+    results.dispatchEvent(new CustomEvent('results:update', { bubbles: true }));
+    if (hadFocus) fresh[0]?.focus({ preventScroll: true });
+    return fresh;
+  }
+
+  // Scorrendo: la pagina dopo parte quando il fondo della griglia è a meno di uno schermo e mezzo
+  // (o è già passato, con uno scorrimento lungo). Solo dopo che la persona ha iniziato a scorrere:
+  // la home non si allunga da sola appena aperta.
+  const AHEAD = 900;
+  let scrolled = scrollY > 0;
+  let frame = 0;
+  const check = () => {
+    frame = 0;
+    if (!scrolled) return;
+    for (const box of document.querySelectorAll<HTMLElement>('.results [data-more]')) {
+      if (box.getBoundingClientRect().top < innerHeight + AHEAD) loadMore(box, false);
+    }
+  };
+  const schedule = () => {
+    frame ||= requestAnimationFrame(check);
+  };
+  addEventListener(
+    'scroll',
+    () => {
+      scrolled = true;
+      schedule();
+    },
+    { passive: true },
+  );
+  addEventListener('resize', schedule);
+  // Dopo una pagina in più (o una nuova ricerca dal vivo) si guarda se ne serve subito un'altra
+  document.addEventListener('results:update', schedule);
 
   document.addEventListener('click', async (event) => {
     const target = event.target as Element;
@@ -182,22 +320,11 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
       return;
     }
 
-    const more = target.closest<HTMLAnchorElement>('.results a[data-more]');
-    if (!more) return;
+    const more = target.closest<HTMLAnchorElement>('.results a[data-page]');
+    const box = more?.closest<HTMLElement>('[data-more]');
+    if (!more || !box) return;
     event.preventDefault();
-    const results = more.closest<HTMLElement>('.results');
-    if (!results) return;
-    const before = results.querySelectorAll('.lcard').length;
-    more.setAttribute('aria-busy', 'true');
-    const res = await fetch(more.dataset.more ?? '').catch(() => null);
-    if (!res?.ok) {
-      location.href = more.href;
-      return;
-    }
-    results.innerHTML = await res.text();
-    if (location.pathname === '/cerca') history.replaceState(null, '', more.href);
-    // Il fuoco va sul primo annuncio nuovo, la pagina resta dov'era
-    results.querySelectorAll<HTMLElement>('.lcard')[before]?.focus({ preventScroll: true });
+    loadMore(box, true);
   });
 
   document.addEventListener('results:update', (event) => {
@@ -247,6 +374,12 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
   }
   .sort select:hover { border-bottom-color: var(--ink); }
   .empty { max-width: 640px; }
-  .more { display: grid; justify-items: center; gap: 12px; margin-top: 40px; font-size: 14px; }
-  .more .btn[aria-busy='true'] { opacity: 0.55; pointer-events: none; }
+  .more, .more-end { display: grid; justify-items: center; gap: 12px; margin-top: 40px; font-size: 14px; text-align: center; }
+  /* Mentre arriva la pagina dopo il bottone dice che sta caricando e pulsa piano.
+     Resta al suo posto: chi ci era sopra con la tastiera non perde il fuoco */
+  .more .busy { display: none; }
+  .more[data-loading] .idle { display: none; }
+  .more[data-loading] .busy { display: inline; }
+  .more[data-loading] .btn { pointer-events: none; border-color: var(--line); animation: breathe 1.2s ease-in-out infinite alternate; }
+  @keyframes breathe { from { opacity: 0.4; } to { opacity: 1; } }
 </style>

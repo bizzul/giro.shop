@@ -3,7 +3,8 @@
  * - sale sopra le barre fissate in basso (ricerca, barra della scheda, riquadro per scrivere),
  *   cioè gli elementi con [data-bottom-ui]: lo spazio che occupano diventa --rail-lift;
  * - esce di lato quando si scorre verso il basso (classe rail-away su <html>) e torna scorrendo verso l'alto,
- *   così non copre gli annunci mentre si guarda.
+ *   così non copre gli annunci mentre si guarda;
+ * - esce anche quando è aperta la tastiera (classe rail-kb), che prende il suo posto.
  */
 const PHONE = '(max-width: 760px)';
 /** Scorrimento minimo prima di nascondere o mostrare la barra, per non farla tremolare. */
@@ -12,6 +13,8 @@ const STEP = 8;
 const TOP = 96;
 /** Una barra "sta in basso" se il suo bordo inferiore è a meno di tanto dal fondo dello schermo. */
 const NEAR_BOTTOM = 40;
+/** Pochi pixel in meno sono solo la barra del browser che compare o sparisce, non la tastiera. */
+const KEYBOARD = 80;
 
 export function initRail() {
   const root = document.documentElement;
@@ -36,7 +39,7 @@ export function initRail() {
   function update() {
     frame = 0;
     if (!phone.matches) {
-      root.classList.remove('rail-away');
+      root.classList.remove('rail-away', 'rail-kb');
       root.style.removeProperty('--rail-lift');
       return;
     }
@@ -51,6 +54,17 @@ export function initRail() {
     else if (delta < -STEP) away = false;
     if (Math.abs(delta) > STEP || y < TOP) lastY = y;
     root.classList.toggle('rail-away', away);
+    root.classList.toggle('rail-kb', keyboardOpen());
+  }
+
+  /**
+   * Tastiera aperta: la parte visibile della pagina (visualViewport) è più bassa di quella su cui
+   * sono fissati gli elementi. Un campo col fuoco da solo non basta: con l'autofocus (es. /cerca)
+   * la tastiera non è aperta e la barra deve restare.
+   */
+  function keyboardOpen(): boolean {
+    const vv = window.visualViewport;
+    return Boolean(vv && root.clientHeight - vv.height - vv.offsetTop > KEYBOARD);
   }
 
   const schedule = () => {
@@ -58,6 +72,7 @@ export function initRail() {
   };
   addEventListener('scroll', schedule, { passive: true });
   addEventListener('resize', schedule);
+  window.visualViewport?.addEventListener('resize', schedule);
   phone.addEventListener('change', schedule);
   // Le barre in basso entrano ed escono con una transizione (es. quella della scheda annuncio)
   document.addEventListener('transitionend', (event) => {
