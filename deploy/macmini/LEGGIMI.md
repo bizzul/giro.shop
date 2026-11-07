@@ -79,6 +79,11 @@ Se Supabase non c'è (`pnpm exec supabase status` dà errore): `cd ~/piazza && p
 3. Dati copiati dal MacBook: account e identità (`auth.users`, `auth.identities`), tutte le tabelle di `public`, le foto
    del bucket `foto`.
 4. `.env` da `deploy/macmini/env.esempio`, `pnpm build`, LaunchAgent in `~/Library/LaunchAgents`.
-5. Tunnel: `cloudflared tunnel create giro`, `cloudflared tunnel route dns giro giro.omarbeltraminelli.com`.
+5. Tunnel: `cloudflared tunnel create giro`, poi il record DNS **con il certificato del dominio giusto**:
+   `cloudflared --origincert ~/.cloudflared/cert-omarbeltraminelli.pem tunnel route dns giro giro.omarbeltraminelli.com`.
+   Senza `--origincert` cloudflared usa `cert.pem`, che è della zona evoltech.ch, e crea il record sbagliato
+   `giro.omarbeltraminelli.com.evoltech.ch`.
+6. LaunchAgent: copia i due `.plist` di questa cartella in `~/Library/LaunchAgents` e
+   `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/<nome>.plist`.
 
 Il modello della ricerca per significato (~200 MB) si scarica al primo avvio in `~/piazza/.cache/modelli`.
