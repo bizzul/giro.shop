@@ -33,21 +33,6 @@ Astro.cache.set({ tags: [LISTINGS_TAG] });
       <SearchResults q="" mode="home" />
     </div>
   </section>
-
-  <section class="wrap duo">
-    <a class="panel promo" href="/vendi">
-      <span class="label">Scatta e vendi</span>
-      <h2>Tre foto, nessun modulo.</h2>
-      <p class="muted">L'assistente riconosce l'oggetto, scrive titolo e descrizione e propone un prezzo dagli annunci simili. Tu controlli e confermi.</p>
-      <span class="btn">Prepara un annuncio</span>
-    </a>
-    <a class="panel promo" href="/connetti">
-      <span class="label">Connettore MCP</span>
-      <h2>giro dentro il tuo assistente AI.</h2>
-      <p class="muted">Collega Claude o un altro client MCP: cerchi, stimi prezzi e prepari bozze parlando, senza aprire il sito.</p>
-      <span class="btn">Come collegarlo</span>
-    </a>
-  </section>
 </Layout>
 
 <style>
@@ -67,10 +52,4 @@ Astro.cache.set({ tags: [LISTINGS_TAG] });
     .wanted { grid-template-columns: 1fr; gap: 2px; padding: 12px 14px; }
     .wanted .label { display: none; }
   }
-  .duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
-  @media (max-width: 760px) { .duo { grid-template-columns: 1fr; } }
-  .promo { text-decoration: none; align-content: start; }
-  .promo p { max-width: 44ch; }
-  .promo .btn { margin-top: 8px; }
-  .promo:hover .btn { border-color: var(--ink); }
 </style>
