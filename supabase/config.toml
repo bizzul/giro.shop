@@ -246,6 +246,15 @@ pass = "env(SUPABASE_AUTH_EMAIL_SMTP_PASS)"
 admin_email = "env(SUPABASE_AUTH_EMAIL_SMTP_ADMIN_EMAIL)"
 sender_name = "giro.shop"
 
+# Email di accesso in italiano (le stesse in locale e sul Mac mini)
+[auth.email.template.magic_link]
+subject = "Il tuo link per entrare in giro.shop"
+content_path = "./supabase/templates/accesso.html"
+
+[auth.email.template.confirmation]
+subject = "Conferma la tua email per giro.shop"
+content_path = "./supabase/templates/conferma.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
