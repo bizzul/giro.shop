@@ -90,6 +90,12 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(HAND_SCRIPT).d
 const THEME_SCRIPT =
   "try{var t=localStorage.getItem('giro:tema');if(t==='chiaro'||t==='scuro'){document.documentElement.dataset.tema=t;var c=t==='scuro'?'#0b0b0c':'#ffffff';document.querySelectorAll('meta[name=theme-color]').forEach(function(m){m.content=c})}}catch{}";
 Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(THEME_SCRIPT).digest('base64')}`);
+// Menu account (server island): arriva dopo il primo disegno e ogni pagina "lampeggiava" in testata. Qui, al posto del
+// segnaposto, si rimette subito il menu dell'ultima pagina vista in questa scheda (lo salva lib/motion.ts uscendo);
+// quando l'isola arriva lo sostituisce con quello fresco, di solito identico. Prima visita: il segnaposto, come prima.
+const MENU_SCRIPT =
+  "(function(){try{var h=sessionStorage.getItem('giro:menu'),s=document.currentScript,g=s&&s.previousElementSibling;if(h&&g&&g.classList.contains('nav-ghost')){var t=document.createElement('template');t.innerHTML=h;g.replaceWith(t.content)}}catch(e){}})();";
+Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(MENU_SCRIPT).digest('base64')}`);
 // Passaggio tra le pagine (stili in global.css, "Transizioni tra pagine"): la foto della card toccata vola fino alla foto
 // grande dell'annuncio, e torna nella sua card con Indietro. Il nome di transizione va solo su quella card, al momento:
 // pageswap sulla pagina che si lascia, pagereveal su quella che arriva (che deve essere ascoltato prima del primo disegno,
@@ -179,7 +185,10 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(VT_SCRIPT).dig
             ))
           }
           <UserMenu server:defer>
-            <span slot="fallback" class="nav-ghost" aria-hidden="true">Accedi</span>
+            <Fragment slot="fallback">
+              <span class="nav-ghost" aria-hidden="true">Accedi</span>
+              <script is:inline set:html={MENU_SCRIPT} />
+            </Fragment>
           </UserMenu>
           <a class="btn primary nav-sell" href="/vendi" data-astro-prefetch aria-current={path.startsWith('/vendi') ? 'page' : undefined}>
             <svg class="rail-ico" viewBox="0 0 16 16" aria-hidden="true">
@@ -238,9 +247,10 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(VT_SCRIPT).dig
     </footer>
     <script>
       import { initRail } from '../lib/rail.ts';
-      import { initMotion } from '../lib/motion.ts';
+      import { initMotion, rememberMenu } from '../lib/motion.ts';
       initRail();
       initMotion();
+      rememberMenu();
     </script>
   </body>
 </html>
