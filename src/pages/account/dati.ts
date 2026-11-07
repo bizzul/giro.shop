@@ -39,6 +39,8 @@ export const GET: APIRoute = async ({ locals, redirect }) => {
     ]);
 
   const assistants = await connectionsOf(user.id);
+  // Passkey: solo nome e date (la chiave pubblica non dice niente su di te e Supabase non la restituisce)
+  const { data: passkeys } = await supabase.auth.passkey.list();
 
   const data = {
     informazioni: 'Tutti i dati che giro.shop tiene sul tuo account, scaricati il ' + new Date().toLocaleString('it-CH') + '. Vedi /privacy.',
@@ -74,6 +76,7 @@ export const GET: APIRoute = async ({ locals, redirect }) => {
     decisioni_di_moderazione_su_di_te: decisions ?? [],
     contestazioni: appeals ?? [],
     // Dei token si tiene solo l'impronta: qui c'è chi è collegato, con quali permessi, da quando
+    passkey: (passkeys ?? []).map((p) => ({ nome: p.friendly_name || null, aggiunta: p.created_at, ultimo_uso: p.last_used_at ?? null })),
     assistenti_collegati: assistants.map((a) => ({ nome: a.name, permessi: a.scopes, collegato: a.since, ultimo_uso: a.lastUsed })),
     nel_browser: 'Ricerche recenti, confronto e comune per le distanze stanno solo nel tuo browser (localStorage): non li riceviamo.',
   };

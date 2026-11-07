@@ -14,6 +14,26 @@ export function supabaseConfigured(): boolean {
   return Boolean(SUPABASE_URL && SUPABASE_KEY);
 }
 
+let passkeyCheck: { on: boolean; at: number } | null = null;
+
+/**
+ * true se Supabase Auth accetta le passkey ([auth.passkey] in supabase/config.toml). Letto da /auth/v1/settings
+ * e tenuto 5 minuti: senza, /accedi e l'account non mostrano niente sulle passkey.
+ */
+export async function passkeysEnabled(): Promise<boolean> {
+  if (!SUPABASE_SERVER_URL || !SUPABASE_KEY) return false;
+  if (passkeyCheck && Date.now() - passkeyCheck.at < 5 * 60_000) return passkeyCheck.on;
+  try {
+    const res = await fetch(`${SUPABASE_SERVER_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_KEY }, signal: AbortSignal.timeout(3000) });
+    const settings = res.ok ? ((await res.json()) as { passkeys_enabled?: boolean }) : null;
+    passkeyCheck = { on: settings?.passkeys_enabled === true, at: Date.now() };
+  } catch {
+    // Supabase non risponde: si riprova alla prossima richiesta, intanto niente passkey
+    return false;
+  }
+  return passkeyCheck.on;
+}
+
 /**
  * Client Supabase legato alla richiesta: legge la sessione dai cookie e scrive i cookie
  * aggiornati (accesso, rinnovo, uscita). Le query rispettano le regole RLS dell'utente.

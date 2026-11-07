@@ -54,6 +54,22 @@ indietro e non rovinano la reputazione del dominio (`src/lib/mail.ts`, `delivera
 `cd ~/piazza && pnpm exec supabase stop && pnpm exec supabase start && deploy/macmini/aggiorna.sh`
 (`supabase stop` senza `--no-backup` tiene i dati).
 
+## Passkey
+
+Le passkey sono facoltative: chi vuole ne aggiunge una dall'account e poi entra senza aspettare l'email. Sono legate a un
+dominio: `supabase/config.toml` dice `localhost` (per il MacBook), sul Mac mini va il dominio pubblico. Una riga in
+`~/piazza/supabase/.env`:
+
+```bash
+SUPABASE_AUTH_WEBAUTHN_RP_ID=giro.omarbeltraminelli.com
+```
+
+poi `cd ~/piazza && pnpm exec supabase stop && pnpm exec supabase start && deploy/macmini/aggiorna.sh`.
+L'indirizzo `https://giro.omarbeltraminelli.com` è già tra le origini ammesse (`rp_origins` in `supabase/config.toml`).
+Controllo: `docker inspect supabase_auth_piazza --format '{{range .Config.Env}}{{println .}}{{end}}' | grep WEBAUTHN`
+deve dire `GOTRUE_WEBAUTHN_RP_ID=giro.omarbeltraminelli.com`. Senza la riga, aggiungere una passkey dà errore.
+**Non cambiare più il dominio dopo:** le passkey già create smettono di funzionare (resta il link via email).
+
 ## Comandi utili (sul Mac mini)
 
 ```bash

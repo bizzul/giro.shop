@@ -14,6 +14,7 @@ import { appeals } from './appeals.ts';
 import { messages } from './messages.ts';
 import { moderation } from './moderation.ts';
 import { partners } from './partners.ts';
+import { passkeys } from './passkeys.ts';
 import { payments } from './payments.ts';
 import { proActions } from './pro.ts';
 import { questions } from './questions.ts';
@@ -28,6 +29,7 @@ export const server = {
   messages,
   moderation,
   partners,
+  passkeys,
   payments,
   pro: proActions,
   questions,

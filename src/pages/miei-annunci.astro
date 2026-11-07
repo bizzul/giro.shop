@@ -13,6 +13,8 @@ import { estimatePrice } from '../core/price.ts';
 import { daysBetween, priceTip } from '../core/insights.ts';
 import { AVAILABILITY, formatPickup } from '../core/pickup.ts';
 import { listingFee, VETRINA } from '../core/pricing.ts';
+import { MAX_PASSKEYS } from '../core/passkey.ts';
+import { passkeysEnabled } from '../lib/supabase.ts';
 import '../styles/sell.css';
 
 const user = Astro.locals.user;
@@ -79,6 +81,17 @@ const hideDecision = (listingId: string) => decisions.find((d) => d.action === '
 
 // Assistenti AI collegati con OAuth (connettore MCP con accesso)
 const assistants = await connectionsOf(user.id);
+
+// Passkey facoltative (src/actions/passkeys.ts): il pannello c'è solo se Supabase le accetta
+const passkeysOn = await passkeysEnabled();
+const passkeyRemoved = Astro.getActionResult(actions.passkeys.remove);
+const passkeyList = passkeysOn ? ((await supabase.auth.passkey.list()).data ?? []) : [];
+const passkeyNotice =
+  Astro.url.searchParams.get('fatto') === 'passkey'
+    ? 'Passkey aggiunta. La prossima volta tocca «Entra con una passkey» nella pagina di accesso.'
+    : passkeyRemoved?.data
+      ? "Passkey tolta. Da quel dispositivo si entra di nuovo con il link via email."
+      : null;
 
 const { data: profile } = await supabase
   .from('profiles')
@@ -275,6 +288,49 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
       }
       {import.meta.env.DEV && <p class="small">In locale non parte nessun SMS: usa 079 123 45 67 con il codice 123456.</p>}
     </section>
+
+    {
+      passkeysOn && (
+        <section class="panel passkey-panel" id="passkey" aria-labelledby="passkey-title">
+          <h2 id="passkey-title">Passkey</h2>
+          <p class="muted small">
+            Facoltativa. Con una passkey entri con l'impronta, il viso o il PIN del dispositivo, senza aspettare l'email. Il link via
+            email continua a funzionare.
+          </p>
+          {passkeyNotice && <p class="notice" role="status">{passkeyNotice}</p>}
+          {passkeyRemoved?.error && <p class="error" role="alert">{passkeyRemoved.error.message}</p>}
+          {passkeyList.length > 0 && (
+            <ul class="passkeys">
+              {passkeyList.map((p) => (
+                <li>
+                  <div>
+                    <b>{p.friendly_name || 'Passkey'}</b>
+                    <span class="muted small">
+                      {' '}
+                      · aggiunta {formatAge(p.created_at)}
+                      {p.last_used_at ? ` · usata ${formatAge(p.last_used_at)}` : ' · mai usata'}
+                    </span>
+                  </div>
+                  <form method="POST" action={`${actions.passkeys.remove}#passkey`}>
+                    <input type="hidden" name="id" value={p.id} />
+                    <button class="btn" type="submit" aria-label={`Togli la passkey ${p.friendly_name || ''}`.trim()}>
+                      Togli
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+          {passkeyList.length < MAX_PASSKEYS && (
+            <button class:list={['btn passkey-add', { primary: passkeyList.length === 0 }]} type="button" hidden>
+              {passkeyList.length === 0 ? 'Aggiungi una passkey' : "Aggiungi un'altra passkey"}
+            </button>
+          )}
+          <p class="small muted passkey-unsupported" hidden>Questo browser non sa usare le passkey: prova da un altro dispositivo.</p>
+          <p class="error passkey-error" role="alert" hidden></p>
+        </section>
+      )
+    }
 
     <section class="panel email-panel" id="email" aria-labelledby="email-title">
       <h2 id="email-title">Email degli avvisi</h2>
@@ -652,6 +708,44 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
   import { actions } from 'astro:actions';
   import { autosave } from '../lib/autosave.ts';
   import { applyHand, type Hand } from '../core/hand.ts';
+  import { creationOptionsFromJSON, credentialToJSON, isCancel, passkeysSupported } from '../lib/webauthn.ts';
+
+  // Passkey: sfida dal server, il dispositivo crea la chiave, il server la salva (src/actions/passkeys.ts)
+  const passkeyPanel = document.querySelector<HTMLElement>('.passkey-panel');
+  const passkeyAdd = passkeyPanel?.querySelector<HTMLButtonElement>('.passkey-add');
+  const passkeyError = passkeyPanel?.querySelector<HTMLElement>('.passkey-error');
+  if (passkeyPanel && !passkeysSupported()) {
+    passkeyPanel.querySelector<HTMLElement>('.passkey-unsupported')!.hidden = false;
+  } else if (passkeyAdd && passkeyError) {
+    passkeyAdd.hidden = false;
+    const showError = (message: string) => {
+      passkeyError.textContent = message;
+      passkeyError.hidden = !message;
+    };
+    passkeyAdd.addEventListener('click', async () => {
+      showError('');
+      passkeyAdd.disabled = true;
+      try {
+        const start = await actions.passkeys.addOptions();
+        if (start.error) return showError(start.error.message);
+        const credential = (await navigator.credentials.create({ publicKey: creationOptionsFromJSON(start.data.options) })) as PublicKeyCredential | null;
+        if (!credential) return;
+        const result = await actions.passkeys.add({ challengeId: start.data.challengeId, credential: credentialToJSON(credential) });
+        if (result.error) return showError(result.error.message);
+        location.assign('/miei-annunci?fatto=passkey#passkey');
+      } catch (error) {
+        if (isCancel(error)) return;
+        // InvalidStateError: questo dispositivo ha già una passkey per l'account (excludeCredentials)
+        showError(
+          error instanceof DOMException && error.name === 'InvalidStateError'
+            ? 'Su questo dispositivo hai già una passkey per giro.shop.'
+            : 'Questo dispositivo non è riuscito a creare la passkey. Riprova, o usa un altro dispositivo.',
+        );
+      } finally {
+        passkeyAdd.disabled = false;
+      }
+    });
+  }
 
   const nameForm = document.querySelector<HTMLFormElement>('form.name-form');
   if (nameForm) {
@@ -713,6 +807,11 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
   .name-panel { padding: 16px 20px; }
   .email-panel { gap: 12px; }
   .data-panel { gap: 12px; }
+  .passkey-panel { gap: 12px; }
+  .passkey-panel h2 { font: 500 16px/1.3 var(--f-body); letter-spacing: 0; }
+  .passkeys { display: grid; border-top: 1px solid var(--line); }
+  .passkeys > li { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-block: 10px; border-bottom: 1px solid var(--line); }
+  .passkey-add[hidden] { display: none; }
   .assistants-panel { gap: 12px; }
   .assistants-panel h2 { font: 500 16px/1.3 var(--f-body); letter-spacing: 0; }
   .assistants { display: grid; border-top: 1px solid var(--line); }

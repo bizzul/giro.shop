@@ -25,6 +25,11 @@ import Layout from '../layouts/Layout.astro';
       <dl>
         <dt>Account</dt>
         <dd>Email (per mandarti il link di accesso e gli avvisi), il nome che scegli, la data di iscrizione. Niente password.</dd>
+        <dt>Passkey, se ne aggiungi una</dt>
+        <dd>
+          La chiave pubblica (quella segreta resta sul tuo dispositivo), il nome del dispositivo da cui l'hai aggiunta e quando l'hai
+          usata l'ultima volta. Impronte e volti non arrivano mai a noi: li controlla il dispositivo.
+        </dd>
         <dt>Cellulare, se lo verifichi</dt>
         <dd>
           Serve solo a confermare che sei una persona reale («Cellulare verificato»). Non lo mostriamo a nessuno e non lo usiamo per
@@ -153,7 +158,7 @@ import Layout from '../layouts/Layout.astro';
       <h2>Sicurezza</h2>
       <p>
         Le connessioni sono cifrate. Nel database ognuno vede solo i propri dati privati: lo impongono regole di accesso controllate
-        automaticamente a ogni modifica. Si entra con un link via email, senza password da rubare.
+        automaticamente a ogni modifica. Si entra con un link via email o, se la aggiungi, con una passkey: in entrambi i casi niente password da rubare.
       </p>
     </section>
 

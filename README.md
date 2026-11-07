@@ -238,7 +238,8 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
 - Informativa sulla privacy (nLPD) e condizioni d'uso, con le regole della comunità prese dalla stessa fonte usata
   dall'agente di moderazione.
 - **Scarica i tuoi dati** (un file JSON con tutto) ed **elimina l'account** dalla pagina dell'account.
-- Solo cookie tecnici, niente tracciamento. Accesso con link via email, senza password. Visite agli annunci e ricerche si
+- Solo cookie tecnici, niente tracciamento. Accesso con link via email, senza password; chi vuole aggiunge una passkey
+  dall'account (impronta, viso o PIN) ed entra senza aspettare l'email. Visite agli annunci e ricerche si
   contano solo in forma anonima (vedi l'informativa: «Conteggi anonimi»).
 - Coordinate delle foto e posizione del telefono restano nel browser: al server arriva solo il comune. Le foto con la
   posizione si ridisegnano prima dell'invio, così nell'annuncio non resta dove sono state scattate.
@@ -262,7 +263,7 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
 
 - **Astro 7** con rendering sul server (adapter Node), isole **Preact** per le parti interattive, Astro Actions per i
   moduli, server islands per le parti personali delle pagine in cache.
-- **Supabase**: Postgres con regole RLS (ognuno vede e modifica solo ciò che può), accesso con link via email (PKCE),
+- **Supabase**: Postgres con regole RLS (ognuno vede e modifica solo ciò che può), accesso con link via email (PKCE) e passkey facoltative,
   Storage per le foto. Funzioni e trigger nel database per offerte, ritiri, scadenze, segnalazioni, sospensioni e
   tariffe di pubblicazione.
 - **Un solo nucleo** in `src/core` (frase → filtri, ricerca, stime, bozze, comuni) usato dal sito, dalle Actions e dal
@@ -309,6 +310,8 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 
 - Studio: http://127.0.0.1:54323 · Mailpit (email di accesso in sviluppo): http://127.0.0.1:54324
 - L'accesso è con link via email: va aperto nello stesso browser da cui è stato chiesto.
+- Passkey: si provano su `http://localhost:4321` (non su 127.0.0.1, che non è il dominio delle passkey). Nei test nel
+  browser c'è un autenticatore virtuale di Chrome (`e2e/passkey.spec.ts`).
 - In locale il cellulare si verifica con numeri di prova a codice fisso (es. 079 123 45 67 → 123456).
 - Utente di prova: `prova@esempio.test` (moderatore).
 
