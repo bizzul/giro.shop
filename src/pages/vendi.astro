@@ -4,6 +4,8 @@ import SellForm from '../components/SellForm.tsx';
 import '../styles/sell.css';
 
 const signedIn = Boolean(Astro.locals.user);
+// Da Cercasi: "Ce l'ho, lo vendo" porta qui con l'oggetto già scritto
+const nota = Astro.url.searchParams.get('nota')?.slice(0, 200) ?? '';
 ---
 
 <Layout title="Vendi · giro.shop" description="Scatta e vendi: tre foto e l'assistente prepara l'annuncio.">
@@ -15,13 +17,17 @@ const signedIn = Boolean(Astro.locals.user);
         Carica da 1 a 5 foto e, se vuoi, due righe. L'assistente riconosce l'oggetto, scrive titolo e descrizione e propone
         una fascia di prezzo dagli annunci simili. I campi con l'anello blu li ha scritti lui: controlla prima di pubblicare.
       </p>
+      <p class="small">
+        Trasloco o cantina da svuotare? Con <a href="/svuota-casa">Svuota casa</a> fai tante bozze in una volta. Prima di vendere, guarda
+        <a href="/cercasi">cosa cercano gli altri</a>: qualcuno potrebbe aspettare proprio la tua cosa.
+      </p>
       {!signedIn && (
         <p class="small">
           Puoi preparare la bozza subito; per pubblicarla <a href="/accedi?next=/vendi">accedi con la tua email</a>.
         </p>
       )}
     </div>
-    <SellForm client:load signedIn={signedIn} />
+    <SellForm client:load signedIn={signedIn} initialNotes={nota} />
   </section>
 </Layout>
 

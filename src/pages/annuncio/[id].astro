@@ -537,6 +537,19 @@ const canTranslate = Boolean(claudeKey());
     });
   }
 
+  // Una visita per le statistiche di chi vende: una per sessione, senza sapere chi guarda
+  if (compareBtn?.dataset.compare) {
+    const seen = `giro:vista:${compareBtn.dataset.compare}`;
+    let first = true;
+    try {
+      first = !sessionStorage.getItem(seen);
+      sessionStorage.setItem(seen, '1');
+    } catch {
+      /* senza sessionStorage conta comunque una volta per caricamento */
+    }
+    if (first) navigator.sendBeacon?.(`/vista?a=${encodeURIComponent(compareBtn.dataset.compare)}`);
+  }
+
   // "Utile": quali risposte la persona ha già votato (la scheda è uguale per tutti, il voto no)
   const voteButtons = document.querySelectorAll<HTMLButtonElement>('[data-vote]');
   if (voteButtons.length) {

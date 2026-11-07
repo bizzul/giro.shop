@@ -49,6 +49,8 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 - **Suggerimenti** mentre scrivi e **ricerche recenti** (salvate solo nel browser).
 - **Cerca con una foto:** fotografi un oggetto e Claude scrive la ricerca (serve la chiave di Claude).
 - **Affare del giorno** in home e pagina **Confronta** per mettere annunci uno accanto all'altro.
+- **Cercasi:** cosa cercano le persone in Ticino, dalle ricerche salvate, per oggetto e zona, con il budget tipico. Solo
+  numeri aggregati e solo dove le persone sono almeno due; «Ce l'ho, lo vendo» apre Vendi con l'oggetto già scritto.
 
 <p>
   <img src="docs/screenshots/02-ricerca.webp" alt="Una frase diventa filtri: categoria, prezzo, zona, materiale" width="49%">
@@ -84,6 +86,17 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
   aggiungere e riordinare, venduto (con prezzo e a chi), archivia, rimetti in vendita, elimina.
 - **Scadenza:** gli annunci restano online 90 giorni, con promemoria 3 giorni prima e rinnovo con un tocco.
 - **Valutazioni** reciproche dopo una vendita, solo tra chi ha davvero trattato.
+- **Lo cercano in 4:** nella bozza, quante persone hanno una ricerca salvata per un oggetto così e con che budget
+  (anche chi cerca a un prezzo più basso), e se il prezzo scelto è sopra il budget di tutti.
+- **Svuota casa:** fino a 10 foto di stanze, cantina o trasloco. Con Claude ogni oggetto vendibile diventa una bozza,
+  ritagliata dalla foto nel browser; senza chiave, una bozza per foto dal testo scritto sotto. Si controllano titoli e
+  prezzi e si pubblica tutto in un colpo.
+- **Statistiche** per annuncio: visite (anonime, una per sessione, quelle di chi vende non contano), salvati, contatti,
+  domande, quante persone lo cercano, prezzo rispetto al mercato, giorni per vendere.
+- **Ribasso automatico:** −5/10/15/20% ogni 7–30 giorni, mai sotto il minimo scelto; chi ha salvato l'annuncio riceve
+  l'avviso a ogni ribasso. Se l'annuncio è sopra il mercato e nessuno scrive da 10 giorni, un consiglio con il prezzo
+  suggerito e «Abbassa» con un tocco.
+- **Offerta minima** per annuncio, privata come il minimo del ribasso (stanno in una tabella che legge solo chi vende).
 
 ![Scatta e vendi: foto, bozza, prezzo dagli annunci simili](docs/screenshots/06-vendi.webp)
 
@@ -91,6 +104,16 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 
 - Messaggi tra chi compra e chi vende, con **offerte**: accetta, rifiuta, ritira, controfferta. Un'offerta accettata
   mette l'annuncio «in trattativa». La conversazione si aggiorna da sola.
+- **Ritiro concordato:** giorno, ora e luogo dentro l'offerta o in una proposta a parte, accettata con un tocco.
+  Promemoria a tutti e due nelle 24 ore prima; dopo il ritiro chi vende risponde a «com'è andato?» con «Sì, venduto»
+  (prezzo e chi ha comprato già scelti, poi le valutazioni) o «No, è ancora in vendita».
+- **Assistente venditore**, da accendere in «I miei annunci»: risponde a nome di chi vende alle domande ripetitive
+  (disponibile, dove, spedizione, trattabile) con i dati dell'annuncio e le risposte pubbliche già date (con Claude se
+  c'è la chiave, altrimenti con regole), rifiuta le offerte sotto il minimo senza dirlo e propone il primo orario libero
+  per il ritiro. Le risposte sono segnate come automatiche, tace per 15 minuti quando scrive chi vende e accettare resta
+  una decisione della persona.
+- **Avvisi anti-truffa** sotto i messaggi ricevuti: pagamento in anticipo, codici SMS, dati della carta, corrieri
+  «suoi», link esterni, inviti a uscire dal sito. Li vede solo chi riceve, con il link per segnalare.
 - Consigli di sicurezza nella conversazione e la guida «Comprare e vendere sicuri».
 
 ![Conversazione con offerte](docs/screenshots/07-messaggi.webp)
@@ -99,9 +122,10 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 
 - **Ricerche salvate:** un avviso quando arriva un annuncio che corrisponde, anche detto con altre parole
   («sofà» avvisa per un divano, con una soglia di somiglianza più alta di quella della ricerca).
-- Avvisi per prezzi ridotti e vendite degli annunci salvati, domande e risposte, valutazioni, scadenze.
+- Avvisi per prezzi ridotti e vendite degli annunci salvati, domande e risposte, valutazioni, scadenze, consigli per chi
+  vende (ribassi fatti, prezzo da rivedere, «com'è andato il ritiro?») e promemoria dei ritiri.
 - Tutto resta nel sito, sotto la campanella. Per email si sceglie **quando** (subito, un riassunto al giorno alle 18,
-  mai) e **per cosa** (cinque tipi). Ogni email ha il link per spegnere solo quel tipo, anche con un clic dal programma
+  mai) e **per cosa** (sette tipi). Ogni email ha il link per spegnere solo quel tipo, anche con un clic dal programma
   di posta.
 - Email con il disegno del sito (logo, caratteri, etichette, schede con foto e prezzo), anche quelle di accesso di
   Supabase, generate dallo stesso modello. Partono con Resend dal dominio `giro.omarbeltraminelli.com`.
@@ -119,6 +143,10 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 - **Agente di moderazione** (Claude): legge la segnalazione, il contenuto, le foto dell'annuncio, chi ha pubblicato e
   quanto è affidabile chi segnala, poi prende una sola decisione. Nasconde o respinge da solo solo con sicurezza almeno
   0.85; su utenti e conversazioni decide sempre una persona. I limiti sono nel codice, non solo nel prompt.
+- **Rischio truffa degli annunci:** a ogni pubblicazione o modifica un punteggio con i motivi (pagamento anticipato,
+  contatti per uscire dal sito, link, prezzo molto sotto gli annunci simili, testo copiato da un'altra persona, cellulare
+  non verificato). Sopra 0.5 l'annuncio va in cima alla moderazione: «Nascondi» passa dagli stessi passi delle
+  segnalazioni (registro, avviso, contestazione, annullamento), «Va bene» lo toglie finché il rischio non sale.
 - **Pagina di moderazione** per le persone: decisioni, proposte dell'agente, registro, annullamento.
 - **Contestazioni:** chi riceve una decisione la può contestare; la rivede sempre una persona.
 - Sospensione degli account per violazioni gravi o ripetute.
@@ -173,12 +201,13 @@ Due indirizzi per Claude o un altro client MCP:
 - **Un solo nucleo** in `src/core` (frase → filtri, ricerca, stime, bozze, comuni) usato dal sito, dalle Actions e dal
   server MCP: le stesse regole per persone e agenti. Il server tiene in memoria una copia degli annunci pubblicati,
   aggiornata dopo ogni modifica.
-- **Claude** (`claude-opus-5-5`, facoltativo): bozze da foto, sintesi, traduzioni, ricerca con foto, moderazione.
+- **Claude** (`claude-opus-5-5`, facoltativo): bozze da foto, Svuota casa, sintesi, traduzioni, ricerca con foto,
+  moderazione, risposte dell'assistente venditore.
   Senza chiave tutto il resto funziona.
 - **EmbeddingGemma** (via transformers.js, sul server, circa 200 MB scaricati una volta) per la ricerca per significato;
   i vettori stanno in una tabella che solo il server legge e scrive.
-- Lavori periodici (promemoria di scadenza, annunci scaduti, riassunto delle email, vettori nuovi) agganciati alle
-  richieste, al massimo ogni 15 minuti.
+- Lavori periodici (promemoria di scadenza, annunci scaduti, ribassi automatici, consigli sul prezzo, promemoria dei
+  ritiri, riassunto delle email, vettori nuovi) agganciati alle richieste, al massimo ogni 15 minuti.
 
 ## Avvio in locale
 
@@ -216,9 +245,9 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 
 | Comando | Cosa verifica |
 | --- | --- |
-| `pnpm test` | 91 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, SEO, MCP |
-| `pnpm test:e2e` | 14 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi, avviso per significato, offerta accettata, ricerca salvata, email, collegare un assistente |
-| `pnpm test:db` | 83 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger) |
+| `pnpm test` | 120 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, SEO, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa |
+| `pnpm test:e2e` | 23 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi, avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi e «lo cercano in», Svuota casa, ricerca salvata, email, collegare un assistente |
+| `pnpm test:db` | 98 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger) |
 | `pnpm test:moderazione` | 37 controlli sull'agente di moderazione con un modello finto che segue un copione |
 | `pnpm test:oauth` | 25 controlli sul login OAuth del connettore con il client MCP ufficiale |
 | `pnpm mcp:smoke` | Prova il server MCP via HTTP |

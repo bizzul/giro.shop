@@ -4,6 +4,8 @@ import Thread from '../../components/Thread.astro';
 import { actions } from 'astro:actions';
 import { getConversation } from '../../lib/messages.ts';
 import { formatChf } from '../../core/format.ts';
+import { formatPickup, zurichDay } from '../../core/pickup.ts';
+import { getComune } from '../../core/comuni.ts';
 
 const { user, supabase } = Astro.locals;
 const id = Astro.params.id ?? '';
@@ -19,6 +21,9 @@ const conversation = await getConversation(supabase, user.id, id);
 if (!conversation) return new Response('Conversazione non trovata', { status: 404 });
 const openForOffers = conversation.listingStatus === 'pubblicato' || conversation.listingStatus === 'in_trattativa';
 const STATUS: Record<string, string> = { pubblicato: 'In vendita', in_trattativa: 'In trattativa', venduto: 'Venduto', archiviato: 'Non più in vendita' };
+const placeDefault = getComune(conversation.listingComuneId ?? '')?.name ?? '';
+const today = zurichDay(new Date());
+const pickupPast = conversation.pickupAt ? new Date(conversation.pickupAt) < new Date() : false;
 ---
 
 <Layout title={`${conversation.otherName} · ${conversation.listingTitle} · giro.shop`}>
@@ -41,6 +46,18 @@ const STATUS: Record<string, string> = { pubblicato: 'In vendita', in_trattativa
       </div>
     </header>
 
+    {
+      conversation.pickupAt && (
+        <p class:list={['pickup-set', { past: pickupPast }]}>
+          <b>{pickupPast ? 'Ritiro' : 'Ritiro fissato'}:</b> {formatPickup(conversation.pickupAt)}
+          {conversation.pickupPlace && ` · ${conversation.pickupPlace}`}
+          {conversation.pickupOutcome === 'non_venduto' && ' · non è andato a buon fine'}
+          {conversation.pickupOutcome === 'venduto' && ' · venduto'}
+          {!pickupPast && <span class="muted"> · Paga solo quando hai visto l'oggetto.</span>}
+        </p>
+      )
+    }
+
     {error && <p class="error" role="alert">{error}</p>}
 
     <Thread conversation={conversation} userId={user.id} />
@@ -49,6 +66,28 @@ const STATUS: Record<string, string> = { pubblicato: 'In vendita', in_trattativa
       <input type="hidden" name="conversationId" value={conversation.id} />
       <label class="sr" for="body">Messaggio</label>
       <textarea id="body" name="body" rows="2" maxlength="2000" placeholder={`Scrivi a ${conversation.otherName}`}></textarea>
+      {
+        openForOffers && (
+          <details class="pickup-field">
+            <summary>Proponi giorno e ora del ritiro</summary>
+            <div class="pickup-inputs">
+              <label class="fld">
+                <span class="label">Giorno</span>
+                <input type="date" name="pickupDay" min={today} />
+              </label>
+              <label class="fld">
+                <span class="label">Ora</span>
+                <input type="time" name="pickupTime" step="900" />
+              </label>
+              <label class="fld place">
+                <span class="label">Dove</span>
+                <input name="pickupPlace" maxlength="120" value={placeDefault} />
+              </label>
+            </div>
+            <p class="small">Con un'offerta, il ritiro va insieme all'offerta. Chi riceve la proposta la accetta con un tocco.</p>
+          </details>
+        )
+      }
       <div class="composer-row">
         {
           openForOffers && (
@@ -107,5 +146,13 @@ const STATUS: Record<string, string> = { pubblicato: 'In vendita', in_trattativa
   .composer-row { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
   .offer-field { display: grid; gap: 6px; }
   .chf { display: inline-flex; align-items: center; gap: 8px; font: 500 14px/1 var(--f-mono); }
+  .pickup-set { background: var(--surface); border-radius: 4px; padding: 10px 14px; font-size: 14.5px; }
+  .pickup-set b { font-weight: 500; }
+  .pickup-set.past { color: var(--muted); }
+  .pickup-field summary { cursor: pointer; font-size: 14px; }
+  .pickup-inputs { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .pickup-inputs .fld { display: grid; gap: 6px; }
+  .pickup-inputs .place { flex: 1 1 180px; }
+  .pickup-inputs input { font: 400 15px/1.2 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 9px 10px; width: 100%; }
   .chf input { width: 110px; font: 400 15px/1.2 var(--f-mono); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 9px 10px; }
 </style>

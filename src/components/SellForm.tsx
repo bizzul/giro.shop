@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { actions } from 'astro:actions';
 import type { Draft } from '../core/draft.ts';
+import type { Demand } from '../core/demand.ts';
 import { CONDITION_LABEL, formatChf } from '../core/format.ts';
 import { getCategory } from '../core/categories.ts';
 import PhotoManager, { type PhotoItem } from './PhotoManager.tsx';
@@ -9,11 +10,13 @@ import ComunePicker from './ComunePicker.tsx';
 interface Props {
   /** Chi ha fatto l'accesso può pubblicare; gli altri vengono portati all'accesso. */
   signedIn?: boolean;
+  /** Testo di partenza (da Cercasi: l'oggetto che qualcuno cerca). */
+  initialNotes?: string;
 }
 
-export default function SellForm({ signedIn = false }: Props) {
+export default function SellForm({ signedIn = false, initialNotes = '' }: Props) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(initialNotes);
   const [comune, setComune] = useState('');
   const [status, setStatus] = useState<'idle' | 'working' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +27,23 @@ export default function SellForm({ signedIn = false }: Props) {
   const [publishing, setPublishing] = useState(false);
   const [shipping, setShipping] = useState(false);
   const [shippingChf, setShippingChf] = useState('');
+  const [demand, setDemand] = useState<Demand | null>(null);
 
   useEffect(() => () => photos.forEach((p) => URL.revokeObjectURL(p.url)), []);
+
+  // "Lo cercano in 4": chi ha una ricerca salvata per un oggetto così (serve il comune, per chi cerca vicino a casa)
+  const pickupName = comune || draft?.comune?.name || '';
+  useEffect(() => {
+    if (!draft || !pickupName) return setDemand(null);
+    let current = true;
+    actions
+      .demand({ title: title || draft.title, description, tags: draft.tags, category: draft.category, condition: draft.condition, comune: pickupName, shipping })
+      .then(({ data }) => current && setDemand(data ?? null))
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [draft, pickupName, shipping]);
 
   async function submit(event: Event) {
     event.preventDefault();
@@ -208,6 +226,19 @@ export default function SellForm({ signedIn = false }: Props) {
             </>
           )}
         </div>
+
+        {demand && demand.people > 0 && (
+          <div class="demand" role="status">
+            <b>{demand.people === 1 ? 'Lo cerca 1 persona' : `Lo cercano in ${demand.people}`}</b>
+            <span>
+              {demand.people === 1 ? 'Una persona ha' : `${demand.people} persone hanno`} una ricerca salvata per un oggetto così: quando pubblichi
+              ricevono subito un avviso.
+              {demand.budget && ` Budget indicato: da ${formatChf(demand.budget.low)} a ${formatChf(demand.budget.high)}.`}
+              {demand.budget && Number(price) > demand.budget.high && ` A ${formatChf(Number(price))} sei sopra il budget di tutti.`}
+            </span>
+            <a href="/cercasi">Cosa cercano gli altri</a>
+          </div>
+        )}
 
         <div class="fld">
           <label class="label" for="draft-comune">

@@ -6,9 +6,10 @@ import { getComune } from '../../core/comuni.ts';
 import { estimatePrice } from '../../core/price.ts';
 import { photoUrl } from '../../core/store.ts';
 import { CONDITIONS } from '../../core/types.ts';
-import { CONDITION_HINT, CONDITION_LABEL, formatChfRange } from '../../core/format.ts';
+import { CONDITION_HINT, CONDITION_LABEL, formatChf, formatChfRange, formatDay } from '../../core/format.ts';
 import { publishedListings } from '../../core/store.ts';
 import { suggestTags } from '../../core/tags.ts';
+import { DROP_DAYS, DROP_PCTS, dropSchedule, nextDropAt, roundDown } from '../../core/insights.ts';
 import { iconPath } from '../../lib/category-icons.ts';
 import PhotoField from '../../components/PhotoField.tsx';
 import ComunePicker from '../../components/ComunePicker.tsx';
@@ -32,6 +33,20 @@ const { data: listing } = await supabase
   .maybeSingle();
 if (!listing) return new Response('Annuncio non trovato tra i tuoi', { status: 404 });
 
+// Impostazioni private: ribasso automatico e offerta minima (le vede solo chi vende)
+const { data: settings } = await supabase
+  .from('listing_settings')
+  .select('drop_pct, drop_every_days, drop_floor_chf, drop_from, drop_last_at, min_offer_chf')
+  .eq('listing_id', id)
+  .maybeSingle();
+const price = Number(listing.price_chf);
+const dropOn = settings?.drop_pct != null;
+const dropPct = Number(settings?.drop_pct ?? 10);
+const dropDays = Number(settings?.drop_every_days ?? 14);
+const dropFloor = settings?.drop_floor_chf != null ? Number(settings.drop_floor_chf) : null;
+const nextDrop = dropOn && settings?.drop_from ? nextDropAt({ pct: dropPct, everyDays: dropDays, floorChf: dropFloor ?? 0, from: settings.drop_from, lastAt: settings.drop_last_at }) : null;
+const minOffer = settings?.min_offer_chf != null ? Number(settings.min_offer_chf) : null;
+
 const photos = [...(listing.photos ?? [])].sort((a, b) => a.position - b.position);
 const comuneName = getComune(listing.comune_id)?.name ?? '';
 const estimate = estimatePrice({
@@ -41,6 +56,9 @@ const estimate = estimatePrice({
   excludeId: listing.id,
 });
 const onSale = listing.status === 'pubblicato' || listing.status === 'in_trattativa';
+// Minimo proposto quando si accende il ribasso: il basso della fascia dei simili, o il 70% del prezzo
+const floorDefault = dropFloor ?? (estimate && estimate.low < price ? estimate.low : roundDown(price * 0.7));
+const schedule = dropSchedule(price, { pct: dropPct, floorChf: floorDefault });
 const tags: string[] = listing.tags ?? [];
 const tagSuggestions = suggestTags(
   { id: listing.id, title: listing.title, description: listing.description, category: listing.category_id, tags },
@@ -157,6 +175,52 @@ const conditionOptions = CONDITIONS.map((c) => ({ value: c, label: CONDITION_LAB
           <span class="when-on">Nell'annuncio si legge «Prezzo trattabile»: chi compra sa che può proporti un'offerta.</span>
           <span class="when-off">Prezzo fisso. Attiva «Prezzo trattabile» se sei disposto a scendere.</span>
         </p>
+
+        <input type="hidden" name="settings" value="1" />
+        <div class="line">
+          <label class="toggle">
+            <input id="dropOn" name="dropOn" type="checkbox" checked={dropOn} />
+            <span class="toggle-mark" aria-hidden="true"></span>
+            <span class="label">Ribasso automatico</span>
+          </label>
+        </div>
+        <p class="small toggle-hint" data-for="dropOn">
+          <span class="when-off">Se nessuno compra, il prezzo scende da solo fino al minimo che scegli. Chi ha salvato l'annuncio viene avvisato a ogni ribasso.</span>
+          <span class="when-on">
+            {nextDrop ? <>Prossimo ribasso {formatDay(nextDrop.toISOString(), 'il')}. </> : null}
+            <span data-schedule>{schedule.length ? `Poi: ${schedule.map((p) => formatChf(p)).join(', ')}.` : 'Il prezzo è già al minimo.'}</span>
+          </span>
+        </p>
+        <div class="line drop-rule">
+          <div class="fld">
+            <label class="label" for="dropPct">Di quanto</label>
+            <select id="dropPct" name="dropPct">
+              {DROP_PCTS.map((p) => <option value={p} selected={p === dropPct}>−{p}%</option>)}
+            </select>
+          </div>
+          <div class="fld">
+            <label class="label" for="dropDays">Ogni</label>
+            <select id="dropDays" name="dropDays">
+              {DROP_DAYS.map((d) => <option value={d} selected={d === dropDays}>{d} giorni</option>)}
+            </select>
+          </div>
+          <div class="fld">
+            <label class="label" for="dropFloor">Mai sotto</label>
+            <span class="money">
+              <span class="affix" aria-hidden="true">CHF</span>
+              <input id="dropFloor" name="dropFloor" inputmode="decimal" value={String(floorDefault)} data-price={price} />
+            </span>
+          </div>
+        </div>
+
+        <div class="fld min-offer">
+          <label class="label" for="minOffer">Offerta minima <span class="muted">(la vedi solo tu)</span></label>
+          <span class="money">
+            <span class="affix" aria-hidden="true">CHF</span>
+            <input id="minOffer" name="minOffer" inputmode="decimal" value={minOffer != null ? String(minOffer) : ''} placeholder="nessuna" />
+          </span>
+          <p class="small">Con l'assistente venditore acceso, le offerte sotto questa cifra vengono rifiutate con gentilezza, senza disturbarti.</p>
+        </div>
       </section>
 
       <section class="sect" aria-labelledby="sect-consegna">
@@ -209,7 +273,23 @@ const conditionOptions = CONDITIONS.map((c) => ({ value: c, label: CONDITION_LAB
   import { actions } from 'astro:actions';
   import { autosave } from '../../lib/autosave.ts';
 
+  import { dropSchedule } from '../../core/insights.ts';
+  import { formatChf } from '../../core/format.ts';
+
   const form = document.querySelector<HTMLFormElement>('form.sellform');
+  // Ribasso automatico: i prezzi che verranno, ricalcolati mentre cambi le impostazioni
+  const scheduleText = document.querySelector<HTMLElement>('[data-schedule]');
+  const showSchedule = () => {
+    if (!form || !scheduleText) return;
+    const num = (name: string) => Number((form.elements.namedItem(name) as HTMLInputElement | null)?.value.replace(',', '.') ?? NaN);
+    const price = num('price');
+    const floor = num('dropFloor');
+    if (!Number.isFinite(price) || !Number.isFinite(floor)) return;
+    const steps = dropSchedule(price, { pct: num('dropPct'), floorChf: floor });
+    scheduleText.textContent = floor >= price ? 'Il minimo deve essere sotto il prezzo di adesso.' : steps.length ? `Poi: ${steps.map((p) => formatChf(p)).join(', ')}.` : 'Il prezzo è già al minimo.';
+  };
+  form?.addEventListener('input', showSchedule);
+  form?.addEventListener('change', showSchedule);
   if (form) {
     autosave(form, {
       save: (data) => actions.account.updateListing(data),
@@ -270,6 +350,14 @@ const conditionOptions = CONDITIONS.map((c) => ({ value: c, label: CONDITION_LAB
   .sect:has(#negotiable:checked) [data-for='negotiable'] .when-off,
   .sect:has(#shipping:checked) [data-for='shipping'] .when-off { display: none; }
   .ship:not(:has(#shipping:checked)) .ship-cost { display: none; }
+  .sect:has(#dropOn:checked) [data-for='dropOn'] .when-on { display: inline; }
+  .sect:has(#dropOn:checked) [data-for='dropOn'] .when-off { display: none; }
+  .sect:not(:has(#dropOn:checked)) .drop-rule { display: none; }
+  .drop-rule .fld { flex: 0 1 160px; min-width: 120px; }
+  .drop-rule .money, .min-offer .money { flex: none; }
+  .drop-rule .money input, .min-offer .money input { width: 100%; height: 48px; }
+  .min-offer { max-width: 360px; }
+  .min-offer .label .muted { text-transform: none; letter-spacing: 0; }
 
   @media (max-width: 520px) {
     .line > * { flex: 1 1 100%; }

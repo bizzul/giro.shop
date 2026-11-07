@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { listConversations, type Message } from '../../lib/messages.ts';
 import { formatAge, formatChf } from '../../core/format.ts';
+import { formatPickup } from '../../core/pickup.ts';
 
 const { user, supabase } = Astro.locals;
 if (!user || !supabase) return Astro.redirect('/accedi?next=/messaggi');
@@ -10,6 +11,7 @@ const conversations = await listConversations(supabase, user.id);
 function preview(m: Message | null): string {
   if (!m) return 'Nessun messaggio';
   if (m.kind === 'offerta') return `${m.senderId === user!.id ? 'Hai offerto' : 'Offerta'} ${formatChf(m.offerChf ?? 0)}`;
+  if (m.kind === 'ritiro' && m.pickupAt) return `${m.senderId === user!.id ? 'Hai proposto il' : 'Proposta di'} ritiro ${formatPickup(m.pickupAt)}`;
   return `${m.senderId === user!.id && m.kind === 'testo' ? 'Tu: ' : ''}${m.body}`;
 }
 ---

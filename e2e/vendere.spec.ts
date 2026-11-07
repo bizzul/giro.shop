@@ -1,10 +1,11 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { admin, deleteUsers, login, testEmail } from './helpers.ts';
+import { zurichDay } from '../src/core/pickup.ts';
 
 /**
  * Vendere e trattare, con due persone vere (due browser separati, ognuno con il suo accesso via email):
  * chi vende pubblica con "Scatta e vendi", chi aveva salvato «sofà» riceve l'avviso (per significato),
- * chi compra scrive con un'offerta, chi vende la accetta.
+ * chi compra scrive con un'offerta, chi vende la accetta, si fissa il ritiro e dopo il ritiro chi vende conferma la vendita.
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -99,4 +100,39 @@ test('chi vende accetta l\'offerta e lo vedono entrambi', async () => {
   await expect(seller.locator('#thread')).toContainText('Accettata');
   await buyer.reload();
   await expect(buyer.locator('#thread')).toContainText('Accettata');
+});
+
+test('chi compra propone il ritiro, chi vende lo conferma', async () => {
+  const day = zurichDay(new Date(Date.now() + 2 * 864e5));
+  await buyer.getByText('Proponi giorno e ora del ritiro').click();
+  await buyer.locator('input[name="pickupDay"]').fill(day);
+  await buyer.locator('input[name="pickupTime"]').fill('10:00');
+  await buyer.locator('input[name="pickupPlace"]').fill('Lugano, stazione');
+  await buyer.getByRole('button', { name: 'Invia' }).click();
+  await expect(buyer.locator('#thread')).toContainText('Il ritiro che proponi');
+  await expect(buyer.locator('#thread')).toContainText('alle 10:00 · Lugano, stazione');
+
+  await seller.reload();
+  await expect(seller.locator('#thread')).toContainText('Ritiro proposto da');
+  await seller.getByRole('button', { name: 'Accetta' }).click();
+  await expect(seller.locator('.pickup-set')).toContainText('Ritiro fissato');
+  await expect(seller.locator('.pickup-set')).toContainText('Lugano, stazione');
+  await buyer.reload();
+  await expect(buyer.locator('#thread')).toContainText('Ritiro confermato.');
+});
+
+test('dopo il ritiro chi vende conferma la vendita con un tocco', async () => {
+  // Il ritiro è passato da tre ore
+  await admin.from('conversations').update({ pickup_at: new Date(Date.now() - 3 * 36e5).toISOString() }).eq('listing_id', listingId);
+  await seller.goto('/miei-annunci');
+  const row = seller.locator(`#a-${listingId}`);
+  await expect(row).toContainText("com'è andato?");
+  await expect(row.locator('.stats').first()).toContainText('1 contatto');
+  await row.getByRole('button', { name: /Sì, venduto a CHF 280/ }).click();
+  await expect(seller.locator(`#a-${listingId}`)).toContainText('Venduto');
+  const { data } = await admin.from('listings').select('status, sold_price_chf').eq('id', listingId).single();
+  expect(data?.status).toBe('venduto');
+  expect(Number(data?.sold_price_chf)).toBe(280);
+  const { data: conv } = await admin.from('conversations').select('pickup_outcome').eq('listing_id', listingId).single();
+  expect(conv?.pickup_outcome).toBe('venduto');
 });

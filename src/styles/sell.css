@@ -172,3 +172,32 @@
 .tag-add:hover, .tag-add:focus-visible { border-style: solid; border-color: var(--ink); background: var(--surface); }
 .tag-add:disabled { opacity: 0.45; cursor: not-allowed; }
 .cbx-search input:focus, .tag-box input:focus { border: 0; box-shadow: none; }
+
+/* "Lo cercano in 4": chi ha una ricerca salvata per un oggetto così */
+.demand { display: grid; gap: 4px; background: var(--surface); border-left: 3px solid var(--action); border-radius: 4px; padding: 12px 14px; font-size: 14.5px; line-height: 1.5; }
+.demand b { font-weight: 500; font-size: 16px; }
+.demand a { justify-self: start; font-size: 13.5px; text-underline-offset: 3px; }
+
+/* Svuota casa: una riga per oggetto, con foto ritagliata, titolo e prezzo */
+.house { display: grid; gap: 22px; }
+.house-hints { display: grid; gap: 8px; list-style: none; padding: 0; }
+.house-hints li { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 10px; align-items: center; }
+.house-hints img { width: 56px; height: 42px; object-fit: cover; border-radius: 4px; }
+.house-items { display: grid; border-top: 1px solid var(--line); list-style: none; padding: 0; }
+.house-item { display: grid; grid-template-columns: auto 88px minmax(0, 1fr) 150px; gap: 14px; align-items: center; padding-block: 14px; border-bottom: 1px solid var(--line); }
+.house-item.off { opacity: 0.5; }
+.house-item.done .house-thumb { outline: 2px solid var(--ok, var(--action)); }
+.house-pick input { width: 20px; height: 20px; }
+.house-thumb { width: 88px; aspect-ratio: 4 / 3; border-radius: 4px; overflow: hidden; background: var(--surface-2); display: block; }
+.house-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.house-fields { display: grid; gap: 4px; min-width: 0; }
+.house-title { font: 500 15px/1.3 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 8px 10px; width: 100%; }
+.house-desc { color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.house-price { font-size: 16px; }
+.house-price input { width: 100%; font-size: 17px; padding: 8px 10px; }
+.error-text { color: var(--bad); }
+@media (max-width: 640px) {
+  .house-item { grid-template-columns: auto 72px minmax(0, 1fr); }
+  .house-thumb { width: 72px; }
+  .house-price { grid-column: 2 / -1; }
+}

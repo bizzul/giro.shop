@@ -42,9 +42,9 @@ describe('email degli avvisi', () => {
   });
 
   it('dai gruppi accesi ai tipi spenti', () => {
-    expect(offKindsFromGroups(['ricerche', 'salvati', 'domande', 'valutazioni', 'scadenze'])).toEqual([]);
-    expect(offKindsFromGroups(['ricerche', 'domande', 'valutazioni', 'scadenze'])).toEqual(['prezzo', 'venduto']);
-    expect(offKindsFromGroups(['sconosciuto'])).toHaveLength(7);
+    expect(offKindsFromGroups(['ricerche', 'salvati', 'domande', 'valutazioni', 'scadenze', 'consigli', 'ritiri'])).toEqual([]);
+    expect(offKindsFromGroups(['ricerche', 'domande', 'valutazioni', 'scadenze', 'consigli', 'ritiri'])).toEqual(['prezzo', 'venduto']);
+    expect(offKindsFromGroups(['sconosciuto'])).toHaveLength(9);
   });
 
   it('gruppi e riepilogo', () => {
@@ -53,7 +53,7 @@ describe('email degli avvisi', () => {
     expect(groupByKey('salvati')?.kinds).toEqual(['prezzo', 'venduto']);
     expect(groupIsOn(prefs({ email_off: ['venduto'] }), groupByKey('salvati')!)).toBe(false);
     expect(prefsSummary(null)).toBe('Email: subito');
-    expect(prefsSummary(prefs({ email_mode: 'riassunto', email_off: ['ricerca'] }))).toBe('Email: un riassunto al giorno, 4 tipi su 5');
+    expect(prefsSummary(prefs({ email_mode: 'riassunto', email_off: ['ricerca'] }))).toBe('Email: un riassunto al giorno, 6 tipi su 7');
     expect(prefsSummary(prefs({ email_mode: 'mai' }))).toBe('Email spente');
   });
 

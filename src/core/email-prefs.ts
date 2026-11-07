@@ -16,7 +16,18 @@ export const EMAIL_MODE_LABEL: Record<EmailMode, string> = {
 export const DIGEST_HOUR = 18;
 
 /** Tipi di avviso, come nel database (enum notification_kind). */
-export type NoticeKind = 'ricerca' | 'prezzo' | 'venduto' | 'domanda' | 'risposta' | 'valutazione' | 'scadenza' | 'segnalazione' | 'contestazione';
+export type NoticeKind =
+  | 'ricerca'
+  | 'prezzo'
+  | 'venduto'
+  | 'domanda'
+  | 'risposta'
+  | 'valutazione'
+  | 'scadenza'
+  | 'segnalazione'
+  | 'contestazione'
+  | 'consiglio'
+  | 'ritiro';
 
 export interface EmailGroup {
   key: string;
@@ -34,6 +45,8 @@ export const EMAIL_GROUPS: EmailGroup[] = [
   { key: 'domande', label: 'Domande sui tuoi annunci e risposte alle tue', kinds: ['domanda', 'risposta'] },
   { key: 'valutazioni', label: 'Valutazioni che ricevi', kinds: ['valutazione'] },
   { key: 'scadenze', label: 'Annunci tuoi in scadenza', kinds: ['scadenza'] },
+  { key: 'consigli', label: "Consigli sui tuoi annunci: ribassi fatti, prezzo da rivedere, «l'hai venduto?»", kinds: ['consiglio'] },
+  { key: 'ritiri', label: 'Promemoria dei ritiri concordati', kinds: ['ritiro'] },
 ];
 
 const ALWAYS_NOW: NoticeKind[] = ['segnalazione', 'contestazione'];

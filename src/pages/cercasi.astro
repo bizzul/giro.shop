@@ -1,0 +1,73 @@
+---
+/**
+ * Cercasi: cosa cercano le persone in Ticino, dalle ricerche salvate.
+ * Solo numeri aggregati per oggetto e zona, e solo dove le persone sono almeno due: nessun nome, nessuna frase intera.
+ */
+import Layout from '../layouts/Layout.astro';
+import { cercasi } from '../lib/demand.ts';
+import { formatChf } from '../core/format.ts';
+
+const groups = await cercasi();
+---
+
+<Layout title="Cercasi · giro.shop" description="Cosa cercano le persone in Ticino: hai qualcosa del genere in cantina? Vendilo a chi lo aspetta.">
+  <section class="wrap band wanted">
+    <header class="intro">
+      <span class="label">Cercasi</span>
+      <h1>Qualcuno lo sta aspettando.</h1>
+      <p class="muted">
+        Le cose che le persone cercano di più in Ticino, dalle ricerche salvate. Se ne hai una in cantina, mettila in vendita: chi la cerca riceve
+        subito un avviso. Qui ci sono solo numeri, raggruppati: nessun nome e nessuna ricerca di una persona sola.
+      </p>
+    </header>
+
+    {
+      groups.length === 0 ? (
+        <div class="panel">
+          <h3>Ancora poche ricerche salvate.</h3>
+          <p class="muted">Quando almeno due persone cercano la stessa cosa, compare qui. Puoi salvare una ricerca dai risultati con «Avvisami».</p>
+          <a class="btn" href="/cerca">Cerca</a>
+        </div>
+      ) : (
+        <ul class="groups">
+          {groups.map((g) => (
+            <li class="group">
+              <div class="what">
+                <a class="title" href={`/cerca?q=${encodeURIComponent(g.query)}`}>
+                  {g.label}
+                </a>
+                <span class="muted small">
+                  {g.district ? `zona ${g.district}` : 'tutto il Ticino'}
+                  {g.budget != null && ` · budget tipico fino a ${formatChf(g.budget)}`}
+                </span>
+              </div>
+              <span class="people">
+                <b>{g.people}</b> <span class="muted small">{g.people === 1 ? 'persona' : 'persone'}</span>
+              </span>
+              <a class="btn" href={`/vendi?nota=${encodeURIComponent(g.query)}`}>
+                Ce l'ho, lo vendo
+              </a>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .wanted { display: grid; gap: 32px; max-width: 860px; }
+  .intro { display: grid; gap: 14px; }
+  .intro h1 { font-size: clamp(32px, 4.4vw, 48px); }
+  .groups { display: grid; border-top: 1px solid var(--line); }
+  .group { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 16px; align-items: center; padding-block: 16px; border-bottom: 1px solid var(--line); }
+  .what { display: grid; gap: 4px; min-width: 0; }
+  .title { font-weight: 500; font-size: 17px; text-decoration: none; }
+  .title:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .people { display: inline-flex; align-items: baseline; gap: 6px; }
+  .people b { font: 400 26px/1 var(--f-display); letter-spacing: -0.02em; }
+  @media (max-width: 560px) {
+    .group { grid-template-columns: minmax(0, 1fr) auto; }
+    .group .btn { grid-column: 1 / -1; justify-self: start; }
+  }
+</style>

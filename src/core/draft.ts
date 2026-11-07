@@ -58,7 +58,7 @@ export function getDraft(id: string): Draft | undefined {
   return drafts.get(id);
 }
 
-const CATEGORY_LIST = CATEGORIES.map((c) => `${c.id} (${c.name})`).join(', ');
+export const CATEGORY_LIST = CATEGORIES.map((c) => `${c.id} (${c.name})`).join(', ');
 
 const SYSTEM_PROMPT = `Prepari bozze di annunci per giro.shop, un mercatino dell'usato del Canton Ticino. Ricevi le foto di un oggetto e, a volte, due righe scritte da chi vende. Restituisci i campi della bozza; chi vende li controlla prima di pubblicare.
 
@@ -89,7 +89,7 @@ const DraftSchema = z.object({
   questions: z.array(z.string()),
 });
 
-type DraftFields = z.infer<typeof DraftSchema>;
+export type DraftFields = z.infer<typeof DraftSchema>;
 
 function hasCredentials(apiKey?: string): boolean {
   return Boolean(apiKey || process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
@@ -161,7 +161,7 @@ const CONDITION_PATTERNS: Array<[RegExp, Condition]> = [
 ];
 
 /** Bozza semplice senza AI: categoria, titolo pulito, stato e parole chiave dal testo. */
-function draftWithRules(notes: string): DraftFields {
+export function draftWithRules(notes: string): DraftFields {
   const tokens = tokenize(notes);
   const cat = detectCategory(tokens);
   const n = normalize(notes);

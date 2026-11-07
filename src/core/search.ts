@@ -133,10 +133,12 @@ export const ALERT_MEANING_MIN = 0.6;
  * Un annuncio corrisponde a una ricerca salvata? Più severo della ricerca normale:
  * deve essere proprio l'oggetto cercato (una lampada "da scrivania" non avvisa chi cerca scrivanie).
  * Con `similarity` (ricerca per significato) vale anche detto con altre parole ("sofà" → divano),
- * se è abbastanza simile; prezzo, zona, stato e gli altri filtri valgono comunque.
+ * se è abbastanza simile; prezzo, zona, stato e gli altri filtri valgono comunque (il prezzo no, con ignorePrice).
  */
-export function matchesSearch(query: string, listing: Listing, similarity?: number): boolean {
-  const { filters } = parseQuery(query);
+export function matchesSearch(query: string, listing: Listing, similarity?: number, options: { ignorePrice?: boolean } = {}): boolean {
+  const parsed = parseQuery(query).filters;
+  // "Lo cercano in 4": chi cerca lo stesso oggetto conta anche se il suo budget è più basso
+  const filters = options.ignorePrice ? { ...parsed, minPrice: undefined, maxPrice: undefined } : parsed;
   const meaning = similarity != null && similarity >= ALERT_MEANING_MIN ? new Map([[listing.id, similarity]]) : undefined;
   if (filters.required) {
     const hasWord = findAlt(listing, filters.required.alts) !== null;

@@ -14,6 +14,7 @@ export const GET: APIRoute = ({ url }) => {
   const entries: SitemapEntry[] = [
     { path: '/', lastmod: latest, priority: 1 },
     { path: '/cerca', lastmod: latest, priority: 0.8 },
+    { path: '/cercasi', priority: 0.5 },
     { path: '/sicurezza', priority: 0.4 },
     { path: '/connetti', priority: 0.3 },
     { path: '/privacy', priority: 0.2 },

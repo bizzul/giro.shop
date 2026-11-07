@@ -1,12 +1,17 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { actions } from 'astro:actions';
-import { photoUrl } from '../core/store.ts';
+import { getListing, photoUrl } from '../core/store.ts';
+import { demandForListings } from '../lib/demand.ts';
+import type { Listing } from '../core/types.ts';
 import { formatAge, formatChf, formatDay } from '../core/format.ts';
 import { maskSwissMobile } from '../core/phone.ts';
 import { EMAIL_GROUPS, EMAIL_MODES, EMAIL_MODE_LABEL, groupIsOn, type EmailPrefs } from '../core/email-prefs.ts';
 import { SCOPES } from '../core/oauth.ts';
 import { connectionsOf } from '../lib/oauth.ts';
+import { estimatePrice } from '../core/price.ts';
+import { daysBetween, priceTip } from '../core/insights.ts';
+import { AVAILABILITY, formatPickup } from '../core/pickup.ts';
 import '../styles/sell.css';
 
 const user = Astro.locals.user;
@@ -24,6 +29,8 @@ const deleteResult = Astro.getActionResult(actions.account.deleteListing);
 const emailResult = Astro.getActionResult(actions.account.setEmailNotices);
 const handResult = Astro.getActionResult(actions.account.setHand);
 const renewResult = Astro.getActionResult(actions.account.renewListing);
+const lowerResult = Astro.getActionResult(actions.account.lowerPrice);
+const outcomeResult = Astro.getActionResult(actions.messages.pickupOutcome);
 const phoneStart = Astro.getActionResult(actions.account.startPhoneVerification);
 const phoneConfirm = Astro.getActionResult(actions.account.confirmPhone);
 const phoneError = phoneStart?.error?.message ?? phoneConfirm?.error?.message;
@@ -33,8 +40,12 @@ const { data: authData } = await supabase.auth.getUser();
 const authUser = authData.user;
 const verifiedPhone = authUser?.phone && authUser.phone_confirmed_at ? `+${authUser.phone}` : null;
 const pendingPhone = phoneStart?.data?.phone ?? (authUser?.new_phone ? `+${authUser.new_phone}` : null);
-const error = [nameResult, statusResult, deleteResult, signOut, emailResult, handResult, renewResult, deleted].find((r) => r?.error)?.error?.message;
-const notice = renewResult?.data
+const error = [nameResult, statusResult, deleteResult, signOut, emailResult, handResult, renewResult, deleted, lowerResult, outcomeResult].find((r) => r?.error)?.error?.message;
+const notice = outcomeResult?.data
+  ? "Peccato. L'annuncio è di nuovo in vendita: nella conversazione puoi proporre un altro ritiro."
+  : lowerResult?.data
+  ? `Prezzo abbassato a ${formatChf(lowerResult.data.price)}: chi aveva salvato l'annuncio riceve un avviso.`
+  : renewResult?.data
   ? `Rinnovato: resta online fino ${formatDay(renewResult.data.expires, 'al')}.`
   : handResult?.data
   ? `Su telefono la barra dei comandi ora sta ${handResult.data.hand === 'sinistra' ? 'a sinistra' : 'a destra'}.`
@@ -70,27 +81,92 @@ const { data: profile } = await supabase
   .single();
 const { data: rows } = await supabase
   .from('listings')
-  .select('id, title, price_chf, status, published_at, created_at, expires_at, sold_price_chf, hidden_at, hidden_reason, photos:listing_photos(storage_path, position)')
+  .select('id, title, price_chf, status, published_at, created_at, expires_at, sold_at, sold_price_chf, hidden_at, hidden_reason, category_id, condition, tags, photos:listing_photos(storage_path, position)')
   .eq('seller_id', user.id)
   .order('created_at', { ascending: false });
 
 // Chi ha scritto per ogni annuncio: quando si segna venduto si sceglie a chi, per valutarsi a vicenda
 const { data: convs } = await supabase
   .from('conversations')
-  .select('listing_id, buyer_id, buyer:profiles!conversations_buyer_id_fkey(display_name)')
+  .select('id, listing_id, buyer_id, pickup_at, pickup_place, pickup_outcome, buyer:profiles!conversations_buyer_id_fkey(display_name)')
   .eq('seller_id', user.id);
+type ConvRow = { id: string; listing_id: string; buyer_id: string; pickup_at: string | null; pickup_place: string | null; pickup_outcome: string | null; buyer: { display_name: string } | null };
 const buyersOf = new Map<string, Array<{ id: string; name: string }>>();
-for (const c of (convs ?? []) as unknown as Array<{ listing_id: string; buyer_id: string; buyer: { display_name: string } | null }>) {
+// Ritiro fissato e non ancora concluso, per annuncio: il più recente
+const pickupOf = new Map<string, { conversationId: string; buyerId: string; buyerName: string; at: string; place: string | null; offer: number | null }>();
+const convRows = (convs ?? []) as unknown as ConvRow[];
+const withPickup = convRows.filter((c) => c.pickup_at && !c.pickup_outcome);
+const { data: accepted } = withPickup.length
+  ? await supabase.from('messages').select('conversation_id, offer_chf').eq('kind', 'offerta').eq('offer_status', 'accettata').in('conversation_id', withPickup.map((c) => c.id))
+  : { data: [] };
+const acceptedOffer = new Map((accepted ?? []).map((m) => [m.conversation_id as string, Number(m.offer_chf)]));
+for (const c of convRows) {
   const list = buyersOf.get(c.listing_id) ?? [];
   list.push({ id: c.buyer_id, name: c.buyer?.display_name ?? 'Utente' });
   buyersOf.set(c.listing_id, list);
+  if (c.pickup_at && !c.pickup_outcome && (pickupOf.get(c.listing_id)?.at ?? '') < c.pickup_at) {
+    pickupOf.set(c.listing_id, {
+      conversationId: c.id,
+      buyerId: c.buyer_id,
+      buyerName: c.buyer?.display_name ?? 'Utente',
+      at: c.pickup_at,
+      place: c.pickup_place,
+      offer: acceptedOffer.get(c.id) ?? null,
+    });
+  }
 }
+const nowIso = new Date().toISOString();
 
-const listings = (rows ?? []).map((r) => ({
-  ...r,
-  cover: [...(r.photos ?? [])].sort((a, b) => a.position - b.position)[0]?.storage_path,
-  buyers: buyersOf.get(r.id) ?? [],
-}));
+// Statistiche (visite, salvati, contatti, domande), impostazioni private (ribasso automatico) e assistente venditore
+const [{ data: statRows }, { data: settingRows }, { data: sellerSettings }] = await Promise.all([
+  supabase.rpc('my_listing_stats'),
+  supabase.from('listing_settings').select('listing_id, drop_pct, drop_floor_chf'),
+  supabase.from('seller_settings').select('assistant_on, availability').eq('user_id', user.id).maybeSingle(),
+]);
+const availability: string[] = sellerSettings?.availability ?? [];
+type Stats = { views_total: number; views_week: number; saves: number; contacts: number; questions: number; last_contact_at: string | null };
+const statsOf = new Map(((statRows ?? []) as Array<Stats & { listing_id: string }>).map((r) => [r.listing_id, r]));
+const dropOf = new Map((settingRows ?? []).filter((r) => r.drop_pct != null).map((r) => [r.listing_id as string, { pct: Number(r.drop_pct), floor: Number(r.drop_floor_chf) }]));
+const count = (n: number | undefined, one: string, many: string) => `${n ?? 0} ${Number(n) === 1 ? one : many}`;
+// Quante persone hanno una ricerca salvata che corrisponde (solo il numero)
+const demandOf = await demandForListings(
+  (rows ?? [])
+    .filter((r) => r.status === 'pubblicato' || r.status === 'in_trattativa')
+    .map((r) => getListing(r.id))
+    .filter((l): l is Listing => Boolean(l)),
+);
+
+const listings = (rows ?? []).map((r) => {
+  const stats = statsOf.get(r.id);
+  const onSale = r.status === 'pubblicato' || r.status === 'in_trattativa';
+  const estimate = onSale
+    ? estimatePrice({ text: `${r.title} ${(r.tags ?? []).join(' ')}`, category: r.category_id, condition: r.condition, excludeId: r.id })
+    : null;
+  const price = Number(r.price_chf);
+  const market =
+    estimate && estimate.basis === 'simili' && estimate.comparables >= 3
+      ? price > estimate.high
+        ? 'sopra'
+        : price < estimate.low
+          ? 'sotto'
+          : 'in linea'
+      : null;
+  return {
+    ...r,
+    cover: [...(r.photos ?? [])].sort((a, b) => a.position - b.position)[0]?.storage_path,
+    buyers: buyersOf.get(r.id) ?? [],
+    pickup: onSale ? pickupOf.get(r.id) : undefined,
+    wanted: demandOf.get(r.id)?.people ?? 0,
+    stats,
+    estimate,
+    market,
+    drop: dropOf.get(r.id),
+    tip:
+      r.status === 'pubblicato' && r.published_at && !dropOf.has(r.id)
+        ? priceTip({ priceChf: price, publishedAt: r.published_at, lastContactAt: stats?.last_contact_at, estimate })
+        : null,
+  };
+});
 
 const STATUS_LABEL: Record<string, string> = {
   bozza: 'Bozza',
@@ -218,6 +294,35 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
             ))
           }
           <p class="muted small">Le decisioni di moderazione sui tuoi contenuti arrivano sempre subito, tranne con «Mai».</p>
+        </fieldset>
+        <noscript><button class="btn" type="submit">Salva</button></noscript>
+      </form>
+    </section>
+
+    <section class="panel assistant-panel" id="assistente" aria-labelledby="assistente-title">
+      <h2 id="assistente-title">Assistente venditore</h2>
+      <p class="muted small">
+        Risponde da solo alle domande che arrivano sempre uguali («è ancora disponibile?», «dove si ritira?», «si può spedire?»), usando i dati
+        dell'annuncio e le risposte che hai già dato. Rifiuta con gentilezza le offerte sotto il minimo che scegli in ogni annuncio e propone gli
+        orari di ritiro. Le sue risposte sono segnate come automatiche; accettare un'offerta o un ritiro resta sempre una tua decisione. Quando
+        scrivi tu, per 15 minuti tace.
+      </p>
+      <form class="email-form assistant-form" method="POST" action={actions.account.setAssistant} autocomplete="off">
+        <label class="toggle">
+          <input type="checkbox" name="assistant" checked={Boolean(sellerSettings?.assistant_on)} />
+          <span>Assistente acceso</span>
+        </label>
+        <fieldset>
+          <legend class="label">Di solito si può ritirare</legend>
+          {
+            AVAILABILITY.map((a) => (
+              <label class="toggle">
+                <input type="checkbox" name="availability" value={a.key} checked={availability.includes(a.key)} />
+                <span>{a.label}</span>
+              </label>
+            ))
+          }
+          <p class="muted small">Senza orari l'assistente non propone ritiri: risponde solo alle domande.</p>
         </fieldset>
         <noscript><button class="btn" type="submit">Salva</button></noscript>
       </form>
@@ -356,7 +461,75 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
                   )}
                   {l.hidden_at && <span class="badge bad">Nascosto: in verifica</span>}
                 </span>
+                {l.stats && l.status !== 'bozza' && (
+                  <span class="stats small muted">
+                    {count(l.stats.views_total, 'visita', 'visite')}
+                    {l.stats.views_week > 0 && l.stats.views_week !== l.stats.views_total && ` (${l.stats.views_week} questa settimana)`}
+                    {' · '}
+                    {count(l.stats.saves, 'salvato', 'salvati')} · {count(l.stats.contacts, 'contatto', 'contatti')}
+                    {l.stats.questions > 0 && ` · ${count(l.stats.questions, 'domanda', 'domande')}`}
+                    {l.wanted > 0 && ` · ${l.wanted === 1 ? 'lo cerca 1 persona' : `lo cercano in ${l.wanted}`}`}
+                    {l.status === 'venduto' && l.published_at && l.sold_at && ` · venduto in ${count(daysBetween(l.published_at, l.sold_at), 'giorno', 'giorni')}`}
+                  </span>
+                )}
+                {(l.market || l.drop) && (
+                  <span class="stats small muted">
+                    {l.market && l.estimate && (
+                      <>
+                        Prezzo <b class:list={['market', l.market === 'sopra' && 'high']}>{l.market === 'in linea' ? 'in linea con' : `${l.market} il`} mercato</b> (simili{' '}
+                        {formatChf(l.estimate.low)}–{formatChf(l.estimate.high)})
+                      </>
+                    )}
+                    {l.market && l.drop && ' · '}
+                    {l.drop && `Ribasso automatico −${l.drop.pct}%, mai sotto ${formatChf(l.drop.floor)}`}
+                  </span>
+                )}
+                {l.pickup && l.pickup.at > nowIso && (
+                  <span class="stats small">
+                    <a href={`/messaggi/${l.pickup.conversationId}`}>Ritiro con {l.pickup.buyerName}</a> {formatPickup(l.pickup.at)}
+                    {l.pickup.place && ` · ${l.pickup.place}`}
+                  </span>
+                )}
               </div>
+              {l.pickup && l.pickup.at <= nowIso && (
+                <div class="tip small">
+                  <p>
+                    Ritiro con {l.pickup.buyerName} {formatPickup(l.pickup.at)}: com'è andato? Se l'hai venduto, l'annuncio sparisce dalle ricerche e potete
+                    valutarvi a vicenda.
+                  </p>
+                  <div class="tip-actions">
+                    <form method="POST" action={actions.account.setListingStatus}>
+                      <input type="hidden" name="id" value={l.id} />
+                      <input type="hidden" name="status" value="venduto" />
+                      <input type="hidden" name="soldPrice" value={l.pickup.offer ?? Number(l.price_chf)} />
+                      <input type="hidden" name="buyerId" value={l.pickup.buyerId} />
+                      <input type="hidden" name="pickupConversationId" value={l.pickup.conversationId} />
+                      <button class="btn primary" type="submit">Sì, venduto a {formatChf(l.pickup.offer ?? Number(l.price_chf))}</button>
+                    </form>
+                    <form method="POST" action={actions.messages.pickupOutcome}>
+                      <input type="hidden" name="conversationId" value={l.pickup.conversationId} />
+                      <input type="hidden" name="outcome" value="non_venduto" />
+                      <button class="btn" type="submit">No, è ancora in vendita</button>
+                    </form>
+                  </div>
+                </div>
+              )}
+              {l.tip && (
+                <div class="tip small">
+                  <p>
+                    Nessun contatto da {l.tip.quietDays} giorni e costa il {l.tip.overPct}% in più degli annunci simili. Con {formatChf(l.tip.suggested)}{' '}
+                    lo vedono più persone, oppure attiva il ribasso automatico.
+                  </p>
+                  <div class="tip-actions">
+                    <form method="POST" action={actions.account.lowerPrice}>
+                      <input type="hidden" name="id" value={l.id} />
+                      <input type="hidden" name="price" value={l.tip.suggested} />
+                      <button class="btn primary" type="submit">Abbassa a {formatChf(l.tip.suggested)}</button>
+                    </form>
+                    <a class="btn" href={`/miei-annunci/${l.id}#dropOn`}>Ribasso automatico</a>
+                  </div>
+                </div>
+              )}
               {l.hidden_at && (
                 <p class="hidden-note small">
                   {l.hidden_reason === 'segnalazioni'
@@ -458,7 +631,18 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
         (data as { hand: Hand }).hand === 'sinistra' ? 'Su telefono la barra sta a sinistra' : 'Su telefono la barra sta a destra',
     });
   }
-  const emailForm = document.querySelector<HTMLFormElement>('form.email-form');
+  const assistantForm = document.querySelector<HTMLFormElement>('form.assistant-form');
+  if (assistantForm) {
+    autosave(assistantForm, {
+      save: (form) => actions.account.setAssistant(form),
+      message: (_label, data) => {
+        const { on, slots } = data as { on: boolean; slots: number };
+        if (!on) return 'Assistente spento: rispondi tu a tutti';
+        return slots ? 'Assistente acceso: risponde e propone i ritiri' : 'Assistente acceso: risponde alle domande ripetitive';
+      },
+    });
+  }
+  const emailForm = document.querySelector<HTMLFormElement>('form.email-form:not(.assistant-form)');
   if (emailForm) {
     autosave(emailForm, {
       save: (form) => actions.account.setEmailNotices(form),
@@ -537,6 +721,13 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
   .suspended { display: grid; gap: 4px; background: var(--bad-soft); border-radius: 4px; padding: 14px 16px; font-size: 14.5px; }
   .suspended b { font-weight: 500; }
   .hidden-note { grid-column: 1 / -1; background: var(--bad-soft); border-radius: 4px; padding: 8px 12px; color: var(--ink); }
+  .stats { line-height: 1.5; }
+  .stats .market { font-weight: 500; color: var(--ink); }
+  .stats .market.high { color: var(--bad); }
+  /* Consiglio sul prezzo: sotto la riga, dopo i comandi */
+  .tip { grid-column: 1 / -1; order: 1; display: grid; gap: 10px; background: var(--surface); border-radius: 4px; padding: 12px 14px; }
+  .tip-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tip-actions .btn { padding: 10px 12px; }
   .buyer { max-width: 160px; font: 400 14px/1.2 var(--f-body); padding: 9px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); color: var(--ink); }
   .danger summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 10px 4px; }
   .danger form { display: grid; gap: 8px; padding-top: 8px; }

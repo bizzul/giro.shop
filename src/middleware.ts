@@ -26,6 +26,7 @@ const PUBLIC_PATHS = new Set([
   '/oauth/revoke',
   '/favicon.svg',
   '/sicurezza',
+  '/cercasi',
   '/confronta',
   '/traduci',
   '/cerca-foto',

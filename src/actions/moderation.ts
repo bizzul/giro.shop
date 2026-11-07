@@ -109,6 +109,60 @@ export const moderation = {
     },
   }),
 
+  /** Rischio truffa: chi modera ha guardato l'annuncio e va bene (finché il punteggio non sale). */
+  riskOk: defineAction({
+    accept: 'form',
+    input: z.object({ listingId: z.string().min(1) }),
+    handler: async ({ listingId }, context) => {
+      const { user, admin } = await requireModerator(context);
+      const { data: risk } = await admin.from('listing_risk').select('score').eq('listing_id', listingId).maybeSingle();
+      if (!risk) throw new ActionError({ code: 'NOT_FOUND', message: 'Annuncio non trovato tra quelli a rischio.' });
+      await admin
+        .from('listing_risk')
+        .update({ reviewed_at: new Date().toISOString(), reviewed_by: user.id, reviewed_score: risk.score })
+        .eq('listing_id', listingId);
+      return { listingId };
+    },
+  }),
+
+  /**
+   * Rischio truffa: nasconde l'annuncio. Passa da una segnalazione di chi modera, così la decisione
+   * finisce nel registro, chi ha pubblicato riceve l'avviso e la può contestare, e si può annullare.
+   */
+  riskHide: defineAction({
+    accept: 'form',
+    input: z.object({ listingId: z.string().min(1), message: z.string().trim().max(300).nullish() }),
+    handler: async ({ listingId, message }, context) => {
+      const { user, admin } = await requireModerator(context);
+      const { data: risk } = await admin.from('listing_risk').select('score, reasons').eq('listing_id', listingId).maybeSingle();
+      if (!risk) throw new ActionError({ code: 'NOT_FOUND', message: 'Annuncio non trovato tra quelli a rischio.' });
+      const note = `Rischio truffa: ${(risk.reasons as string[]).join('; ')}`.slice(0, 500);
+      const { error: reportError } = await admin.from('reports').insert({ reporter_id: user.id, listing_id: listingId, reason: 'truffa', note });
+      // Già segnalato da chi modera: va bene, la segnalazione aperta c'è
+      if (reportError && reportError.code !== '23505') throw new ActionError({ code: 'BAD_REQUEST', message: reportError.message });
+      try {
+        await applyDecision({
+          admin,
+          target: `annuncio:${listingId}`,
+          decision: 'nascondi',
+          actor: 'persona',
+          moderatorId: user.id,
+          reason: note,
+          message: message || 'Sembra un tentativo di truffa.',
+          origin: siteOrigin(context.url.origin),
+        });
+      } catch (error) {
+        throw asActionError(error);
+      }
+      await admin
+        .from('listing_risk')
+        .update({ reviewed_at: new Date().toISOString(), reviewed_by: user.id, reviewed_score: risk.score })
+        .eq('listing_id', listingId);
+      await invalidateListingPages(context);
+      return { listingId };
+    },
+  }),
+
   /** Chiede all'agente di esaminare un contenuto (per esempio dopo aver aggiunto la chiave di Claude). */
   askAgent: defineAction({
     accept: 'form',

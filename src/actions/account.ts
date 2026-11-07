@@ -7,9 +7,10 @@ import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
 import { EMAIL_GROUPS, EMAIL_MODES, offKindsFromGroups, type EmailMode } from '../core/email-prefs.ts';
 import { normalizeSwissMobile } from '../core/phone.ts';
 import { HANDS } from '../core/hand.ts';
+import { AVAILABILITY_KEYS } from '../core/pickup.ts';
 import { MIN_PHOTOS, planPhotoOrder } from '../core/photos.ts';
 import { invalidateListingPages } from '../lib/cache.ts';
-import { afterPriceChange, afterPublish, afterSale, afterTextChange } from '../lib/listing-events.ts';
+import { afterPriceChange, afterPriceEdit, afterPublish, afterSale, afterTextChange } from '../lib/listing-events.ts';
 import { siteOrigin } from '../lib/notify.ts';
 import { adminClient } from '../lib/admin.ts';
 import { disconnect } from '../lib/oauth.ts';
@@ -23,6 +24,59 @@ const shippingColumns = (input: { shipping?: string | null; shippingChf?: number
   const shipping = Boolean(input.shipping);
   return { shipping, shipping_chf: shipping ? (input.shippingChf ?? null) : null };
 };
+
+/** Impostazioni private dell'annuncio dal modulo di modifica: ribasso automatico e offerta minima. */
+const emptyToNull = (v: unknown) => (v === '' || v == null ? null : v);
+const sellerSettingsFields = {
+  /** Presente solo nel modulo di modifica: senza, le impostazioni restano come sono. */
+  settings: z.string().nullish(),
+  dropOn: z.string().nullish(),
+  dropPct: z.preprocess(emptyToNull, z.coerce.number().int().min(1).max(50).nullable()).optional(),
+  dropDays: z.preprocess(emptyToNull, z.coerce.number().int().min(1).max(90).nullable()).optional(),
+  dropFloor: z.preprocess(emptyToNull, z.coerce.number().min(0, 'Il minimo non può essere negativo.').max(1_000_000).nullable()).optional(),
+  minOffer: z.preprocess(emptyToNull, z.coerce.number().min(0, "L'offerta minima non può essere negativa.").max(1_000_000).nullable()).optional(),
+};
+type SettingsInput = { settings?: string | null; dropOn?: string | null; dropPct?: number | null; dropDays?: number | null; dropFloor?: number | null; minOffer?: number | null };
+interface ListingSettings {
+  drop_pct: number | null;
+  drop_every_days: number | null;
+  drop_floor_chf: number | null;
+  min_offer_chf: number | null;
+}
+
+function settingsFromForm(input: SettingsInput, price: number): ListingSettings | null {
+  if (!input.settings) return null;
+  const on = Boolean(input.dropOn);
+  const floor = input.dropFloor ?? null;
+  if (on && floor == null) throw new ActionError({ code: 'BAD_REQUEST', message: 'Ribasso automatico: indica sotto quale prezzo non scendere.' });
+  if (on && floor != null && floor >= price) throw new ActionError({ code: 'BAD_REQUEST', message: 'Ribasso automatico: il minimo deve essere sotto il prezzo di adesso.' });
+  return {
+    drop_pct: on ? (input.dropPct ?? 10) : null,
+    drop_every_days: on ? (input.dropDays ?? 14) : null,
+    drop_floor_chf: on ? floor : null,
+    min_offer_chf: input.minOffer ?? null,
+  };
+}
+
+/** Salva le impostazioni; se cambia la regola del ribasso, il conto dei giorni riparte da oggi. */
+async function saveListingSettings(supabase: NonNullable<App.Locals['supabase']>, userId: string, listingId: string, next: ListingSettings) {
+  const { data: current } = await supabase
+    .from('listing_settings')
+    .select('drop_pct, drop_every_days, drop_floor_chf, min_offer_chf')
+    .eq('listing_id', listingId)
+    .maybeSingle();
+  const num = (v: unknown) => (v == null ? null : Number(v));
+  const ruleChanged =
+    !current || num(current.drop_pct) !== next.drop_pct || num(current.drop_every_days) !== next.drop_every_days || num(current.drop_floor_chf) !== next.drop_floor_chf;
+  if (!current && next.drop_pct == null && next.min_offer_chf == null) return;
+  if (current && !ruleChanged && num(current.min_offer_chf) === next.min_offer_chf) return;
+  const now = new Date().toISOString();
+  const patch = { ...next, ...(ruleChanged ? { drop_from: next.drop_pct != null ? now : null } : {}), updated_at: now };
+  const { error } = current
+    ? await supabase.from('listing_settings').update(patch).eq('listing_id', listingId)
+    : await supabase.from('listing_settings').insert({ listing_id: listingId, seller_id: userId, ...patch });
+  if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Impostazioni non salvate: ${error.message}` });
+}
 
 /** Client Supabase con la sessione, oppure un errore chiaro. */
 function requireSupabase(context: ActionAPIContext) {
@@ -159,6 +213,26 @@ export const account = {
     },
   }),
 
+  /** Assistente venditore: acceso o spento, e quando di solito si può ritirare. */
+  setAssistant: defineAction({
+    accept: 'form',
+    input: z.object({
+      assistant: z.string().nullish(),
+      availability: z.array(z.enum(AVAILABILITY_KEYS as [string, ...string[]])).default([]),
+    }),
+    handler: async ({ assistant, availability }, context) => {
+      const { supabase, user } = requireUser(context);
+      const on = Boolean(assistant);
+      const patch = { assistant_on: on, availability, updated_at: new Date().toISOString() };
+      const { data: current } = await supabase.from('seller_settings').select('user_id').eq('user_id', user.id).maybeSingle();
+      const { error } = current
+        ? await supabase.from('seller_settings').update(patch).eq('user_id', user.id)
+        : await supabase.from('seller_settings').insert({ user_id: user.id, ...patch });
+      if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Impostazione non salvata: ${error.message}` });
+      return { on, slots: availability.length };
+    },
+  }),
+
   /** Scollega un assistente AI (connettore MCP con OAuth): i suoi token smettono subito di valere. */
   disconnectAssistant: defineAction({
     accept: 'form',
@@ -264,8 +338,10 @@ export const account = {
       soldPrice: z.preprocess((v) => (v === '' ? null : v), z.coerce.number().min(0).max(1_000_000).nullish()),
       /** A chi è stato venduto, tra chi ha scritto: serve per valutarsi a vicenda. */
       buyerId: z.preprocess((v) => (v === '' ? null : v), z.string().uuid().nullish()),
+      /** Dalla domanda "com'è andato il ritiro?": la conversazione del ritiro si chiude come venduto. */
+      pickupConversationId: z.string().uuid().nullish(),
     }),
-    handler: async ({ id, status, soldPrice, buyerId }, context) => {
+    handler: async ({ id, status, soldPrice, buyerId, pickupConversationId }, context) => {
       const { supabase, user } = requireUser(context);
       const before = getListing(id);
       // Una bozza (es. preparata da un assistente AI collegato) si pubblica solo con almeno una foto
@@ -280,6 +356,7 @@ export const account = {
       const { data, error } = await supabase.from('listings').update(patch).eq('id', id).eq('seller_id', user.id).select('id');
       if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Non ho aggiornato l'annuncio: ${error.message}` });
       if (!data?.length) throw new ActionError({ code: 'NOT_FOUND', message: 'Annuncio non trovato tra i tuoi.' });
+      if (status === 'venduto' && pickupConversationId) await supabase.rpc('set_pickup_outcome', { p_conversation_id: pickupConversationId, p_outcome: 'venduto' });
       await refreshListings(true);
       await invalidateListingPages(context);
       if (status === 'venduto' && before && before.status !== 'venduto') {
@@ -312,6 +389,26 @@ export const account = {
       await refreshListings(true);
       await invalidateListingPages(context);
       return { id, expires };
+    },
+  }),
+
+  /** Abbassa il prezzo con un tocco (dal consiglio "sei sopra il mercato"): chi ha salvato l'annuncio viene avvisato. */
+  lowerPrice: defineAction({
+    accept: 'form',
+    input: z.object({ id: z.string().min(1), price: z.coerce.number().min(0).max(1_000_000) }),
+    handler: async ({ id, price }, context) => {
+      const { supabase, user } = requireUser(context);
+      const { data: current } = await supabase.from('listings').select('price_chf').eq('id', id).eq('seller_id', user.id).maybeSingle();
+      if (!current) throw new ActionError({ code: 'NOT_FOUND', message: 'Annuncio non trovato tra i tuoi.' });
+      const old = Number(current.price_chf);
+      if (!(price < old)) throw new ActionError({ code: 'BAD_REQUEST', message: 'Il nuovo prezzo deve essere più basso di quello attuale.' });
+      const { error } = await supabase.from('listings').update({ price_chf: price }).eq('id', id).eq('seller_id', user.id);
+      if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Prezzo non cambiato: ${error.message}` });
+      await refreshListings(true);
+      await invalidateListingPages(context);
+      const updated = getListing(id);
+      if (updated) await afterPriceChange(updated, old, price, siteOrigin(context.url.origin));
+      return { id, price, old };
     },
   }),
 
@@ -386,11 +483,14 @@ export const account = {
       order: z.array(z.string()).optional(),
       photos: z.array(z.instanceof(File)).optional(),
       ...shippingFields,
+      ...sellerSettingsFields,
     }),
     handler: async (input, context) => {
       const { supabase, user } = requireUser(context);
       const comune = resolveComune(input.comune);
       if (!comune) throw new ActionError({ code: 'BAD_REQUEST', message: `Non conosco il comune "${input.comune}".` });
+      // Impostazioni private (ribasso, offerta minima): si controllano prima di toccare l'annuncio
+      const settings = settingsFromForm(input, input.price);
 
       const { data: current, error: readError } = await supabase
         .from('listings')
@@ -432,6 +532,7 @@ export const account = {
         .eq('id', input.id)
         .eq('seller_id', user.id);
       if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Modifiche non salvate: ${error.message}` });
+      if (settings) await saveListingSettings(supabase, user.id, input.id, settings);
 
       // Foto nuove nella cartella dell'utente
       const uploaded = new Map<number, string>();
@@ -472,6 +573,8 @@ export const account = {
       if (updated) await afterPriceChange(updated, Number(current.price_chf), input.price, siteOrigin(context.url.origin));
       if (current.title !== input.title || current.description !== input.description) {
         afterTextChange(input.id, () => invalidateListingPages(context));
+      } else if (Number(current.price_chf) !== input.price) {
+        afterPriceEdit(input.id);
       }
       // Le foto come sono ora, nell'ordine: chi salva da solo (senza ricaricare) le usa per non rimandarle
       const paths = plan.slots.map((slot) => (slot.kind === 'existing' ? slot.path : uploaded.get(slot.fileIndex)!));

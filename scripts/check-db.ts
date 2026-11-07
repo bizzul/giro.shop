@@ -126,6 +126,29 @@ try {
   const again = await buyer.client.rpc('respond_to_offer', { p_message_id: counter.data!.id, p_decision: 'rifiutata' });
   expect('un\'offerta già decisa non cambia', Boolean(again.error));
 
+  // Ritiro concordato
+  const later = (h: number) => new Date(Date.now() + h * 36e5).toISOString();
+  const pickupMsg = (who: { client: SupabaseClient; id: string }, extra: Record<string, unknown>) =>
+    who.client.from('messages').insert({ conversation_id: convId, sender_id: who.id, kind: 'ritiro', offer_status: 'in_attesa', ...extra }).select('id').single();
+  expect('un ritiro nel passato non si propone', Boolean((await pickupMsg(buyer, { pickup_at: later(-2) })).error));
+  expect('una proposta di ritiro ha sempre il giorno', Boolean((await pickupMsg(buyer, {})).error));
+  expect(
+    "nessuno scrive come assistente",
+    Boolean((await buyer.client.from('messages').insert({ conversation_id: convId, sender_id: buyer.id, body: 'finto', by_assistant: true })).error),
+  );
+  const proposal = await pickupMsg(buyer, { pickup_at: later(48), pickup_place: 'Lugano, stazione' });
+  expect('chi compra propone il ritiro', !proposal.error, proposal.error?.message);
+  const okPickup = await seller.client.rpc('respond_to_offer', { p_message_id: proposal.data!.id, p_decision: 'accettata' });
+  const fixed = await admin.from('conversations').select('pickup_at, pickup_place').eq('id', convId).single();
+  expect('chi vende accetta e il ritiro è fissato', !okPickup.error && fixed.data?.pickup_place === 'Lugano, stazione' && Boolean(fixed.data?.pickup_at), okPickup.error?.message);
+  expect('intruso non chiude il ritiro', Boolean((await intruder.client.rpc('set_pickup_outcome', { p_conversation_id: convId, p_outcome: 'venduto' })).error));
+  expect('chi compra non chiude il ritiro', Boolean((await buyer.client.rpc('set_pickup_outcome', { p_conversation_id: convId, p_outcome: 'non_venduto' })).error));
+  const notSold = await seller.client.rpc('set_pickup_outcome', { p_conversation_id: convId, p_outcome: 'non_venduto' });
+  const back = await admin.from('listings').select('status').eq('id', listingId).single();
+  expect('ritiro non riuscito: l\'annuncio torna in vendita', !notSold.error && back.data?.status === 'pubblicato', notSold.error?.message);
+  await admin.from('listings').update({ status: 'in_trattativa' }).eq('id', listingId);
+
+
   // Cellulare: numeri di prova con codice fisso, da supabase/config.toml
   const TEST_PHONES: Record<string, string> = { '+41791234567': '123456', '+41787654321': '654321', '+41761112233': '111222' };
   const { data: allUsers } = await admin.auth.admin.listUsers({ perPage: 1000 });
@@ -238,6 +261,23 @@ try {
   await admin.from('listings').update({ hidden_at: null, hidden_reason: null }).eq('id', qListing);
   expect('si segnala una domanda', !(await report(intruder.client, intruder.id, { question_id: q.data!.id, reason: 'offensivo' })).error);
   expect('alla seconda persona la domanda si nasconde', !(await report(witness.client, witness.id, { question_id: q.data!.id, reason: 'offensivo' })).error && denied(await anon.from('questions').select('id').eq('id', q.data!.id)));
+
+  // Impostazioni private, statistiche e visite
+  const setting = await seller.client.from('listing_settings').insert({ listing_id: listingId, seller_id: seller.id, min_offer_chf: 60, drop_pct: 10, drop_every_days: 14, drop_floor_chf: 50, drop_from: new Date().toISOString() });
+  expect('chi vende imposta ribasso e offerta minima', !setting.error, setting.error?.message);
+  expect("l'offerta minima non la vede nessun altro", denied(await buyer.client.from('listing_settings').select('min_offer_chf').eq('listing_id', listingId)) && denied(await anon.from('listing_settings').select('min_offer_chf').eq('listing_id', listingId)));
+  expect('intruso non imposta annunci altrui', Boolean((await intruder.client.from('listing_settings').insert({ listing_id: qListing, seller_id: intruder.id, min_offer_chf: 1 })).error));
+  expect('chi vende non segna da sé il ribasso fatto', Boolean((await seller.client.from('listing_settings').update({ drop_last_at: new Date().toISOString() }).eq('listing_id', listingId)).error));
+  expect('le visite le conta solo il server', Boolean((await anon.rpc('count_listing_view', { p_listing_id: qListing })).error) && denied(await anon.from('listing_views').select('views')));
+  await admin.rpc('count_listing_view', { p_listing_id: qListing });
+  const mine = await seller.client.rpc('my_listing_stats');
+  const statOf = (id: string) => (mine.data as Array<{ listing_id: string; views_total: number; contacts: number; saves: number }> | null)?.find((r) => r.listing_id === id);
+  expect(
+    'chi vende vede visite, salvati e contatti dei propri annunci',
+    Number(statOf(qListing)?.views_total) === 1 && Number(statOf(qListing)?.saves) === 1 && Number(statOf(listingId)?.contacts) === 1,
+    JSON.stringify(mine.data ?? mine.error),
+  );
+  expect('le statistiche degli altri non si vedono', !((await intruder.client.rpc('my_listing_stats')).data as unknown[] | null)?.length);
 
   const stats = await anon.rpc('seller_stats', { seller: seller.id });
   const st = (stats.data as Array<{ rating_count: number; sold: number }> | null)?.[0];

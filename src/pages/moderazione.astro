@@ -11,6 +11,7 @@ import { claudeKey } from '../lib/claude.ts';
 import { allowedDecisions, parseTarget, type TargetKind } from '../lib/moderation.ts';
 import { REPORT_REASONS, type ReportReason } from '../core/rules.ts';
 import { formatAge, formatChf } from '../core/format.ts';
+import { RISK_REVIEW } from '../core/risk.ts';
 
 const { user, supabase } = Astro.locals;
 if (!user || !supabase) return Astro.redirect('/accedi?next=/moderazione');
@@ -22,11 +23,15 @@ const decided = Astro.getActionResult(actions.moderation.decide);
 const undone = Astro.getActionResult(actions.moderation.undo);
 const asked = Astro.getActionResult(actions.moderation.askAgent);
 const appealed = Astro.getActionResult(actions.moderation.decideAppeal);
+const riskOk = Astro.getActionResult(actions.moderation.riskOk);
+const riskHide = Astro.getActionResult(actions.moderation.riskHide);
+if (riskOk?.data) return Astro.redirect('/moderazione?fatto=rischio-ok#rischio', 303);
+if (riskHide?.data) return Astro.redirect('/moderazione?fatto=rischio-nascondi#rischio', 303);
 if (appealed?.data) return Astro.redirect(`/moderazione?fatto=contestazione-${appealed.data.decision}#contestazioni`, 303);
 if (decided?.data) return Astro.redirect(`/moderazione?fatto=${decided.data.decision}`, 303);
 if (undone?.data) return Astro.redirect('/moderazione?fatto=annulla#registro', 303);
 if (asked?.data) return Astro.redirect(`/moderazione?fatto=agente-${asked.data.action}`, 303);
-const error = [decided, undone, asked, appealed].find((r) => r?.error)?.error?.message;
+const error = [decided, undone, asked, appealed, riskOk, riskHide].find((r) => r?.error)?.error?.message;
 const done = Astro.url.searchParams.get('fatto');
 const NOTICE: Record<string, string> = {
   nascondi: 'Nascosto: chi ha segnalato e chi ha pubblicato sono stati avvisati.',
@@ -38,7 +43,25 @@ const NOTICE: Record<string, string> = {
   'agente-passa': "L'agente ha lasciato una proposta: decidi tu.",
   'contestazione-accogli': 'Contestazione accolta: la decisione è annullata e la persona è stata avvisata.',
   'contestazione-respingi': 'Contestazione respinta: la persona ha ricevuto la tua risposta.',
+  'rischio-ok': "Segnato come controllato: torna qui solo se il rischio sale.",
+  'rischio-nascondi': "Annuncio nascosto: chi l'ha pubblicato è stato avvisato e può contestare.",
 };
+
+// Annunci a rischio truffa non ancora guardati, dal più rischioso
+const { data: riskData } = await admin
+  .from('listing_risk')
+  .select('listing_id, score, reasons, checked_at, listing:listings(id, title, description, price_chf, seller_id, status, hidden_at, seller:profiles!listings_seller_id_fkey(display_name))')
+  .is('reviewed_at', null)
+  .gte('score', RISK_REVIEW)
+  .order('score', { ascending: false })
+  .limit(30);
+const risky = ((riskData ?? []) as unknown as Array<{
+  listing_id: string;
+  score: number;
+  reasons: string[];
+  checked_at: string;
+  listing: { id: string; title: string; description: string; price_chf: number | string; seller_id: string; status: string; hidden_at: string | null; seller: { display_name: string } | null } | null;
+}>).filter((r) => r.listing && !r.listing.hidden_at && ['pubblicato', 'in_trattativa'].includes(r.listing.status));
 const agentOn = Boolean(claudeKey());
 
 interface ReportRow {
@@ -199,6 +222,45 @@ const pct = (c: number | null) => (c != null ? `${Math.round(c * 100)}%` : '');
 
     {done && NOTICE[done] && <p class="notice" role="status">{NOTICE[done]}</p>}
     {error && <p class="error" role="alert">{error}</p>}
+
+    {
+      risky.length > 0 && (
+        <section id="rischio" aria-labelledby="rischio-titolo">
+          <div class="section-h">
+            <h2 id="rischio-titolo">Da guardare prima: rischio truffa</h2>
+            <span class="muted small">Segnalati dalle regole, nessuno li ha ancora nascosti</span>
+          </div>
+          <ul class="reports">
+            {risky.map((r) => (
+              <li class="panel">
+                <div class="r-top">
+                  <span class="badge bad">Rischio {Math.round(r.score * 100)}%</span>
+                  <span class="muted small">controllato {formatAge(r.checked_at)}</span>
+                </div>
+                <a class="title" href={`/annuncio/${r.listing!.id}`}>{r.listing!.title}</a>
+                <span class="muted small">
+                  di <a href={`/venditore/${r.listing!.seller_id}`}>{r.listing!.seller?.display_name ?? 'Utente'}</a> · {formatChf(Number(r.listing!.price_chf))}
+                </span>
+                <ul class="notes small">
+                  {r.reasons.map((reason) => <li>{reason}</li>)}
+                </ul>
+                {r.listing!.description && <blockquote>{r.listing!.description.slice(0, 280)}</blockquote>}
+                <div class="risk-actions">
+                  <form method="POST" action={actions.moderation.riskHide}>
+                    <input type="hidden" name="listingId" value={r.listing_id} />
+                    <button class="btn" type="submit">Nascondi</button>
+                  </form>
+                  <form method="POST" action={actions.moderation.riskOk}>
+                    <input type="hidden" name="listingId" value={r.listing_id} />
+                    <button class="btn" type="submit">Va bene</button>
+                  </form>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
 
     {
       cards.length === 0 ? (
@@ -426,6 +488,7 @@ const pct = (c: number | null) => (c != null ? `${Math.round(c * 100)}%` : '');
 </Layout>
 
 <style>
+  .risk-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .moderation { display: grid; gap: 24px; max-width: 860px; }
   .moderation h1 { font-size: clamp(28px, 3.6vw, 40px); }
   .agent-status { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 4px; background: var(--surface); font-size: 14px; }

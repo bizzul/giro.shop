@@ -168,3 +168,70 @@ export function embedListingLater(listingId: string): void {
 export async function similarityFor(query: string, listingId: string): Promise<number | undefined> {
   return (await similarities(query))?.get(listingId);
 }
+
+/**
+ * Un annuncio di un'altra persona con un testo quasi uguale (vettori quasi identici), per il rischio truffa.
+ * null se il modello non è pronto o se non ce n'è.
+ */
+export function nearDuplicateOf(listingId: string, min = 0.97): string | null {
+  const v = vectors.get(listingId);
+  const me = getListing(listingId);
+  if (!v || !me) return null;
+  for (const [id, other] of vectors) {
+    if (id === listingId) continue;
+    const l = getListing(id);
+    if (l && l.sellerId !== me.sellerId && dot(v, other) >= min) return id;
+  }
+  return null;
+}
+
+/** Il vettore di una frase cercata, dalla cache se c'è. null se il modello non è pronto. */
+async function queryVector(query: string): Promise<Float32Array | null> {
+  const text = meaningText(query).toLowerCase();
+  if (!text || !embedderReady()) return null;
+  let q = queryCache.get(text);
+  if (!q) {
+    [q] = await embed([text], 'query');
+    queryCache.set(text, q);
+    if (queryCache.size > 300) queryCache.delete(queryCache.keys().next().value!);
+  }
+  return q;
+}
+
+/**
+ * Somiglianza (grezza) tra alcune frasi cercate e alcuni annunci già indicizzati: per "lo cercano in 4"
+ * su pochi annunci si confrontano solo quelli, non tutto il catalogo. Mappa frase → annuncio → somiglianza.
+ */
+export async function similaritiesFor(queries: string[], listingIds: string[]): Promise<Map<string, Map<string, number>>> {
+  const out = new Map<string, Map<string, number>>();
+  if (!embedderReady() || !vectorsLoaded) {
+    void warmUpSemantic();
+    return out;
+  }
+  for (const query of new Set(queries)) {
+    const q = await queryVector(query);
+    if (!q) continue;
+    const sims = new Map<string, number>();
+    for (const id of listingIds) {
+      const v = vectors.get(id);
+      if (v) sims.set(id, dot(q, v));
+    }
+    out.set(query, sims);
+  }
+  return out;
+}
+
+/** Somiglianza tra un testo che non ha ancora un vettore (una bozza) e alcune frasi cercate. */
+export async function similaritiesToText(text: Pick<Listing, 'title' | 'description' | 'tags'>, queries: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (!embedderReady()) {
+    void warmUpSemantic();
+    return out;
+  }
+  const [p] = await embed([passageOf(text)], 'passage');
+  for (const query of new Set(queries)) {
+    const q = await queryVector(query);
+    if (q) out.set(query, dot(p, q));
+  }
+  return out;
+}

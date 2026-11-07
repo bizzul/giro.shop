@@ -8,6 +8,7 @@ import { adminClient } from './admin.ts';
 import { claudeKey } from './claude.ts';
 import { favoritersOf, notify, type Notice } from './notify.ts';
 import { embedListing, embedListingLater, similarityFor } from './semantic.ts';
+import { checkListingRisk } from './risk-check.ts';
 
 /**
  * Cosa succede dopo un cambiamento a un annuncio: avvisi a chi l'aspettava e punti chiave.
@@ -27,12 +28,19 @@ export function afterPublish(listingId: string, origin: string, invalidate: Inva
     'avvisi delle ricerche salvate',
   );
   later(writeHighlights(listingId, invalidate), 'punti chiave');
+  later(checkListingRisk(listingId), 'rischio truffa');
 }
 
-/** Testo cambiato: i punti chiave vecchi non valgono più. */
+/** Solo il prezzo è cambiato: un prezzo stracciato cambia il rischio truffa. */
+export function afterPriceEdit(listingId: string): void {
+  later(checkListingRisk(listingId), 'rischio truffa');
+}
+
+/** Testo cambiato: i punti chiave vecchi non valgono più, il rischio va ricalcolato. */
 export function afterTextChange(listingId: string, invalidate: Invalidate): void {
   later(writeHighlights(listingId, invalidate), 'punti chiave');
   embedListingLater(listingId);
+  later(checkListingRisk(listingId), 'rischio truffa');
 }
 
 async function notifySavedSearches(listingId: string, origin: string): Promise<void> {

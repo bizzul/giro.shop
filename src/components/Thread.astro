@@ -3,6 +3,8 @@
 import { actions } from 'astro:actions';
 import type { Conversation } from '../lib/messages.ts';
 import { formatChf } from '../core/format.ts';
+import { formatPickup } from '../core/pickup.ts';
+import { messageWarnings } from '../core/risk.ts';
 
 interface Props {
   conversation: Conversation;
@@ -12,6 +14,7 @@ interface Props {
 const { conversation, userId } = Astro.props;
 const respond = actions.messages.respond;
 const OFFER_LABEL = { in_attesa: 'In attesa di risposta', accettata: 'Accettata', rifiutata: 'Rifiutata', ritirata: 'Ritirata' } as const;
+const where = (place: string | null) => (place ? ` · ${place}` : '');
 const tz = 'Europe/Zurich';
 const day = (iso: string) => new Date(iso).toLocaleDateString('it-CH', { timeZone: tz, day: 'numeric', month: 'long' });
 const time = (iso: string) => new Date(iso).toLocaleTimeString('it-CH', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
@@ -30,10 +33,28 @@ const version = `${messages.at(-1)?.id ?? 0}-${messages.map((m) => m.offerStatus
           {newDay && <li class="day">{day(m.createdAt)}</li>}
           {m.kind === 'sistema' ? (
             <li class="system">{m.body}</li>
-          ) : m.kind === 'offerta' ? (
+          ) : m.kind === 'offerta' || m.kind === 'ritiro' ? (
             <li class:list={['msg', 'offer', { mine }]}>
-              <span class="label">{mine ? 'La tua offerta' : `Offerta di ${conversation.otherName}`}</span>
-              <span class="offer-amount mono">{formatChf(m.offerChf ?? 0)}</span>
+              <span class="label">
+                {m.kind === 'ritiro'
+                  ? mine
+                    ? m.byAssistant
+                      ? 'Ritiro proposto dal tuo assistente'
+                      : 'Il ritiro che proponi'
+                    : `Ritiro proposto da ${conversation.otherName}`
+                  : mine
+                    ? 'La tua offerta'
+                    : `Offerta di ${conversation.otherName}`}
+              </span>
+              {m.kind === 'offerta' && <span class="offer-amount mono">{formatChf(m.offerChf ?? 0)}</span>}
+              {m.pickupAt && (
+                <span class:list={['pickup', { big: m.kind === 'ritiro' }]}>
+                  {m.kind === 'offerta' && 'Ritiro '}
+                  {formatPickup(m.pickupAt)}
+                  {where(m.pickupPlace)}
+                </span>
+              )}
+              {m.body && m.kind === 'ritiro' && <p>{m.body}</p>}
               <span class:list={['badge', m.offerStatus === 'accettata' ? 'ok' : m.offerStatus === 'in_attesa' ? 'sun' : 'plain']}>
                 {OFFER_LABEL[m.offerStatus ?? 'in_attesa']}
               </span>
@@ -58,8 +79,18 @@ const version = `${messages.at(-1)?.id ?? 0}-${messages.map((m) => m.offerStatus
               <time class="when" datetime={m.createdAt}>{time(m.createdAt)}</time>
             </li>
           ) : (
-            <li class:list={['msg', { mine }]}>
+            <li class:list={['msg', { mine, assistant: m.byAssistant }]}>
+              {m.byAssistant && <span class="label">{mine ? 'Risposta automatica del tuo assistente' : `Risposta automatica dell'assistente di ${conversation.otherName}`}</span>}
               <p>{m.body}</p>
+              {!mine &&
+                !m.byAssistant &&
+                messageWarnings(m.body)
+                  .slice(0, 2)
+                  .map((w) => (
+                    <p class="risk" role="note">
+                      <b>Attenzione:</b> {w} <a href={`/segnala?conversazione=${conversation.id}`}>Segnala</a>
+                    </p>
+                  ))}
               <time class="when" datetime={m.createdAt}>
                 {time(m.createdAt)}
                 {mine && m.readAt && ' · letto'}
@@ -83,6 +114,11 @@ const version = `${messages.at(-1)?.id ?? 0}-${messages.map((m) => m.offerStatus
   .when { font-size: 11.5px; color: var(--muted); }
   .offer { gap: 8px; justify-items: start; min-width: 220px; }
   .offer-amount { font-size: 22px; font-weight: 500; }
+  .pickup { font-size: 14px; }
+  .pickup.big { font-size: 17px; font-weight: 500; }
+  .msg.assistant { border: 1px dashed var(--line-strong); }
+  .msg .risk { font-size: 13.5px; line-height: 1.45; background: var(--bad-soft); color: var(--ink); border-radius: 4px; padding: 6px 10px; white-space: normal; }
+  .msg .risk b { font-weight: 500; }
   .offer-actions form { display: flex; gap: 8px; flex-wrap: wrap; }
   .offer-actions .btn { padding: 10px 14px; }
   .anchor { height: 1px; scroll-margin-bottom: 24px; }

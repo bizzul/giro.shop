@@ -6,10 +6,16 @@ export type OfferStatus = 'in_attesa' | 'accettata' | 'rifiutata' | 'ritirata';
 export interface Message {
   id: number;
   senderId: string;
-  kind: 'testo' | 'offerta' | 'sistema';
+  kind: 'testo' | 'offerta' | 'sistema' | 'ritiro';
   body: string;
   offerChf: number | null;
+  /** Stato di un'offerta o di una proposta di ritiro. */
   offerStatus: OfferStatus | null;
+  /** Giorno e ora del ritiro proposto (proposta di ritiro, o offerta con il ritiro). */
+  pickupAt: string | null;
+  pickupPlace: string | null;
+  /** Scritto dall'assistente venditore a nome di chi vende. */
+  byAssistant: boolean;
   createdAt: string;
   readAt: string | null;
 }
@@ -31,6 +37,12 @@ export interface ConversationSummary {
 export interface Conversation extends Omit<ConversationSummary, 'lastMessage' | 'unread'> {
   buyerId: string;
   sellerId: string;
+  /** Comune di ritiro dell'annuncio: il luogo proposto di base. */
+  listingComuneId: string | null;
+  /** Ritiro fissato (una proposta accettata). */
+  pickupAt: string | null;
+  pickupPlace: string | null;
+  pickupOutcome: 'venduto' | 'non_venduto' | null;
   messages: Message[];
 }
 
@@ -41,9 +53,15 @@ interface MessageRow {
   body: string;
   offer_chf: number | string | null;
   offer_status: OfferStatus | null;
+  pickup_at?: string | null;
+  pickup_place?: string | null;
+  by_assistant?: boolean | null;
   created_at: string;
   read_at: string | null;
 }
+
+/** Le colonne di un messaggio. */
+export const MESSAGE_COLUMNS = 'id, sender_id, kind, body, offer_chf, offer_status, pickup_at, pickup_place, by_assistant, created_at, read_at';
 
 const toMessage = (m: MessageRow): Message => ({
   id: m.id,
@@ -52,13 +70,16 @@ const toMessage = (m: MessageRow): Message => ({
   body: m.body,
   offerChf: m.offer_chf != null ? Number(m.offer_chf) : null,
   offerStatus: m.offer_status,
+  pickupAt: m.pickup_at ?? null,
+  pickupPlace: m.pickup_place ?? null,
+  byAssistant: Boolean(m.by_assistant),
   createdAt: m.created_at,
   readAt: m.read_at,
 });
 
 const SELECT_CONVERSATION = `
-  id, listing_id, buyer_id, seller_id, last_message_at,
-  listing:listings(title, price_chf, status, photos:listing_photos(storage_path, position)),
+  id, listing_id, buyer_id, seller_id, last_message_at, pickup_at, pickup_place, pickup_outcome,
+  listing:listings(title, price_chf, status, comune_id, photos:listing_photos(storage_path, position)),
   buyer:profiles!conversations_buyer_id_fkey(display_name),
   seller:profiles!conversations_seller_id_fkey(display_name)
 `;
@@ -69,7 +90,10 @@ interface ConversationRow {
   buyer_id: string;
   seller_id: string;
   last_message_at: string;
-  listing: { title: string; price_chf: number | string; status: string; photos: Array<{ storage_path: string; position: number }> } | null;
+  pickup_at?: string | null;
+  pickup_place?: string | null;
+  pickup_outcome?: 'venduto' | 'non_venduto' | null;
+  listing: { title: string; price_chf: number | string; status: string; comune_id?: string; photos: Array<{ storage_path: string; position: number }> } | null;
   buyer: { display_name: string } | null;
   seller: { display_name: string } | null;
 }
@@ -94,7 +118,7 @@ function base(row: ConversationRow, userId: string) {
 export async function listConversations(supabase: SupabaseClient, userId: string): Promise<ConversationSummary[]> {
   const { data, error } = await supabase
     .from('conversations')
-    .select(`${SELECT_CONVERSATION}, messages(id, sender_id, kind, body, offer_chf, offer_status, created_at, read_at)`)
+    .select(`${SELECT_CONVERSATION}, messages(${MESSAGE_COLUMNS})`)
     .order('last_message_at', { ascending: false })
     .order('created_at', { referencedTable: 'messages', ascending: false })
     .limit(1, { referencedTable: 'messages' });
@@ -129,7 +153,7 @@ export async function getConversation(supabase: SupabaseClient, userId: string, 
 
   const { data: messages } = await supabase
     .from('messages')
-    .select('id, sender_id, kind, body, offer_chf, offer_status, created_at, read_at')
+    .select(MESSAGE_COLUMNS)
     .eq('conversation_id', id)
     .order('created_at', { ascending: true })
     .limit(500);
@@ -140,6 +164,10 @@ export async function getConversation(supabase: SupabaseClient, userId: string, 
     ...base(row, userId),
     buyerId: row.buyer_id,
     sellerId: row.seller_id,
+    listingComuneId: row.listing?.comune_id ?? null,
+    pickupAt: row.pickup_at ?? null,
+    pickupPlace: row.pickup_place ?? null,
+    pickupOutcome: row.pickup_outcome ?? null,
     messages: (messages as MessageRow[] | null)?.map(toMessage) ?? [],
   };
 }

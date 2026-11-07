@@ -10,6 +10,7 @@ import { emailCard } from './email-content.ts';
 import { formatDay } from '../core/format.ts';
 import { claudeKey } from './claude.ts';
 import { moderateWithAgent, pendingTargets } from './moderation-agent.ts';
+import { applyPriceDrops, pickupReminders, sendPriceTips } from './seller-jobs.ts';
 
 /**
  * Lavori periodici del server, senza un programmatore esterno: partono al massimo ogni 15 minuti,
@@ -18,6 +19,7 @@ import { moderateWithAgent, pendingTargets } from './moderation-agent.ts';
  * - annunci scaduti: stato "scaduto", spariscono dal sito, chi vende li può rinnovare
  * - il riassunto della sera per chi ha scelto "un riassunto al giorno"
  * - ricerca per significato: modello pronto e vettori degli annunci nuovi o cambiati
+ * - per chi vende: ribassi automatici e consigli sul prezzo (vedi seller-jobs.ts)
  */
 const EVERY_MS = 15 * 60_000;
 const REMIND_DAYS = 3;
@@ -86,6 +88,9 @@ export async function runMaintenance(
     await refreshListings(true);
     await invalidate();
   }
+  await applyPriceDrops(admin, origin, invalidate, now);
+  await sendPriceTips(admin, origin, now);
+  await pickupReminders(admin, origin, now);
   // Segnalazioni che l'agente non ha ancora esaminato (server spento, errore, chiave aggiunta dopo)
   if (claudeKey()) {
     for (const target of await pendingTargets(admin)) {
