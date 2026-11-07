@@ -22,12 +22,11 @@ const MODES = [
 </nav>
 
 <style>
-  /* Passando dall'una all'altra i due bottoni restano fermi e il nero scivola su quello scelto (global.css) */
-  .modes { view-transition-name: modi; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .mode { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-2); color: var(--ink); text-decoration: none; transition: border-color 0.15s; }
   .mode:hover { border-color: var(--ink); }
   .mode b { font-weight: 500; font-size: 16px; }
   .mode span { font-size: 13px; color: var(--muted); }
-  .mode[aria-current='page'] { view-transition-name: modo-attivo; background: var(--action); border-color: var(--action); color: var(--action-ink); }
+  .mode[aria-current='page'] { background: var(--action); border-color: var(--action); color: var(--action-ink); }
   .mode[aria-current='page'] span { color: inherit; opacity: 0.8; }
 </style>
