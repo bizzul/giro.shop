@@ -24,10 +24,24 @@ export interface Mail {
   headers?: Record<string, string>;
 }
 
+/** Domini riservati ai test (RFC 2606/6761): non ricevono posta. */
+const TEST_DOMAIN = /\.(test|example|invalid|localhost)$/i;
+const LOCAL_SMTP = /^(127\.0\.0\.1|localhost|::1|.*inbucket.*|.*mailpit.*)$/i;
+
+/**
+ * Con un servizio vero (es. Resend) le email agli account di prova (@esempio.test) non partono:
+ * tornerebbero indietro e rovinerebbero la reputazione del dominio. In locale (Mailpit) partono tutte.
+ */
+export function deliverable(to: string, smtpHost: string | undefined): boolean {
+  const domain = to.split('@').pop() ?? '';
+  return LOCAL_SMTP.test(smtpHost ?? '') || !TEST_DOMAIN.test(domain);
+}
+
 /** Manda un'email. Restituisce false (senza eccezioni) se l'invio non è configurato o non riesce. */
 export async function sendMail(mail: Mail): Promise<boolean> {
   const t = transporter();
   if (!t) return false;
+  if (!deliverable(mail.to, import.meta.env?.SMTP_HOST ?? process.env.SMTP_HOST)) return false;
   try {
     await t.sendMail({ from: mailFrom(), ...mail });
     return true;

@@ -73,3 +73,16 @@ describe('email degli avvisi', () => {
     expect(digestDue(after, new Date('2026-11-06T17:01:00Z'))).toBe(false);
   });
 });
+
+describe('indirizzi di prova', async () => {
+  const { deliverable } = await import('../src/lib/mail.ts');
+  it('con un servizio vero non si scrive agli account di prova', () => {
+    expect(deliverable('prova@esempio.test', 'smtp.resend.com')).toBe(false);
+    expect(deliverable('qualcuno@example.invalid', 'smtp.resend.com')).toBe(false);
+    expect(deliverable('omar@gmail.com', 'smtp.resend.com')).toBe(true);
+  });
+  it('in locale (Mailpit) arrivano tutte', () => {
+    expect(deliverable('prova@esempio.test', '127.0.0.1')).toBe(true);
+    expect(deliverable('prova@esempio.test', 'localhost')).toBe(true);
+  });
+});

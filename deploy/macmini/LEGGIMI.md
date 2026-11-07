@@ -9,7 +9,7 @@ internet ─► Cloudflare ─► tunnel «giro» (cloudflared sul Mac mini)
                               └─ tutto il resto ─────────────────► sito Astro      127.0.0.1:4321
 ```
 
-Studio (54423), database (54422) e Mailpit (54424) **non** passano dal tunnel: si aprono solo dal Mac mini o dalla
+Studio (54423), database (54422) e Mailpit (54424, inutilizzato da quando c'è Resend) **non** passano dal tunnel: si aprono solo dal Mac mini o dalla
 rete di casa (es. http://obmd-mac-mini.local:54423).
 
 ## Cosa gira e dove
@@ -35,28 +35,24 @@ git push macmini main && ssh macmini ~/piazza/deploy/macmini/aggiorna.sh
 Dopo ogni modifica a `~/piazza/.env` va rilanciato anche lui: i valori entrano nella build.
 Il codice va anche su GitHub (`git push`, repository privato `bizzul/piazza`).
 
-## Email vere
+## Email (Resend)
 
-Finché non c'è un servizio SMTP:
-- i link di accesso li manda Supabase a **Mailpit**, sul Mac mini: si leggono su http://obmd-mac-mini.local:54424;
-- le email degli avvisi non partono (gli avvisi restano nel sito, sotto la campanella).
+Le email partono con [Resend](https://resend.com), dal dominio verificato `giro.omarbeltraminelli.com`:
 
-Con un servizio SMTP (es. Infomaniak, Brevo, Postmark), sul Mac mini:
+| Email | Chi la manda | Mittente | Impostazioni sul Mac mini |
+| --- | --- | --- | --- |
+| Link di accesso | Supabase Auth | `accesso@giro.omarbeltraminelli.com` | `~/piazza/supabase/.env`: `SUPABASE_AUTH_EMAIL_SMTP_*` |
+| Avvisi e riassunto della sera | il sito | `avvisi@giro.omarbeltraminelli.com` | `~/piazza/.env`: `SMTP_*`, `MAIL_FROM` |
 
-1. In `~/piazza/.env` compila `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (email degli avvisi).
-2. In `~/piazza/supabase/.env` aggiungi (email di accesso):
-   ```
-   SUPABASE_AUTH_EMAIL_SMTP_ENABLED=true
-   SUPABASE_AUTH_EMAIL_SMTP_HOST=smtp.esempio.ch
-   SUPABASE_AUTH_EMAIL_SMTP_PORT=587
-   SUPABASE_AUTH_EMAIL_SMTP_USER=...
-   SUPABASE_AUTH_EMAIL_SMTP_PASS=...
-   SUPABASE_AUTH_EMAIL_SMTP_ADMIN_EMAIL=accesso@omarbeltraminelli.com
-   SUPABASE_AUTH_EMAIL_SMTP_SENDER_NAME=giro.shop
-   ```
-3. Riavvia Supabase e rifai la build (i valori di `.env` entrano nella build):
-   `cd ~/piazza && pnpm exec supabase stop && pnpm exec supabase start && deploy/macmini/aggiorna.sh`
-   (`supabase stop` senza `--no-backup` tiene i dati).
+Server `smtp.resend.com`, porta 465, utente `resend`, password = chiave API di Resend (in entrambi i file, mai su git).
+La sezione `[auth.email.smtp]` di `supabase/config.toml` resta spenta: sul MacBook le email vanno a Mailpit.
+
+Gli account di prova hanno indirizzi finti (`@esempio.test`): con Resend le loro email non partono, così non tornano
+indietro e non rovinano la reputazione del dominio (`src/lib/mail.ts`, `deliverable`).
+
+**Cambiare la chiave:** sostituiscila in `SMTP_PASS` (`.env`) e in `SUPABASE_AUTH_EMAIL_SMTP_PASS` (`supabase/.env`), poi
+`cd ~/piazza && pnpm exec supabase stop && pnpm exec supabase start && deploy/macmini/aggiorna.sh`
+(`supabase stop` senza `--no-backup` tiene i dati).
 
 ## Comandi utili (sul Mac mini)
 
