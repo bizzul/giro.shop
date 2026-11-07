@@ -9,12 +9,12 @@ const signedIn = Boolean(Astro.locals.user);
 const nota = Astro.url.searchParams.get('nota')?.slice(0, 200) ?? '';
 ---
 
-<Layout title="Vendi · giro.shop" description="Scatta e vendi: tre foto e l'assistente prepara l'annuncio.">
+<Layout title="Vendi · giro.shop" description="Scatta e vendi: basta una foto e l'assistente prepara l'annuncio.">
   <section class="wrap band sell">
     <div class="intro">
       <SellModes current="uno" />
       <p class="eyebrow">Scatta e vendi</p>
-      <h1>Tre foto, nessun modulo.</h1>
+      <h1>Una foto, nessun modulo.</h1>
       <p class="muted">
         Carica da 1 a 5 foto e, se vuoi, due righe. L'assistente riconosce l'oggetto, scrive titolo e descrizione e propone
         una fascia di prezzo dagli annunci simili. I campi con l'anello blu li ha scritti lui: controlla prima di pubblicare.
