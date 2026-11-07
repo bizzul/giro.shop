@@ -4,6 +4,7 @@ import SearchForm from '../components/SearchForm.astro';
 import SearchResults from '../components/SearchResults.astro';
 import TicinoMap from '../components/TicinoMap.astro';
 import DealOfTheDay from '../components/DealOfTheDay.astro';
+import WantedStrip from '../components/WantedStrip.astro';
 import { LISTINGS_TAG } from '../lib/cache.ts';
 
 Astro.cache.set({ tags: [LISTINGS_TAG] });
@@ -20,11 +21,9 @@ Astro.cache.set({ tags: [LISTINGS_TAG] });
   <DealOfTheDay />
 
   <section class="wrap">
-    <a class="wanted" href="/cercasi">
-      <span class="label">Cercasi</span>
-      <b>Cosa cercano gli altri</b>
-      <span class="wanted-text">Le cose più cercate in Ticino: forse ce l'hai in cantina.</span>
-    </a>
+    <WantedStrip server:defer>
+      <div slot="fallback" class="ws-ghost" aria-hidden="true"></div>
+    </WantedStrip>
   </section>
 
   <section class="wrap band">
@@ -43,13 +42,6 @@ Astro.cache.set({ tags: [LISTINGS_TAG] });
   @media (min-width: 761px) {
     .hero-in :global(.search) { width: 100%; max-width: 640px; margin-top: 24px; text-align: left; }
   }
-  .wanted { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: baseline; gap: 6px 16px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); text-decoration: none; transition: border-color 0.15s; }
-  .wanted:hover { border-color: var(--ink); }
-  .wanted b { font: 500 17px/1.3 var(--f-display); letter-spacing: -0.01em; }
-  .wanted-text { font-size: 13.5px; color: var(--muted); }
-  /* Su telefono: titolo e una riga, senza etichetta, per non spingere giù gli annunci */
-  @media (max-width: 760px) {
-    .wanted { grid-template-columns: 1fr; gap: 2px; padding: 12px 14px; }
-    .wanted .label { display: none; }
-  }
+  /* Posto per la striscia "Si cerca", mentre arriva: niente salti della pagina */
+  .ws-ghost { min-height: 72px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 </style>

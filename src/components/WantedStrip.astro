@@ -1,0 +1,199 @@
+---
+/**
+ * In home, sotto l'affare del giorno: le richieste più frequenti delle ricerche salvate, come striscia di etichette.
+ * Toccandone una: "Ce l'ho, lo vendo" (Vendi con l'oggetto già scritto), "Lo cerco anch'io" (salva la stessa
+ * ricerca), "Vedi gli annunci". Le richieste della propria zona ("Distanze da te", nel browser) vanno per prime.
+ *
+ * Isola del server (server:defer): la home resta in cache uguale per tutti, questa parte si carica a parte e,
+ * per chi ha fatto l'accesso, mette in testa il suo annuncio più cercato. Solo numeri aggregati, gruppi di almeno
+ * due persone (core/demand.ts). Con meno di due richieste resta il riquadro semplice verso Cercasi.
+ */
+import { cercasi, demandForListings } from '../lib/demand.ts';
+import { allListings } from '../core/store.ts';
+import { resolveComune } from '../core/comuni.ts';
+import { formatChf } from '../core/format.ts';
+
+const groups = (await cercasi()).slice(0, 10);
+const user = Astro.locals.user;
+
+// Il proprio annuncio più cercato, per chi vende
+let mine: { id: string; title: string; people: number } | null = null;
+if (user) {
+  const own = allListings().filter((l) => l.sellerId === user.id && l.status === 'pubblicato');
+  if (own.length) {
+    const demand = await demandForListings(own);
+    mine =
+      own
+        .map((l) => ({ id: l.id, title: l.title, people: demand.get(l.id)?.people ?? 0 }))
+        .filter((x) => x.people > 0)
+        .sort((a, b) => b.people - a.people)[0] ?? null;
+  }
+}
+const showStrip = groups.length >= 2 || mine;
+const short = (t: string) => (t.length > 30 ? `${t.slice(0, 28).trimEnd()}…` : t);
+// "Lo cerco anch'io" salva la stessa ricerca, con la zona quando è un comune
+const savedQuery = (g: { query: string; district: string | null }) => (g.district && resolveComune(g.district) ? `${g.query} a ${g.district}` : g.query);
+---
+
+{
+  showStrip ? (
+    <section class="ws" aria-labelledby="si-cerca" data-signed-in={user ? '1' : undefined}>
+      <div class="ws-head">
+        <h2 id="si-cerca">Si cerca in Ticino</h2>
+        <a href="/cercasi">Tutte le richieste</a>
+      </div>
+      <div class="ws-chips">
+        {mine && (
+          <a class="ws-chip mine" href={`/miei-annunci#a-${mine.id}`}>
+            <b>Il tuo annuncio</b>&nbsp;«{short(mine.title)}» · {mine.people === 1 ? '1 persona lo cerca' : `${mine.people} persone lo cercano`}
+          </a>
+        )}
+        {groups.map((g) => (
+          <a
+            class="ws-chip"
+            href="/cercasi"
+            data-label={g.label}
+            data-query={g.query}
+            data-save={savedQuery(g)}
+            data-people={g.people}
+            data-budget={g.budget ?? ''}
+            data-district={g.district ?? ''}
+          >
+            {`${g.label} · `}
+            <b>{g.people}</b>
+            {g.budget != null && <span class="ws-extra"> · fino a {formatChf(g.budget)}</span>}
+            {g.district && <span class="ws-extra"> · {g.district}</span>}
+          </a>
+        ))}
+      </div>
+      <div class="ws-pick" hidden>
+        <p class="ws-what" aria-live="polite"></p>
+        <div class="ws-actions">
+          <a class="btn primary" data-sell href="/vendi">Ce l'ho, lo vendo</a>
+          <button class="btn" type="button" data-also>Lo cerco anch'io</button>
+          <a class="btn" data-see href="/cerca">Vedi gli annunci</a>
+        </div>
+      </div>
+    </section>
+  ) : (
+    <a class="ws-simple" href="/cercasi">
+      <span class="label">Cercasi</span>
+      <b>Cosa cercano gli altri</b>
+      <span class="ws-simple-text">Le cose più cercate in Ticino: forse ce l'hai in cantina.</span>
+    </a>
+  )
+}
+
+<script>
+  // Le richieste arrivano dopo la pagina (isola del server): ascolto sul documento e ordino quando compaiono
+  import { actions } from 'astro:actions';
+  import { getComune } from '../core/comuni.ts';
+  import { formatChf } from '../core/format.ts';
+  import { toast } from '../lib/toast.ts';
+
+  /** Prima le richieste della propria zona, poi quelle di tutto il Ticino, poi le altre zone. */
+  function byZone(strip: HTMLElement) {
+    if (strip.dataset.sorted) return;
+    strip.dataset.sorted = '1';
+    let district: string | undefined;
+    try {
+      district = getComune(localStorage.getItem('giro:zona') ?? '')?.district;
+    } catch {
+      return;
+    }
+    if (!district) return;
+    const box = strip.querySelector<HTMLElement>('.ws-chips')!;
+    const chips = [...box.querySelectorAll<HTMLElement>('.ws-chip:not(.mine)')];
+    const rank = (c: HTMLElement) => (c.dataset.district === district ? 0 : c.dataset.district ? 2 : 1);
+    chips.sort((a, b) => rank(a) - rank(b)).forEach((c) => box.append(c));
+  }
+
+  const ready = () => document.querySelectorAll<HTMLElement>('.ws').forEach(byZone);
+  ready();
+  new MutationObserver(ready).observe(document.body, { childList: true, subtree: true });
+
+  document.addEventListener('click', async (event) => {
+    const target = event.target as Element;
+    const chip = target.closest<HTMLAnchorElement>('.ws-chip:not(.mine)');
+    const strip = target.closest<HTMLElement>('.ws');
+    if (!strip) return;
+    const pick = strip.querySelector<HTMLElement>('.ws-pick')!;
+    const also = pick.querySelector<HTMLButtonElement>('[data-also]')!;
+
+    if (chip) {
+      event.preventDefault();
+      const open = chip.classList.contains('on');
+      strip.querySelectorAll('.ws-chip.on').forEach((c) => c.classList.remove('on'));
+      if (open) {
+        pick.hidden = true;
+        return;
+      }
+      chip.classList.add('on');
+      const { label = '', query = '', save = '', people = '0', budget, district } = chip.dataset;
+      const n = Number(people);
+      pick.querySelector('.ws-what')!.textContent = [
+        `${n === 1 ? '1 persona cerca' : `${n} persone cercano`} «${label}»`,
+        budget ? `budget tipico fino a ${formatChf(Number(budget))}` : '',
+        district ? `zona ${district}` : 'tutto il Ticino',
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      pick.querySelector<HTMLAnchorElement>('[data-sell]')!.href = `/vendi?nota=${encodeURIComponent(query)}`;
+      pick.querySelector<HTMLAnchorElement>('[data-see]')!.href = `/cerca?q=${encodeURIComponent(save)}`;
+      also.dataset.save = save;
+      also.disabled = false;
+      also.textContent = "Lo cerco anch'io";
+      pick.hidden = false;
+      return;
+    }
+
+    if (target.closest('[data-also]')) {
+      if (!strip.dataset.signedIn) {
+        location.href = `/accedi?next=${encodeURIComponent('/')}`;
+        return;
+      }
+      const form = new FormData();
+      form.set('q', also.dataset.save ?? '');
+      also.disabled = true;
+      const { data, error } = await actions.alerts.saveSearch(form);
+      if (error || !data) {
+        also.disabled = false;
+        toast(error?.message ?? 'Ricerca non salvata.', 'bad');
+        return;
+      }
+      also.textContent = data.already ? 'La cercavi già' : 'Ti avvisiamo';
+      toast(data.already ? 'La cercavi già: ti avvisiamo appena arriva' : `Salvata «${data.query}»: ti avvisiamo appena arriva`);
+    }
+  });
+</script>
+
+<style>
+  .ws { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  .ws-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .ws-head h2 { font: 500 17px/1.3 var(--f-display); letter-spacing: -0.01em; }
+  .ws-head a { font-size: 13.5px; color: var(--muted); text-underline-offset: 3px; }
+  /* Una riga che si scorre col dito; su computer va a capo se serve */
+  .ws-chips { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; margin-inline: -4px; padding: 2px 4px; }
+  .ws-chips::-webkit-scrollbar { display: none; }
+  @media (min-width: 761px) { .ws-chips { flex-wrap: wrap; overflow: visible; } }
+  .ws-chip { flex: none; scroll-snap-align: start; display: inline-block; line-height: 34px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface-2); color: var(--ink); font-size: 14px; text-decoration: none; white-space: nowrap; transition: border-color 0.15s, background 0.15s; }
+  .ws-chip:hover { border-color: var(--ink); }
+  .ws-chip b { font-weight: 500; }
+  .ws-chip .ws-extra { color: var(--muted); }
+  .ws-chip.on { background: var(--action); border-color: var(--action); color: var(--action-ink); }
+  .ws-chip.on .ws-extra { color: inherit; }
+  .ws-chip.mine { border-color: var(--action); }
+  .ws-pick { display: grid; gap: 10px; padding-top: 4px; border-top: 1px dashed var(--line); }
+  .ws-pick[hidden] { display: none; }
+  .ws-what { font-size: 14.5px; padding-top: 8px; }
+  .ws-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ws-actions .btn { padding: 11px 14px; }
+  .ws-simple { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: baseline; gap: 6px 16px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); text-decoration: none; transition: border-color 0.15s; }
+  .ws-simple:hover { border-color: var(--ink); }
+  .ws-simple b { font: 500 17px/1.3 var(--f-display); letter-spacing: -0.01em; }
+  .ws-simple-text { font-size: 13.5px; color: var(--muted); }
+  @media (max-width: 760px) {
+    .ws-simple { grid-template-columns: 1fr; gap: 2px; padding: 12px 14px; }
+    .ws-simple .label { display: none; }
+  }
+</style>

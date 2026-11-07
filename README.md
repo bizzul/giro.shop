@@ -53,6 +53,10 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 - **Affare del giorno** in home e pagina **Confronta** per mettere annunci uno accanto all'altro.
 - **Cercasi:** cosa cercano le persone in Ticino, dalle ricerche salvate, per oggetto e zona, con il budget tipico. Solo
   numeri aggregati e solo dove le persone sono almeno due; «Ce l'ho, lo vendo» apre Vendi con l'oggetto già scritto.
+- **«Si cerca in Ticino»** in home: le stesse richieste come striscia di etichette (si scorre col dito), prima quelle
+  della propria zona. Un tocco apre «Ce l'ho, lo vendo», «Lo cerco anch'io» (salva la stessa ricerca e fa crescere il
+  conto) e «Vedi gli annunci»; chi vende vede in testa il proprio annuncio più cercato. Si carica a parte (isola del
+  server), così la home resta in cache uguale per tutti; con meno di due richieste resta il riquadro semplice.
 
 <p>
   <img src="docs/screenshots/02-ricerca.webp" alt="Una frase diventa filtri: categoria, prezzo, zona, materiale" width="49%">
@@ -294,7 +298,7 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 | Comando | Cosa verifica |
 | --- | --- |
 | `pnpm test` | 129 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, SEO, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
-| `pnpm test:e2e` | 28 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi, avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente |
+| `pnpm test:e2e` | 29 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi, avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente |
 | `pnpm test:db` | 117 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger, pagamenti, tariffe) |
 | `pnpm test:moderazione` | 37 controlli sull'agente di moderazione con un modello finto che segue un copione |
 | `pnpm test:oauth` | 25 controlli sul login OAuth del connettore con il client MCP ufficiale |

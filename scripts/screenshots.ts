@@ -135,6 +135,8 @@ const { data: alerts } = await admin
   .insert(wanted.map(([query, i]) => ({ user_id: people![i % people!.length].id, query, filters: {} })))
   .select('id');
 cleanup.push(() => admin.from('alerts').delete().in('id', alerts!.map((a) => a.id)));
+// Il sito rilegge le ricerche salvate al massimo ogni 20 secondi: si aspetta, così la home le mostra già
+await wait(21_000);
 
 // Partner locali (anche il trasporto per i mobili grandi, nella scheda annuncio)
 const { data: partners } = await admin

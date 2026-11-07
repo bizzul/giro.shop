@@ -14,7 +14,9 @@ const queries = ['bici da corsa sotto i 900 franchi', 'bici da corsa max 700', '
 test.beforeAll(async () => {
   for (const [i, email] of searchers.entries()) {
     const { data } = await admin.auth.admin.createUser({ email, email_confirm: true, user_metadata: { display_name: `Cerca ${i}` } });
-    await admin.from('alerts').insert({ user_id: data.user!.id, query: queries[i], filters: {} });
+    // Tre cercano una bici da corsa, due anche un passeggino: due richieste, abbastanza per la striscia in home
+    const mine = [queries[i], ...(i < 2 ? ['passeggino trio'] : [])];
+    await admin.from('alerts').insert(mine.map((query) => ({ user_id: data.user!.id, query, filters: {} })));
   }
 });
 
@@ -33,6 +35,19 @@ test('Cercasi mostra cosa cercano le persone, senza nomi', async ({ page }) => {
   await row.getByRole('link', { name: "Ce l'ho, lo vendo" }).click();
   await expect(page).toHaveURL(/\/vendi\?nota=bici/);
   await expect(page.getByLabel('Due righe, se vuoi')).toHaveValue('bici da corsa');
+});
+
+test('in home la striscia «Si cerca»: un tocco e si vende o si cerca anche', async ({ page }) => {
+  await page.goto('/');
+  const chip = page.locator('.ws-chip', { hasText: 'Bici da corsa' });
+  await expect(chip).toContainText('3');
+  await expect(page.locator('.ws-chip', { hasText: 'Passeggini' })).toContainText('2');
+  await chip.click();
+  const pick = page.locator('.ws-pick');
+  await expect(pick).toContainText('3 persone cercano «Bici da corsa»');
+  await expect(pick.getByRole('link', { name: "Ce l'ho, lo vendo" })).toHaveAttribute('href', '/vendi?nota=bici%20da%20corsa');
+  await pick.getByRole('button', { name: "Lo cerco anch'io" }).click();
+  await expect(page).toHaveURL(/\/accedi\?next=%2F/);
 });
 
 test('nella bozza: lo cercano in 3, con i budget', async ({ page }) => {
