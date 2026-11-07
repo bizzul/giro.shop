@@ -19,6 +19,24 @@ Astro.cache.set({ tags: [LISTINGS_TAG] });
 
   <DealOfTheDay />
 
+  <section class="wrap sell-ways" aria-labelledby="vendere">
+    <h2 id="vendere" class="label">Vendere</h2>
+    <div class="ways">
+      <a class="way" href="/vendi">
+        <b>Scatta e vendi</b>
+        <span>Un oggetto: tre foto e l'assistente scrive l'annuncio.</span>
+      </a>
+      <a class="way" href="/svuota-casa">
+        <b>Svuota casa</b>
+        <span>Trasloco, cantina, eredità: tante cose in una volta.</span>
+      </a>
+      <a class="way" href="/cercasi">
+        <b>Cercasi</b>
+        <span>Cosa cercano gli altri: forse ce l'hai in cantina.</span>
+      </a>
+    </div>
+  </section>
+
   <section class="wrap band">
     <p id="risultati-stato" class="sr" aria-live="polite"></p>
     <div id="risultati" class="results">
@@ -49,6 +67,19 @@ Astro.cache.set({ tags: [LISTINGS_TAG] });
   .lede { max-width: 540px; text-wrap: balance; }
   @media (min-width: 761px) {
     .hero-in :global(.search) { width: 100%; max-width: 640px; margin-top: 24px; text-align: left; }
+  }
+  .sell-ways { display: grid; gap: 12px; }
+  .ways { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .way { display: grid; gap: 4px; align-content: start; padding: 16px 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); text-decoration: none; transition: border-color 0.15s; }
+  .way:hover { border-color: var(--ink); }
+  .way b { font: 500 17px/1.3 var(--f-display); letter-spacing: -0.01em; }
+  .way span { font-size: 13.5px; color: var(--muted); line-height: 1.45; }
+  /* Su telefono: tre riquadri piccoli in fila, solo il nome, per non spingere giù gli annunci */
+  @media (max-width: 760px) {
+    .ways { gap: 8px; }
+    .way { padding: 12px 10px; text-align: center; align-content: center; }
+    .way b { font-size: 15px; }
+    .way span { display: none; }
   }
   .duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
   @media (max-width: 760px) { .duo { grid-template-columns: 1fr; } }

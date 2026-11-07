@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import HouseForm from '../components/HouseForm.tsx';
+import SellModes from '../components/SellModes.astro';
 import { claudeKey } from '../lib/claude.ts';
 import { MAX_HOUSE_PHOTOS } from '../core/house.ts';
 import '../styles/sell.css';
@@ -12,6 +13,7 @@ const aiOn = Boolean(claudeKey());
 <Layout title="Svuota casa · giro.shop" description="Trasloco, cantina, eredità: foto delle stanze e una bozza per ogni oggetto, da pubblicare in un colpo.">
   <section class="wrap band sell">
     <div class="intro">
+      <SellModes current="casa" />
       <p class="eyebrow">Svuota casa</p>
       <h1>Tante cose, una volta sola.</h1>
       <p class="muted">
@@ -26,7 +28,6 @@ const aiOn = Boolean(claudeKey());
           Puoi preparare le bozze subito; per pubblicarle <a href="/accedi?next=/svuota-casa">accedi con la tua email</a>.
         </p>
       )}
-      <p class="small">Un oggetto solo? <a href="/vendi">Scatta e vendi</a> è più veloce.</p>
     </div>
     <HouseForm client:load signedIn={signedIn} aiOn={aiOn} max={MAX_HOUSE_PHOTOS} />
   </section>
@@ -35,5 +36,6 @@ const aiOn = Boolean(claudeKey());
 <style>
   .sell { display: grid; gap: 40px; max-width: 860px; }
   .intro { display: grid; gap: 16px; }
+  .intro :global(.modes) { margin-bottom: 16px; }
   .intro h1 { font-size: clamp(32px, 4.4vw, 48px); }
 </style>

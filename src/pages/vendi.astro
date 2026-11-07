@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import SellForm from '../components/SellForm.tsx';
+import SellModes from '../components/SellModes.astro';
 import '../styles/sell.css';
 
 const signedIn = Boolean(Astro.locals.user);
@@ -11,6 +12,7 @@ const nota = Astro.url.searchParams.get('nota')?.slice(0, 200) ?? '';
 <Layout title="Vendi · giro.shop" description="Scatta e vendi: tre foto e l'assistente prepara l'annuncio.">
   <section class="wrap band sell">
     <div class="intro">
+      <SellModes current="uno" />
       <p class="eyebrow">Scatta e vendi</p>
       <h1>Tre foto, nessun modulo.</h1>
       <p class="muted">
@@ -18,8 +20,7 @@ const nota = Astro.url.searchParams.get('nota')?.slice(0, 200) ?? '';
         una fascia di prezzo dagli annunci simili. I campi con l'anello blu li ha scritti lui: controlla prima di pubblicare.
       </p>
       <p class="small">
-        Trasloco o cantina da svuotare? Con <a href="/svuota-casa">Svuota casa</a> fai tante bozze in una volta. Prima di vendere, guarda
-        <a href="/cercasi">cosa cercano gli altri</a>: qualcuno potrebbe aspettare proprio la tua cosa.
+        Prima di vendere, guarda <a href="/cercasi">cosa cercano gli altri</a>: qualcuno potrebbe aspettare proprio la tua cosa.
       </p>
       {!signedIn && (
         <p class="small">
@@ -34,5 +35,6 @@ const nota = Astro.url.searchParams.get('nota')?.slice(0, 200) ?? '';
 <style>
   .sell { display: grid; gap: 40px; max-width: 760px; }
   .intro { display: grid; gap: 16px; }
+  .intro :global(.modes) { margin-bottom: 16px; }
   .intro h1 { font-size: clamp(32px, 4.4vw, 48px); }
 </style>

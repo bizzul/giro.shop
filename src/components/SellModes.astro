@@ -1,0 +1,32 @@
+---
+/** In cima a Vendi e a Svuota casa: un oggetto solo, oppure tante cose insieme. */
+interface Props {
+  current: 'uno' | 'casa';
+}
+const { current } = Astro.props;
+const MODES = [
+  { key: 'uno', href: '/vendi', title: 'Un oggetto', text: 'Scatta e vendi: da 1 a 5 foto' },
+  { key: 'casa', href: '/svuota-casa', title: 'Tante cose', text: 'Svuota casa: trasloco, cantina, eredità' },
+] as const;
+---
+
+<nav class="modes" aria-label="Cosa vendi">
+  {
+    MODES.map((m) => (
+      <a class="mode" href={m.href} aria-current={m.key === current ? 'page' : undefined}>
+        <b>{m.title}</b>
+        <span>{m.text}</span>
+      </a>
+    ))
+  }
+</nav>
+
+<style>
+  .modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .mode { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-2); color: var(--ink); text-decoration: none; transition: border-color 0.15s; }
+  .mode:hover { border-color: var(--ink); }
+  .mode b { font-weight: 500; font-size: 16px; }
+  .mode span { font-size: 13px; color: var(--muted); }
+  .mode[aria-current='page'] { background: var(--action); border-color: var(--action); color: var(--action-ink); }
+  .mode[aria-current='page'] span { color: inherit; opacity: 0.8; }
+</style>
