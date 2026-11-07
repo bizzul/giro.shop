@@ -101,6 +101,8 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 - Tutto resta nel sito, sotto la campanella. Per email si sceglie **quando** (subito, un riassunto al giorno alle 18,
   mai) e **per cosa** (cinque tipi). Ogni email ha il link per spegnere solo quel tipo, anche con un clic dal programma
   di posta.
+- Email con il disegno del sito (logo, caratteri, etichette, schede con foto e prezzo), anche quelle di accesso di
+  Supabase, generate dallo stesso modello. Partono con Resend dal dominio `giro.omarbeltraminelli.com`.
 
 <p>
   <img src="docs/screenshots/09-avvisi.webp" alt="Avvisi" width="49%">
@@ -207,13 +209,15 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 
 | Comando | Cosa verifica |
 | --- | --- |
-| `pnpm test` | 86 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, SEO, MCP |
+| `pnpm test` | 91 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, SEO, MCP |
 | `pnpm test:e2e` | 14 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi, avviso per significato, offerta accettata, ricerca salvata, email, collegare un assistente |
 | `pnpm test:db` | 83 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger) |
 | `pnpm test:moderazione` | 37 controlli sull'agente di moderazione con un modello finto che segue un copione |
 | `pnpm test:oauth` | 25 controlli sul login OAuth del connettore con il client MCP ufficiale |
 | `pnpm mcp:smoke` | Prova il server MCP via HTTP |
 | `pnpm screenshots` | Rifà le immagini di questo README |
+| `pnpm email:anteprima <cartella>` | Anteprima delle email (accesso, avviso, riassunto) per computer e telefono |
+| `pnpm email:modelli` | Rigenera i modelli delle email di Supabase dal disegno comune (`src/lib/email-design.ts`) |
 
 I test nel browser e i controlli servono `pnpm exec supabase start` e `pnpm dev` accesi; puliscono quello che creano.
 

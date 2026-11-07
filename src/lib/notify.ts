@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { adminClient } from './admin.ts';
 import { noticeMail, sendMail } from './mail.ts';
 import { unsubscribeUrl } from './unsubscribe.ts';
+import { emailCard } from './email-content.ts';
 import { emailRoute, groupOf, type EmailPrefs, type NoticeKind } from '../core/email-prefs.ts';
 
 export type { NoticeKind };
@@ -67,7 +68,9 @@ async function emailNotices(admin: SupabaseClient, notices: Notice[], ids: strin
     // Il link in fondo spegne solo questo tipo di avviso (o tutte le email, per la moderazione)
     const group = groupOf(n.kind);
     const unsubscribe = unsubscribeUrl(origin, n.userId, group?.key);
-    const sent = await sendMail(noticeMail({ to, title: n.title, body: n.body ?? '', url: n.url, origin, unsubscribe, about: group?.label }));
+    const sent = await sendMail(
+      noticeMail({ to, title: n.title, body: n.body ?? '', url: n.url, origin, unsubscribe, about: group?.label, kind: n.kind, listing: emailCard(n.listingId, origin, n.url) }),
+    );
     if (sent) await admin.from('notifications').update({ emailed_at: new Date().toISOString() }).eq('id', ids[i]);
   }
 }

@@ -6,6 +6,7 @@ import { digestMail, sendMail } from './mail.ts';
 import { notify, siteOrigin, type Notice } from './notify.ts';
 import { unsubscribeUrl } from './unsubscribe.ts';
 import { warmUpSemantic } from './semantic.ts';
+import { emailCard } from './email-content.ts';
 import { formatDay } from '../core/format.ts';
 import { claudeKey } from './claude.ts';
 import { moderateWithAgent, pendingTargets } from './moderation-agent.ts';
@@ -117,7 +118,7 @@ export async function sendDigests(admin: SupabaseClient, origin: string, now = n
     const since = new Date(Math.max(person.digest_sent_at ? new Date(person.digest_sent_at).getTime() : 0, now.getTime() - 2 * 864e5));
     const { data: pending } = await admin
       .from('notifications')
-      .select('id, kind, title, body, url')
+      .select('id, kind, title, body, url, listing_id')
       .eq('user_id', person.id)
       .is('emailed_at', null)
       .is('read_at', null)
@@ -131,7 +132,8 @@ export async function sendDigests(admin: SupabaseClient, origin: string, now = n
     const { data: user } = await admin.auth.admin.getUserById(person.id);
     const to = user.user?.email;
     if (!to) continue;
-    const ok = await sendMail(digestMail({ to, items, origin, unsubscribe: unsubscribeUrl(origin, person.id) }));
+    const withCards = items.map((i) => ({ ...i, listing: emailCard(i.listing_id, origin, i.url, true) }));
+    const ok = await sendMail(digestMail({ to, items: withCards, origin, unsubscribe: unsubscribeUrl(origin, person.id) }));
     if (!ok) continue;
     sent += 1;
     await admin.from('notifications').update({ emailed_at: now.toISOString() }).in('id', items.map((i) => i.id));

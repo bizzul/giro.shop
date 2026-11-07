@@ -20,7 +20,9 @@
     "test:moderazione": "node scripts/check-moderation.ts",
     "test:oauth": "node scripts/check-oauth.ts",
     "test:e2e": "playwright test",
-    "screenshots": "node scripts/screenshots.ts"
+    "screenshots": "node scripts/screenshots.ts",
+    "email:modelli": "node scripts/email-templates.ts",
+    "email:anteprima": "node scripts/email-preview.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.5.0",

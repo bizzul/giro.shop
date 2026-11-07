@@ -1,4 +1,5 @@
 import nodemailer, { type Transporter } from 'nodemailer';
+import { C, button, emailLayout, esc, footLink, heading, label, listingCard, paragraph, rows, type CardListing } from './email-design.ts';
 
 let transport: Transporter | null | undefined;
 
@@ -51,43 +52,66 @@ export async function sendMail(mail: Mail): Promise<boolean> {
   }
 }
 
-const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
 
-const MUTED = 'margin:28px 0 0;font-size:12px;line-height:1.5;color:#6b6b68';
-
-function shell(inner: string): string {
-  return `<!doctype html><html lang="it"><body style="margin:0;padding:24px;background:#f6f6f4;font-family:Helvetica,Arial,sans-serif;color:#111">
-<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:8px;padding:28px">
-<p style="margin:0 0 20px;font-size:13px;color:#6b6b68">giro.shop</p>
-${inner}
-</div></body></html>`;
-}
-
-const button = (href: string, label: string) =>
-  `<a href="${escape(href)}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:12px 18px;border-radius:2px;font-size:13px;letter-spacing:.06em;text-transform:uppercase">${escape(label)}</a>`;
+/** Etichetta e bottone di ogni tipo di avviso. */
+const KIND: Record<string, { label: string; action: string }> = {
+  ricerca: { label: 'Ricerca salvata', action: "Apri l'annuncio" },
+  prezzo: { label: 'Prezzo ridotto', action: "Apri l'annuncio" },
+  venduto: { label: 'Venduto', action: 'Vedi simili' },
+  domanda: { label: 'Nuova domanda', action: 'Rispondi' },
+  risposta: { label: 'Risposta', action: 'Leggi la risposta' },
+  valutazione: { label: 'Valutazione', action: 'Vedi la valutazione' },
+  scadenza: { label: 'Scadenza', action: 'Rinnova' },
+  segnalazione: { label: 'Moderazione', action: 'Apri' },
+  contestazione: { label: 'Contestazione', action: 'Apri' },
+};
+const kindOf = (kind?: string) => KIND[kind ?? ''] ?? { label: 'Avviso', action: 'Apri' };
 
 /** Disiscrizione con un clic dal programma di posta (RFC 8058) */
 const unsubscribeHeaders = (stop: string | null) =>
   stop ? { 'List-Unsubscribe': `<${stop}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : undefined;
 
 /**
- * Email semplice e leggibile anche senza immagini: titolo, testo, un bottone, i link per le preferenze.
+ * Un avviso per email, con il disegno del sito (email-design.ts). Con `listing` mostra la scheda dell'annuncio.
  * `about` è il tipo di avviso ("Valutazioni che ricevi"): il link in fondo spegne solo quello.
  */
-export function noticeMail(input: { to: string; title: string; body: string; url: string; origin: string; unsubscribe: string | null; about?: string }): Mail {
+export function noticeMail(input: {
+  to: string;
+  title: string;
+  body: string;
+  url: string;
+  origin: string;
+  unsubscribe: string | null;
+  about?: string;
+  kind?: string;
+  listing?: CardListing | null;
+}): Mail {
   const link = `${input.origin}${input.url}`;
   const prefs = `${input.origin}/miei-annunci#email`;
   const stop = input.unsubscribe;
   const stopLabel = input.about ? 'Non voglio più queste email' : 'Non voglio più email';
+  const kind = kindOf(input.kind);
+  // Per un nuovo annuncio il testo ripete la scheda: basta la scheda
+  const showBody = Boolean(input.body) && !(input.listing && input.kind === 'ricerca');
   return {
     to: input.to,
     subject: input.title,
     headers: unsubscribeHeaders(stop),
     text: `${input.title}\n\n${input.body}\n\nApri: ${link}\n\n— giro.shop\n${input.about ? `Ricevi questa email per: ${input.about}.\n` : ''}Preferisci un riassunto al giorno o meno email? ${prefs}${stop ? `\n${stopLabel}: ${stop}` : ''}`,
-    html: shell(`<h1 style="margin:0 0 12px;font-size:20px;font-weight:500;line-height:1.3">${escape(input.title)}</h1>
-<p style="margin:0 0 24px;font-size:15px;line-height:1.5;color:#333">${escape(input.body)}</p>
-${button(link, 'Apri')}
-<p style="${MUTED}">${input.about ? `Ricevi questa email per: ${escape(input.about.toLowerCase())}. ` : ''}<a href="${escape(prefs)}" style="color:#6b6b68">Un riassunto al giorno, o meno email</a>${stop ? ` · <a href="${escape(stop)}" style="color:#6b6b68">${stopLabel}</a>` : ''}</p>`),
+    html: emailLayout({
+      origin: input.origin,
+      preheader: input.body || input.title,
+      body:
+        label(kind.label, C.volt) +
+        heading(input.title) +
+        (showBody ? paragraph(esc(input.body)) : '') +
+        (input.listing ? listingCard(input.listing) : '') +
+        button(link, kind.action),
+      footer:
+        (input.about ? `Ricevi questa email per: ${esc(input.about.toLowerCase())}.<br>` : '') +
+        footLink(prefs, 'Un riassunto al giorno, o meno email') +
+        (stop ? ` · ${footLink(esc(stop), stopLabel)}` : ''),
+    }),
   };
 }
 
@@ -95,6 +119,8 @@ export interface DigestItem {
   title: string;
   body: string;
   url: string;
+  kind?: string;
+  listing?: CardListing | null;
 }
 
 /** Il riassunto della sera: tutti gli avvisi del giorno non ancora visti, in una email. */
@@ -105,22 +131,32 @@ export function digestMail(input: { to: string; items: DigestItem[]; origin: str
   const prefs = `${input.origin}/miei-annunci#email`;
   const stop = input.unsubscribe;
   const lines = input.items.map((i) => `• ${i.title}${i.body ? `\n  ${i.body}` : ''}\n  ${input.origin}${i.url}`).join('\n\n');
-  const rows = input.items
-    .map(
-      (i) => `<li style="margin:0;padding:14px 0;border-top:1px solid #e6e6e2">
-<a href="${escape(input.origin + i.url)}" style="color:#111;text-decoration:none;font-size:15px;font-weight:500;line-height:1.35">${escape(i.title)}</a>
-${i.body ? `<p style="margin:4px 0 0;font-size:14px;line-height:1.45;color:#555">${escape(i.body)}</p>` : ''}</li>`,
-    )
-    .join('');
   return {
     to: input.to,
     subject,
     headers: unsubscribeHeaders(stop),
     text: `Il riassunto di oggi su giro.shop\n\n${lines}\n\nTutti i tuoi avvisi: ${all}\n\n— giro.shop\nCambia quando e per cosa ricevi email: ${prefs}${stop ? `\nNon voglio più email: ${stop}` : ''}`,
-    html: shell(`<h1 style="margin:0 0 8px;font-size:20px;font-weight:500;line-height:1.3">Il riassunto di oggi</h1>
-<p style="margin:0 0 16px;font-size:14px;color:#555">${n === 1 ? '1 avviso' : `${n} avvisi`} che non hai ancora visto.</p>
-<ul style="list-style:none;margin:0 0 24px;padding:0">${rows}</ul>
-${button(all, 'Tutti i tuoi avvisi')}
-<p style="${MUTED}">Ricevi un riassunto al giorno, alle 18. <a href="${escape(prefs)}" style="color:#6b6b68">Cambia quando e per cosa</a>${stop ? ` · <a href="${escape(stop)}" style="color:#6b6b68">Non voglio più email</a>` : ''}</p>`),
+    html: emailLayout({
+      origin: input.origin,
+      preheader: n === 1 ? input.items[0].title : `${n} avvisi che non hai ancora visto`,
+      body:
+        label('Il riassunto di oggi') +
+        heading(n === 1 ? '1 avviso che non hai ancora visto' : `${n} avvisi che non hai ancora visto`) +
+        rows(
+          input.items.map((i) => ({
+            url: `${input.origin}${i.url}`,
+            kind: kindOf(i.kind).label,
+            title: i.title,
+            // Il prezzo in evidenza solo dove è la notizia
+            price: i.listing && i.kind === 'prezzo' ? i.listing.price : null,
+            detail: i.body,
+            photo: i.listing?.photo ?? null,
+          })),
+        ) +
+        button(all, 'Tutti i tuoi avvisi'),
+      footer:
+        `Ricevi un riassunto al giorno, alle 18. ${footLink(prefs, 'Cambia quando e per cosa')}` +
+        (stop ? ` · ${footLink(esc(stop), 'Non voglio più email')}` : ''),
+    }),
   };
 }
