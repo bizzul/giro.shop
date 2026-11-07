@@ -1,8 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { SUPABASE_KEY, SUPABASE_URL } from './supabase.ts';
+import { SUPABASE_KEY, SUPABASE_SERVER_URL } from './supabase.ts';
 
 let client: SupabaseClient | null | undefined;
-const anon = () => (client ??= SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false } }) : null);
+const anon = () => (client ??= SUPABASE_SERVER_URL && SUPABASE_KEY ? createClient(SUPABASE_SERVER_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false } }) : null);
 
 export interface SellerStats {
   name: string;

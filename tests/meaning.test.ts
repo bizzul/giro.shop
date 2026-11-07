@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MEANING_MIN, meaningMatches, meaningText, search } from '../src/core/search.ts';
+import { ALERT_MEANING_MIN, MEANING_MIN, matchesSearch, meaningMatches, meaningText, search } from '../src/core/search.ts';
+import { getListing } from '../src/core/store.ts';
 
 // Similarità come le dà il modello per "sofà" sugli annunci di prova (vedi src/lib/semantic.ts)
 const sofa = new Map([
@@ -51,5 +52,21 @@ describe('ricerca per significato', () => {
     // La poltrona è in velluto: "in pelle" la esclude anche se il significato è vicino
     const meaning = new Map([['l-011', 0.7]]);
     expect(search('poltrona in pelle', { meaning }).hits.some((h) => h.listing.id === 'l-011')).toBe(false);
+  });
+
+  it('avvisi delle ricerche salvate: anche per significato, ma più severi', () => {
+    const divano = getListing('l-010')!;
+    expect(matchesSearch('sofà', divano)).toBe(false);
+    expect(matchesSearch('sofà', divano, 0.64)).toBe(true);
+    // Abbastanza per un risultato, non per un'email
+    expect(matchesSearch('sofà', divano, ALERT_MEANING_MIN - 0.01)).toBe(false);
+    // Gli altri filtri valgono: il divano costa 250
+    expect(matchesSearch('sofà sotto 200 franchi', divano, 0.64)).toBe(false);
+    expect(matchesSearch('sofà vicino a Bellinzona', divano, 0.64)).toBe(true);
+  });
+
+  it('chi nomina l\'oggetto solo di passaggio non avvisa, nemmeno per significato', () => {
+    const lamp = { ...getListing('l-010')!, id: 'x', title: 'Lampada da scrivania in ottone', description: 'Lampada', category: 'arredamento' as const };
+    expect(matchesSearch('scrivania', lamp, 0.9)).toBe(false);
   });
 });

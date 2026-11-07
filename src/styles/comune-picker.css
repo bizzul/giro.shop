@@ -1,6 +1,7 @@
 /* Comune ricercabile (ComunePicker): caricato dal componente, vale anche fuori dalle pagine di vendita (dialogo "Da dove parti?") */
+/* Selettore più specifico di ".fld input" (sell.css): lo spazio a destra per la freccia vale anche se sell.css arriva dopo */
 .comune-picker { position: relative; }
-.comune-picker input {
+.comune-picker input[role='combobox'] {
   width: 100%;
   font: 400 15px/1.5 var(--f-body);
   color: var(--ink);
@@ -9,7 +10,7 @@
   border-radius: 4px;
   padding: 12px 36px 12px 14px;
 }
-.comune-picker input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.comune-picker input[role='combobox']:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
 .cp-toggle { position: absolute; right: 2px; top: 2px; bottom: 2px; width: 34px; border: 0; background: none; padding: 0; display: grid; place-items: center; cursor: pointer; }
 .cp-chevron { width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.6; }
 .cp-toggle:hover .cp-chevron { stroke: var(--ink); }

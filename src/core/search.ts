@@ -124,13 +124,26 @@ function rankAll(filters: SearchFilters, from?: Comune, meaning?: Meaning): Sear
 }
 
 /**
+ * Per gli avvisi serve più somiglianza che per la ricerca: un'email sbagliata disturba più di un risultato in più.
+ * Misurato su EmbeddingGemma: «sofà» → "Divano angolare grigio" 0.61, → "Seggiolino auto" 0.58.
+ */
+export const ALERT_MEANING_MIN = 0.6;
+
+/**
  * Un annuncio corrisponde a una ricerca salvata? Più severo della ricerca normale:
  * deve essere proprio l'oggetto cercato (una lampada "da scrivania" non avvisa chi cerca scrivanie).
+ * Con `similarity` (ricerca per significato) vale anche detto con altre parole ("sofà" → divano),
+ * se è abbastanza simile; prezzo, zona, stato e gli altri filtri valgono comunque.
  */
-export function matchesSearch(query: string, listing: Listing): boolean {
+export function matchesSearch(query: string, listing: Listing, similarity?: number): boolean {
   const { filters } = parseQuery(query);
-  if (filters.required && !isMainObject(listing, filters.required.alts)) return false;
-  return scoreListing(filters, listing, Date.now()) !== null;
+  const meaning = similarity != null && similarity >= ALERT_MEANING_MIN ? new Map([[listing.id, similarity]]) : undefined;
+  if (filters.required) {
+    const hasWord = findAlt(listing, filters.required.alts) !== null;
+    if (hasWord && !isMainObject(listing, filters.required.alts)) return false;
+    if (!hasWord && !meaning) return false;
+  }
+  return scoreListing(filters, listing, Date.now(), undefined, meaning) !== null;
 }
 
 /**

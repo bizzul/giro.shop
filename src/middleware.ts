@@ -1,11 +1,11 @@
 import { defineMiddleware } from 'astro:middleware';
 import { configureStore, refreshListings } from './core/store.ts';
-import { createRequestClient, SUPABASE_KEY, SUPABASE_URL } from './lib/supabase.ts';
+import { createRequestClient, SUPABASE_KEY, SUPABASE_SERVER_URL, SUPABASE_URL } from './lib/supabase.ts';
 import { maybeRunMaintenance } from './lib/maintenance.ts';
 import { invalidateListingPages } from './lib/cache.ts';
 import { crossSiteResponse, isCrossSiteForm } from './lib/origin-check.ts';
 
-configureStore(SUPABASE_URL, SUPABASE_KEY);
+configureStore(SUPABASE_SERVER_URL, SUPABASE_KEY, SUPABASE_URL);
 
 /**
  * Pagine pubbliche, uguali per tutti e quindi memorizzabili in cache: qui non si legge la sessione,

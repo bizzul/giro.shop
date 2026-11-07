@@ -59,7 +59,8 @@ export const account = {
     }),
     handler: async ({ email, next }, context) => {
       const supabase = requireSupabase(context);
-      const redirect = new URL('/auth/callback', context.url.origin);
+      // Indirizzo pubblico (dietro un tunnel la richiesta arriva in http su 127.0.0.1)
+      const redirect = new URL('/auth/callback', siteOrigin(context.url.origin));
       redirect.searchParams.set('next', safeNext(next));
       const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirect.href } });
       if (error) {

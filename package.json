@@ -2,6 +2,7 @@
   "name": "piazza",
   "type": "module",
   "version": "0.0.1",
+  "packageManager": "pnpm@12.15.0",
   "engines": {
     "node": ">=22.23.4"
   },
@@ -40,6 +41,7 @@
     "@types/node": "^26.6.6",
     "@types/nodemailer": "^8.0.2",
     "sharp": "^0.35.5",
+    "supabase": "2.111.0",
     "typescript": "^6.0.3",
     "vitest": "^5.1.0"
   }

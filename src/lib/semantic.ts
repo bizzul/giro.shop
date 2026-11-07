@@ -121,10 +121,10 @@ export function warmUpSemantic(): Promise<void> {
 const queryCache = new Map<string, Float32Array>();
 
 /**
- * Similarità per significato tra una frase e gli annunci, già filtrate (soglia e vicinanza al migliore).
+ * Similarità grezze (0–1) tra una frase e ogni annuncio pubblicato.
  * null se non serve (la frase è solo un filtro) o se il modello non è ancora pronto: allora si cerca per parole.
  */
-export async function meaningFor(query: string): Promise<Meaning | null> {
+async function similarities(query: string): Promise<Map<string, number> | null> {
   const text = meaningText(query).toLowerCase();
   if (!text) return null;
   if (!embedderReady() || !vectorsLoaded) {
@@ -140,11 +140,31 @@ export async function meaningFor(query: string): Promise<Meaning | null> {
   const live = new Set(publishedListings().map((l) => l.id));
   const sims = new Map<string, number>();
   for (const [id, v] of vectors) if (live.has(id)) sims.set(id, dot(q, v));
-  return meaningMatches(sims);
+  return sims;
 }
 
-/** Dopo pubblicazione o modifica del testo: il vettore dell'annuncio si aggiorna senza far aspettare nessuno. */
+/** Per la ricerca: gli annunci abbastanza vicini per significato (soglia e vicinanza al più simile). */
+export async function meaningFor(query: string): Promise<Meaning | null> {
+  const sims = await similarities(query);
+  return sims ? meaningMatches(sims) : null;
+}
+
+/** Calcola subito il vettore di un annuncio, se il modello è pronto (altrimenti lo farà il riscaldamento o la manutenzione). */
+export async function embedListing(listingId: string): Promise<void> {
+  if (!embedderReady()) return;
+  await syncEmbeddings([listingId]).catch((e) => console.warn(`[giro] vettore di ${listingId}: ${(e as Error).message}`));
+}
+
+/** Dopo una modifica del testo: il vettore dell'annuncio si aggiorna senza far aspettare nessuno. */
 export function embedListingLater(listingId: string): void {
-  if (!embedderReady()) return; // lo farà il prossimo riscaldamento o la manutenzione
-  void syncEmbeddings([listingId]).catch((e) => console.warn(`[giro] vettore di ${listingId}: ${(e as Error).message}`));
+  void embedListing(listingId);
+}
+
+/**
+ * Per gli avvisi: quanto un annuncio è simile per significato a una ricerca salvata (similarità grezza).
+ * Qui non vale "vicino al più simile": un secondo divano deve avvisare anche se il primo era più simile.
+ * La soglia, più alta di quella della ricerca, la applica matchesSearch (ALERT_MEANING_MIN).
+ */
+export async function similarityFor(query: string, listingId: string): Promise<number | undefined> {
+  return (await similarities(query))?.get(listingId);
 }

@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly PUBLIC_SUPABASE_URL?: string;
+  readonly SUPABASE_INTERNAL_URL?: string;
   readonly PUBLIC_SUPABASE_PUBLISHABLE_KEY?: string;
   readonly ANTHROPIC_API_KEY?: string;
   readonly PIAZZA_BASE_URL?: string;

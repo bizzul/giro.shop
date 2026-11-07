@@ -26,15 +26,21 @@ export const LISTING_SELECT = `
 const SEED: Listing[] = LISTINGS.map((l) => ({ ...l, photos: PHOTOS[l.id] ? [PHOTOS[l.id]] : [] }));
 
 let supabaseUrl: string | null = null;
+let serverUrl: string | null = null;
 let client: SupabaseClient | null = null;
 let snapshot: Listing[] | null = null;
 let loadedAt = 0;
 let pending: Promise<void> | null = null;
 
 /** Collega il negozio a Supabase. Senza url e chiave restano i dati di prova. */
-export function configureStore(url: string | undefined, key: string | undefined): void {
-  if (!url || !key || url === supabaseUrl) return;
-  supabaseUrl = url;
+/**
+ * `url` è l'indirizzo con cui il server legge gli annunci; `publicUrl` (se diverso) quello dei link alle foto,
+ * che aprono i browser (es. dietro un tunnel: server su 127.0.0.1, foto sull'indirizzo pubblico).
+ */
+export function configureStore(url: string | undefined, key: string | undefined, publicUrl?: string): void {
+  if (!url || !key || (url === serverUrl && (publicUrl ?? url) === supabaseUrl)) return;
+  serverUrl = url;
+  supabaseUrl = publicUrl ?? url;
   client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   snapshot = null;
   loadedAt = 0;

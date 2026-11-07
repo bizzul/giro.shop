@@ -10,3 +10,5 @@ minimumReleaseAgeExclude:
 allowBuilds:
   onnxruntime-node: false
   protobufjs: false
+  # La CLI di Supabase (versione fissa, uguale su ogni computer) scarica il suo programma all'installazione
+  supabase: true

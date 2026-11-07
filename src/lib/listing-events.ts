@@ -7,7 +7,7 @@ import { summarizeListing } from '../core/claude.ts';
 import { adminClient } from './admin.ts';
 import { claudeKey } from './claude.ts';
 import { favoritersOf, notify, type Notice } from './notify.ts';
-import { embedListingLater } from './semantic.ts';
+import { embedListing, embedListingLater, similarityFor } from './semantic.ts';
 
 /**
  * Cosa succede dopo un cambiamento a un annuncio: avvisi a chi l'aspettava e punti chiave.
@@ -21,9 +21,12 @@ const describe = (l: Listing) => [l.title, formatChf(l.priceChf), getComune(l.co
 
 /** Annuncio appena pubblicato: avvisa chi ha una ricerca salvata che corrisponde, scrive i punti chiave. */
 export function afterPublish(listingId: string, origin: string, invalidate: Invalidate): void {
-  later(notifySavedSearches(listingId, origin), 'avvisi delle ricerche salvate');
+  // Prima il vettore dell'annuncio, così gli avvisi trovano anche chi lo cerca con altre parole
+  later(
+    embedListing(listingId).then(() => notifySavedSearches(listingId, origin)),
+    'avvisi delle ricerche salvate',
+  );
   later(writeHighlights(listingId, invalidate), 'punti chiave');
-  embedListingLater(listingId);
 }
 
 /** Testo cambiato: i punti chiave vecchi non valgono più. */
@@ -37,7 +40,11 @@ async function notifySavedSearches(listingId: string, origin: string): Promise<v
   const listing = getListing(listingId);
   if (!admin || !listing) return;
   const { data: searches } = await admin.from('alerts').select('id, user_id, query').neq('user_id', listing.sellerId ?? '');
-  const hits = (searches ?? []).filter((s) => matchesSearch(s.query, listing));
+  // Per parole oppure per significato ("sofà" avvisa anche per un divano)
+  const hits: Array<{ id: string; user_id: string; query: string }> = [];
+  for (const s of searches ?? []) {
+    if (matchesSearch(s.query, listing) || matchesSearch(s.query, listing, await similarityFor(s.query, listing.id))) hits.push(s);
+  }
   if (!hits.length) return;
   // Una persona con più ricerche che corrispondono riceve un solo avviso
   const byUser = new Map<string, { id: string; query: string }>();
