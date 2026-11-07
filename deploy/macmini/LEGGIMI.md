@@ -33,7 +33,7 @@ git push macmini main && ssh macmini 'piazza/deploy/macmini/aggiorna.sh'
 
 `aggiorna.sh` installa le dipendenze, applica le nuove migrazioni, rifà la build e riavvia il sito. I dati restano.
 Dopo ogni modifica a `~/piazza/.env` va rilanciato anche lui: i valori entrano nella build.
-Il codice va anche su GitHub (`git push`, repository privato `bizzul/piazza`).
+Il codice va anche su GitHub (`git push`, repository privato `bizzul/giro.shop`).
 
 ## Email (Resend)
 
