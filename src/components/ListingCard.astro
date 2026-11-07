@@ -13,9 +13,11 @@ interface Props {
   verdict?: PriceVerdict;
   /** Le prime card visibili si caricano subito, le altre quando servono. */
   eager?: boolean;
+  /** Posizione nella griglia (o nella pagina aggiunta): le card entrano una dopo l'altra. */
+  index?: number;
 }
 
-const { listing, distanceKm, reasons = [], verdict, eager = false } = Astro.props;
+const { listing, distanceKm, reasons = [], verdict, eager = false, index } = Astro.props;
 const comune = getComune(listing.comuneId);
 const photo = getPhoto(listing.id);
 const verdictTone = verdict === 'sopra_mercato' ? 'bad' : 'ok';
@@ -32,7 +34,7 @@ const badges = [
   .slice(0, 2);
 ---
 
-<a class="lcard" href={listingPath(listing)} data-lat={comune?.lat} data-lon={comune?.lon}>
+<a class="lcard" href={listingPath(listing)} data-lat={comune?.lat} data-lon={comune?.lon} style={index ? `--i:${index}` : undefined}>
   <div class="lph">
     {
       badges.length > 0 && (

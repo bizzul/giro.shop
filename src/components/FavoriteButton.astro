@@ -60,4 +60,9 @@ const isOwner = Boolean(user && getListing(listingId)?.sellerId === user.id);
   .fav { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .fav-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
   .fav-btn.on svg { fill: var(--bad); stroke: var(--bad); }
+  /* Il cuore batte al passaggio del mouse */
+  @media (hover: hover) and (pointer: fine) {
+    .fav-btn:hover svg { animation: fav-beat 0.8s ease-in-out; }
+  }
+  @keyframes fav-beat { 15% { transform: scale(1.22); } 30% { transform: scale(1); } 45% { transform: scale(1.14); } 60% { transform: scale(1); } }
 </style>

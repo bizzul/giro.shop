@@ -397,3 +397,59 @@ h3 { font-size: 18px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01e
     font-size: 16px !important;
   }
 }
+
+/* Movimento: poche animazioni corte, solo opacity e transform (le fa la scheda grafica, non ricalcolano la pagina).
+   Con "riduci movimento" nel sistema si spengono tutte (regola in alto). Gli effetti al passaggio del mouse
+   solo dove c'è un mouse: sul telefono un tocco non deve lasciare niente "a metà". */
+:root { --ease-out: cubic-bezier(0.22, 0.8, 0.24, 1); --ease-spring: cubic-bezier(0.34, 1.5, 0.64, 1); }
+
+/* Card: entrano dal basso una dopo l'altra (--i è la posizione, messa da ListingCard), al massimo 12 passi di ritardo.
+   Vale al caricamento, a ogni ricerca dal vivo e per le pagine aggiunte scorrendo.
+   .stay: la card c'era già prima dell'aggiornamento, resta ferma (vedi SearchForm) */
+.lcard { animation: card-in 0.42s var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 12) * 40ms); }
+.lcard.stay { animation: none; }
+@keyframes card-in { from { opacity: 0; transform: translateY(14px); } }
+
+/* Foto: finché non arriva, il riquadro ha un riflesso che scorre; poi la foto sfuma dentro.
+   Solo per le foto caricate dopo (lazy) e solo con JavaScript attivo (.motion, da lib/motion.ts): senza, si vedono subito */
+.lph::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--bg) 55%, transparent) 50%, transparent 70%); transform: translateX(-100%); }
+.motion .lph:has(img:not([data-ok]))::after { opacity: 1; animation: shimmer 1.3s ease-in-out infinite; }
+@keyframes shimmer { to { transform: translateX(100%); } }
+.motion .lph img[loading='lazy'] { transition: opacity 0.35s ease-out, transform 0.5s var(--ease-out); }
+.motion .lph img[loading='lazy']:not([data-ok]) { opacity: 0; }
+
+/* Chip "Ho capito così": compaiono a scatti leggeri, uno dopo l'altro */
+.understood .chip { animation: chip-in 0.3s var(--ease-spring) both; }
+.understood .chip:nth-child(2) { animation-delay: 40ms; }
+.understood .chip:nth-child(3) { animation-delay: 80ms; }
+.understood .chip:nth-child(4) { animation-delay: 120ms; }
+.understood .chip:nth-child(n + 5) { animation-delay: 160ms; }
+.understood .chip.stay { animation: none; }
+@keyframes chip-in { from { opacity: 0; transform: scale(0.9); } }
+
+/* Bottoni: si "premono" un poco */
+.btn { transition: opacity 0.15s, border-color 0.15s, transform 0.12s var(--ease-out); }
+.btn:active:not([disabled]) { transform: scale(0.97); }
+
+/* Lente della ricerca: si inclina quando il campo è attivo */
+.search > svg { transition: transform 0.3s var(--ease-spring); }
+.search:focus-within > svg { transform: rotate(-12deg) scale(1.06); }
+
+@media (hover: hover) and (pointer: fine) {
+  /* Marchio: la freccia fa un giro (giro.shop), il quadrato si gonfia appena */
+  .mark { transition: transform 0.3s var(--ease-spring); }
+  .mark .arrow { transform-origin: 16px 16px; }
+  .brand:hover .mark { transform: scale(1.06); }
+  .brand:hover .mark .arrow { animation: giro 0.7s var(--ease-out); }
+  @keyframes giro { from { transform: rotate(0); } to { transform: rotate(-360deg); } }
+
+  /* Card: la foto si avvicina un poco, l'icona di categoria (senza foto) si inclina */
+  .lph img, .lph .ico { transition: transform 0.5s var(--ease-out), opacity 0.35s ease-out; }
+  .lcard:hover .lph img { transform: scale(1.04); }
+  .lcard:hover .lph .ico { transform: scale(1.08) rotate(-4deg); }
+
+  /* Icone della barra: un piccolo salto */
+  .top nav .nav-ico, .top nav .rail-ico { transition: transform 0.25s var(--ease-spring); }
+  .top nav a:hover .nav-ico, .top nav a:hover .rail-ico { transform: translateY(-2px); }
+  .top nav .nav-sell:hover .rail-ico { transform: rotate(90deg); }
+}

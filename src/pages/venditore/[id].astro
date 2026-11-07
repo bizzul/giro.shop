@@ -78,7 +78,7 @@ const memberSince = new Date(stats.memberSince).toLocaleDateString('it-CH', { mo
         ) : (
           <div class="cards">
             {forSale.map((l, i) => (
-              <ListingCard listing={l} verdict={priceVerdict(l)} eager={i < 4} />
+              <ListingCard listing={l} verdict={priceVerdict(l)} eager={i < 4} index={i} />
             ))}
           </div>
         )

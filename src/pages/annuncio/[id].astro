@@ -482,7 +482,7 @@ const canTranslate = Boolean(claudeKey());
           <h2>Annunci simili</h2>
         </div>
         <div class="cards">
-          {similar.map((h) => <ListingCard listing={h.listing} verdict={h.verdict} />)}
+          {similar.map((h, i) => <ListingCard listing={h.listing} verdict={h.verdict} index={i} />)}
         </div>
       </section>
     )

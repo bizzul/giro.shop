@@ -229,7 +229,9 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(THEME_SCRIPT).
     </footer>
     <script>
       import { initRail } from '../lib/rail.ts';
+      import { initMotion } from '../lib/motion.ts';
       initRail();
+      initMotion();
     </script>
   </body>
 </html>

@@ -46,6 +46,8 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUG
 </form>
 
 <script>
+  import { keepSteady } from '../lib/motion.ts';
+
   // Ricerca dal vivo: mentre scrivi, il server rimanda solo la griglia dei risultati.
   // Senza JavaScript il form continua a funzionare: Invio apre /cerca?q=…
   // Il menu "Ordina per" sta nei risultati ma appartiene a questo form (attributo form="ricerca").
@@ -104,7 +106,10 @@ const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUG
       try {
         const res = await fetch(`/risultati?vista=${mode}&${key}`, { signal: controller.signal });
         if (!res.ok) throw new Error(String(res.status));
-        target.innerHTML = await res.text();
+        const html = await res.text();
+        const steady = keepSteady(target);
+        target.innerHTML = html;
+        steady();
         shown = key;
         // Due secondi e mezzo senza scrivere: la ricerca è quella
         clearTimeout(settle);
