@@ -90,6 +90,13 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(HAND_SCRIPT).d
 const THEME_SCRIPT =
   "try{var t=localStorage.getItem('giro:tema');if(t==='chiaro'||t==='scuro'){document.documentElement.dataset.tema=t;var c=t==='scuro'?'#0b0b0c':'#ffffff';document.querySelectorAll('meta[name=theme-color]').forEach(function(m){m.content=c})}}catch{}";
 Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(THEME_SCRIPT).digest('base64')}`);
+// Passaggio tra le pagine (stili in global.css, "Transizioni tra pagine"): la foto della card toccata vola fino alla foto
+// grande dell'annuncio, e torna nella sua card con Indietro. Il nome di transizione va solo su quella card, al momento:
+// pageswap sulla pagina che si lascia, pagereveal su quella che arriva (che deve essere ascoltato prima del primo disegno,
+// per questo è qui in testa). Una transizione saltata (scheda in background, link aperto da fuori) non è un errore: quiet(). Senza Navigation API (Safari fino alla 18) resta la dissolvenza semplice.
+const VT_SCRIPT =
+  "(function(){var N='foto-annuncio';function clear(){document.querySelectorAll('.lph[style*=view-transition],.hero-photo[style*=view-transition]').forEach(function(e){e.style.viewTransitionName=''})}function card(u){if(!u)return null;var p=new URL(u).pathname,c=null;document.querySelectorAll('a.lcard').forEach(function(a){if(!c&&a.pathname===p&&a.querySelector('.lph img'))c=a.querySelector('.lph')});return c}function quiet(t){var f=function(){};t.ready.catch(f);t.finished.catch(f);if(t.updateCallbackDone)t.updateCallbackDone.catch(f)}function name(c){var h=document.querySelector('.hero-photo');if(h)h.style.viewTransitionName='none';c.style.viewTransitionName=N}addEventListener('pageswap',function(e){var t=e.viewTransition;if(!t)return;quiet(t);clear();var c=card(e.activation&&e.activation.entry&&e.activation.entry.url);if(c)name(c)});addEventListener('pagereveal',function(e){var t=e.viewTransition;if(!t)return;quiet(t);clear();var a=window.navigation&&navigation.activation,c=card(a&&a.from&&a.from.url);if(!c)return;name(c);t.finished.then(clear,clear)})})();";
+Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(VT_SCRIPT).digest('base64')}`);
 ---
 
 <!doctype html>
@@ -135,12 +142,13 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(THEME_SCRIPT).
     <meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)" />
     <script is:inline set:html={HAND_SCRIPT} />
     <script is:inline set:html={THEME_SCRIPT} />
+    <script is:inline set:html={VT_SCRIPT} />
   </head>
   <body>
     <a class="skip" href="#contenuto">Vai al contenuto</a>
     <header class="top">
       <div class="wrap top-in">
-        <a class="brand" href="/" aria-label="giro.shop, pagina iniziale">
+        <a class="brand" href="/" aria-label="giro.shop, pagina iniziale" data-astro-prefetch>
           <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
             <rect x="1" y="1" width="30" height="30" rx="9"></rect>
             <g class="arrow">
@@ -157,6 +165,7 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(THEME_SCRIPT).
               <a
                 href={item.href}
                 class={item.href === '/cerca' ? 'nav-search' : 'nav-ai'}
+                data-astro-prefetch
                 aria-current={path.startsWith(item.href) ? 'page' : undefined}
               >
                 {item.href === '/cerca' && (
@@ -172,7 +181,7 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(THEME_SCRIPT).
           <UserMenu server:defer>
             <span slot="fallback" class="nav-ghost" aria-hidden="true">Accedi</span>
           </UserMenu>
-          <a class="btn primary nav-sell" href="/vendi" aria-current={path.startsWith('/vendi') ? 'page' : undefined}>
+          <a class="btn primary nav-sell" href="/vendi" data-astro-prefetch aria-current={path.startsWith('/vendi') ? 'page' : undefined}>
             <svg class="rail-ico" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M8 2.5v11M2.5 8h11" />
             </svg>
@@ -190,7 +199,7 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(THEME_SCRIPT).
     <footer class="foot">
       <div class="wrap foot-in">
         <div class="foot-brand">
-          <a class="brand" href="/" aria-label="giro.shop, pagina iniziale">
+          <a class="brand" href="/" aria-label="giro.shop, pagina iniziale" data-astro-prefetch>
             <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
               <rect x="1" y="1" width="30" height="30" rx="9"></rect>
               <g class="arrow">

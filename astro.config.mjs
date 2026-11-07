@@ -18,6 +18,10 @@ export default defineConfig({
   output: 'server',
   adapter: node({ mode: 'standalone' }),
   integrations: [preact()],
+  // Precaricamento solo dei link segnati con data-astro-prefetch (card, testata): passandoci sopra col mouse
+  // o arrivandoci con Tab la pagina parte già, al clic arriva subito. Mai tutti i link (alcuni GET cambiano qualcosa).
+  // Con risparmio dati o rete lenta Astro aspetta il clic.
+  prefetch: { prefetchAll: false, defaultStrategy: 'hover' },
   // Il controllo dei moduli da altri siti è nel middleware (src/lib/origin-check.ts), con le eccezioni OAuth
   // CSP: solo gli script del sito (Astro calcola gli hash dei suoi script e stili); niente plugin, niente <base> estranei.
   // Gli attributi style dei componenti restano permessi. frame-ancestors lo aggiunge il middleware (lib/security-headers.ts).

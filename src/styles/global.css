@@ -453,3 +453,13 @@ h3 { font-size: 18px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01e
   .top nav a:hover .nav-ico, .top nav a:hover .rail-ico { transform: translateY(-2px); }
   .top nav .nav-sell:hover .rail-ico { transform: rotate(90deg); }
 }
+
+/* Transizioni tra pagine: invece del lampo bianco la pagina nuova sfuma sulla vecchia (solo CSS, nessun router).
+   La foto dell'annuncio ha un nome: arrivando da una card la foto si allarga fin qui (il nome sulla card lo mette
+   lo script VT_SCRIPT in Layout.astro). Browser senza supporto: la pagina si carica come sempre. */
+@view-transition { navigation: auto; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.2s; }
+.hero-photo { view-transition-name: foto-annuncio; }
+::view-transition-group(foto-annuncio) { animation-duration: 0.38s; animation-timing-function: var(--ease-out); }
+::view-transition-old(foto-annuncio), ::view-transition-new(foto-annuncio) { height: 100%; object-fit: cover; }

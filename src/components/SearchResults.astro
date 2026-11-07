@@ -144,7 +144,7 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
           {mode === 'home' ? 'Ultimi annunci' : 'Tutti gli annunci'}
           {mode === 'cerca' && <span class="muted"> · {total}</span>}
         </h2>
-        {mode === 'home' && <a href="/cerca">Tutti gli annunci</a>}
+        {mode === 'home' && <a href="/cerca" data-astro-prefetch>Tutti gli annunci</a>}
       </div>
     )
   }

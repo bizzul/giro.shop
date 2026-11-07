@@ -34,7 +34,7 @@ const badges = [
   .slice(0, 2);
 ---
 
-<a class="lcard" href={listingPath(listing)} data-lat={comune?.lat} data-lon={comune?.lon} style={index ? `--i:${index}` : undefined}>
+<a class="lcard" href={listingPath(listing)} data-astro-prefetch data-lat={comune?.lat} data-lon={comune?.lon} style={index ? `--i:${index}` : undefined}>
   <div class="lph">
     {
       badges.length > 0 && (
