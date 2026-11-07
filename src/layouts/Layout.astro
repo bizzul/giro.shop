@@ -34,6 +34,32 @@ const nav = [
   { href: '/cerca', label: 'Cerca' },
   { href: '/connetti', label: 'Assistente AI' },
 ];
+const footerNav = [
+  {
+    title: 'Compra e vendi',
+    links: [
+      { href: '/cerca', label: 'Cerca annunci' },
+      { href: '/vendi', label: 'Vendi un oggetto' },
+      { href: '/svuota-casa', label: 'Svuota casa' },
+      { href: '/cercasi', label: 'Cercasi' },
+    ],
+  },
+  {
+    title: 'Aiuto',
+    links: [
+      { href: '/sicurezza', label: 'Comprare e vendere sicuri' },
+      { href: '/connetti', label: 'Assistente AI' },
+    ],
+  },
+  {
+    title: 'Note legali',
+    links: [
+      { href: '/privacy', label: 'Privacy' },
+      { href: '/condizioni', label: "Condizioni d'uso" },
+    ],
+  },
+];
+const year = new Date().getFullYear();
 ---
 
 <!doctype html>
@@ -121,12 +147,40 @@ const nav = [
     <PlacePicker />
     <Toasts />
     <footer class="foot">
-      <div class="wrap">
-        <span>
-          giro.shop · prototipo, annunci di prova · <a href="/cercasi">Cercasi</a> · <a href="/sicurezza">Comprare e vendere sicuri</a> · <a href="/privacy">Privacy</a> ·{' '}
-          <a href="/condizioni">Condizioni d'uso</a>
-        </span>
-        <span>Nomi, prezzi e annunci sono inventati per provare ricerca, stime e connettore MCP.</span>
+      <div class="wrap foot-in">
+        <div class="foot-brand">
+          <a class="brand" href="/" aria-label="giro.shop, pagina iniziale">
+            <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+              <rect x="1" y="1" width="30" height="30" rx="9"></rect>
+              <g class="arrow">
+                <circle cx="15" cy="13" r="5.6"></circle>
+                <path d="M20.6 13V20a5 5 0 0 1-5 5H11.5"></path>
+                <path d="M14 22.4L11.5 25L14 27.6"></path>
+              </g>
+            </svg>
+            <span class="wordmark">giro<span class="tld">.shop</span></span>
+          </a>
+          <p>Compra e vendi in Ticino.</p>
+        </div>
+        <nav class="foot-nav" aria-label="Piè di pagina">
+          {
+            footerNav.map((group) => (
+              <div class="foot-col">
+                <h2 class="label">{group.title}</h2>
+                <ul>
+                  {group.links.map((link) => (
+                    <li>
+                      <a href={link.href} aria-current={path === link.href ? 'page' : undefined}>
+                        {link.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          }
+        </nav>
+        <p class="foot-legal">© {year} giro.shop</p>
       </div>
     </footer>
     <script>
