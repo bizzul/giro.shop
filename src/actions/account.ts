@@ -6,6 +6,7 @@ import { getListing, photoUrl, refreshListings } from '../core/store.ts';
 import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
 import { EMAIL_GROUPS, EMAIL_MODES, offKindsFromGroups, type EmailMode } from '../core/email-prefs.ts';
 import { normalizeSwissMobile } from '../core/phone.ts';
+import { HANDS } from '../core/hand.ts';
 import { MIN_PHOTOS, planPhotoOrder } from '../core/photos.ts';
 import { invalidateListingPages } from '../lib/cache.ts';
 import { afterPriceChange, afterPublish, afterSale, afterTextChange } from '../lib/listing-events.ts';
@@ -143,6 +144,18 @@ export const account = {
       const { error } = await supabase.from('profiles').update({ email_mode: mode, email_off: off }).eq('id', user.id);
       if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Preferenza non salvata: ${error.message}` });
       return { mode, on: EMAIL_GROUPS.filter((g) => group.includes(g.key)).length };
+    },
+  }),
+
+  /** Da che lato sta la barra dei comandi su telefono: a destra, oppure a sinistra per chi è mancino. */
+  setHand: defineAction({
+    accept: 'form',
+    input: z.object({ hand: z.enum(HANDS) }),
+    handler: async ({ hand }, context) => {
+      const { supabase, user } = requireUser(context);
+      const { error } = await supabase.from('profiles').update({ left_handed: hand === 'sinistra' }).eq('id', user.id);
+      if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Preferenza non salvata: ${error.message}` });
+      return { hand };
     },
   }),
 

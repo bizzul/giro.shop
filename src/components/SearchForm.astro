@@ -27,7 +27,7 @@ const SUGGESTIONS = [
 const { value = '', autofocus = false, target, mode = 'cerca', suggestions = SUGGESTIONS } = Astro.props;
 ---
 
-<form id="ricerca" class="search dock" action="/cerca" method="get" role="search" data-live={target ? '' : undefined} data-target={target} data-mode={mode}>
+<form id="ricerca" class="search dock" action="/cerca" method="get" role="search" data-bottom-ui data-live={target ? '' : undefined} data-target={target} data-mode={mode}>
   <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5"></circle><path d="M11 11l3.5 3.5"></path></svg>
   <label class="sr" for="q">Cosa cerchi</label>
   <input

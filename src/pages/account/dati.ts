@@ -13,7 +13,7 @@ export const GET: APIRoute = async ({ locals, redirect }) => {
 
   const [{ data: auth }, { data: profile }, { data: listings }, { data: conversations }] = await Promise.all([
     supabase.auth.getUser(),
-    supabase.from('profiles').select('display_name, created_at, phone_verified_at, email_mode, email_off, suspended_at, suspended_reason').eq('id', user.id).maybeSingle(),
+    supabase.from('profiles').select('display_name, created_at, phone_verified_at, email_mode, email_off, left_handed, suspended_at, suspended_reason').eq('id', user.id).maybeSingle(),
     supabase
       .from('listings')
       .select('id, status, title, description, category_id, condition, price_chf, negotiable, shipping, shipping_chf, comune_id, tags, attributes, created_at, published_at, expires_at, sold_at, sold_price_chf, photos:listing_photos(storage_path, position), history:price_history(price_chf, changed_at)')

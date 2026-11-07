@@ -142,15 +142,76 @@ h3 { font-size: 18px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01e
   .top nav .btn { padding: 10px 14px; }
   .top nav .nav-ghost { width: 28px; overflow: hidden; }
 }
-/* Su telefono c'è poco spazio: i salvati si raggiungono da Avvisi e dal proprio account */
-@media (max-width: 640px) {
-  .top nav a.nav-saved { display: none; }
-}
-@media (max-width: 400px) {
-  .top nav { gap: 14px; }
-}
-@media (max-width: 360px) {
-  .wordmark { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Icone che servono solo nella barra del telefono (Vendi, Accedi): sopra i 760px resta la parola */
+.top nav .rail-ico { display: none; width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Telefono: i comandi lasciano l'angolo in alto, lontano dal pollice, e diventano una barra sul lato.
+   A destra, oppure a sinistra per chi ha scelto "mancino" nel profilo (<html data-mano="sinistra">).
+   Dall'alto in basso: account, Salvati, Avvisi, Messaggi, Cerca (solo se in basso non c'è già la ricerca) e Vendi,
+   l'azione principale, dove il pollice arriva senza sforzo. Ancorata in basso: quando arriva il menu account
+   cresce verso l'alto e Vendi non si sposta.
+   Sta sopra le barre fissate in basso (--rail-lift, calcolato da lib/rail.ts), esce di lato quando si scorre
+   verso il basso o si scrive in un campo, e torna scorrendo verso l'alto. */
+@media (max-width: 760px) {
+  .top-in { padding-block: 16px; }
+  .top nav {
+    position: fixed;
+    z-index: 45;
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(12px + var(--rail-lift, var(--rail-guess, env(safe-area-inset-bottom, 0px))));
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 8px;
+    background: var(--surface-2);
+    box-shadow: 0 0 0 1px var(--line), var(--shadow-dock);
+  }
+  /* Prima che lo script misuri: già sopra le barre note, per non vederla saltare */
+  body:has(.search.dock) .top nav { --rail-guess: calc(68px + env(safe-area-inset-bottom, 0px)); }
+  body:has(.buybar) .top nav { --rail-guess: calc(62px + env(safe-area-inset-bottom, 0px)); }
+  /* Le animazioni partono dopo la prima misura, non al caricamento */
+  .rail-ready .top nav { transition: bottom 0.22s ease-out, transform 0.25s ease-out, opacity 0.2s; }
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    .top nav {
+      background: color-mix(in srgb, var(--surface-2) 84%, transparent);
+      -webkit-backdrop-filter: blur(14px) saturate(1.4);
+      backdrop-filter: blur(14px) saturate(1.4);
+    }
+  }
+  :root[data-mano='sinistra'] .top nav { right: auto; left: max(12px, env(safe-area-inset-left, 0px)); }
+
+  /* Ogni comando è un bersaglio da 44px */
+  .top nav a:not(.btn), .top nav .btn, .top nav .nav-ghost { position: relative; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 4px; }
+  .top nav a[aria-current='page']:not(.btn) { background: var(--surface); }
+  .top nav a.nav-ai { display: none; }
+  .top nav .nav-ico { width: 20px; height: 20px; }
+  .top nav .nav-count { top: 5px; left: 23px; }
+  .top nav .nav-ghost { width: 44px; }
+
+  .top nav .nav-account, .top nav .nav-login, .top nav .nav-ghost { order: 1; }
+  .top nav .nav-saved { order: 2; }
+  .top nav .nav-alerts { order: 3; }
+  .top nav .nav-messages:not(.nav-alerts) { order: 4; }
+  .top nav .nav-search { order: 5; }
+  .top nav .nav-sell { order: 6; margin-top: 2px; }
+  body:has(.search.dock) .top nav .nav-search { display: none; }
+
+  .top nav .rail-ico { display: block; width: 20px; height: 20px; }
+  .top nav .nav-sell .rail-ico { stroke-width: 1.9; }
+  .top nav .rail-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* Fuori di lato: scorrendo verso il basso, o mentre si scrive (la tastiera prende il posto) */
+  .rail-away .top nav,
+  body:has(:is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='button'], [type='submit'], [type='file']), textarea, select):focus) .top nav {
+    transform: translateX(calc(100% + 24px));
+    opacity: 0;
+    pointer-events: none;
+  }
+  :root[data-mano='sinistra'].rail-away .top nav,
+  :root[data-mano='sinistra'] body:has(:is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='button'], [type='submit'], [type='file']), textarea, select):focus) .top nav {
+    transform: translateX(calc(-100% - 24px));
+  }
 }
 
 /* Bottoni, chip, badge: quasi squadrati */

@@ -432,7 +432,7 @@ const canTranslate = Boolean(claudeKey());
 
   {
     !sold && (
-      <div class="buybar" data-buybar>
+      <div class="buybar" data-buybar data-bottom-ui>
         {photo && <img src={photo.srcSmall} alt="" width="56" height="42" decoding="async" />}
         <span class="bb-info">
           <span class="bb-price mono">{formatChf(listing.priceChf)}</span>

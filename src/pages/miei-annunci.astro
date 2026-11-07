@@ -22,6 +22,7 @@ const nameResult = Astro.getActionResult(actions.account.updateName);
 const statusResult = Astro.getActionResult(actions.account.setListingStatus);
 const deleteResult = Astro.getActionResult(actions.account.deleteListing);
 const emailResult = Astro.getActionResult(actions.account.setEmailNotices);
+const handResult = Astro.getActionResult(actions.account.setHand);
 const renewResult = Astro.getActionResult(actions.account.renewListing);
 const phoneStart = Astro.getActionResult(actions.account.startPhoneVerification);
 const phoneConfirm = Astro.getActionResult(actions.account.confirmPhone);
@@ -32,9 +33,11 @@ const { data: authData } = await supabase.auth.getUser();
 const authUser = authData.user;
 const verifiedPhone = authUser?.phone && authUser.phone_confirmed_at ? `+${authUser.phone}` : null;
 const pendingPhone = phoneStart?.data?.phone ?? (authUser?.new_phone ? `+${authUser.new_phone}` : null);
-const error = [nameResult, statusResult, deleteResult, signOut, emailResult, renewResult, deleted].find((r) => r?.error)?.error?.message;
+const error = [nameResult, statusResult, deleteResult, signOut, emailResult, handResult, renewResult, deleted].find((r) => r?.error)?.error?.message;
 const notice = renewResult?.data
   ? `Rinnovato: resta online fino ${formatDay(renewResult.data.expires, 'al')}.`
+  : handResult?.data
+  ? `Su telefono la barra dei comandi ora sta ${handResult.data.hand === 'sinistra' ? 'a sinistra' : 'a destra'}.`
   : emailResult?.data
   ? emailResult.data.on
     ? 'Email degli avvisi accese.'
@@ -62,7 +65,7 @@ const assistants = await connectionsOf(user.id);
 
 const { data: profile } = await supabase
   .from('profiles')
-  .select('display_name, phone_verified_at, email_mode, email_off, is_moderator, suspended_at, suspended_reason')
+  .select('display_name, phone_verified_at, email_mode, email_off, left_handed, is_moderator, suspended_at, suspended_reason')
   .eq('id', user.id)
   .single();
 const { data: rows } = await supabase
@@ -213,6 +216,36 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
             ))
           }
           <p class="muted small">Le decisioni di moderazione sui tuoi contenuti arrivano sempre subito, tranne con «Mai».</p>
+        </fieldset>
+        <noscript><button class="btn" type="submit">Salva</button></noscript>
+      </form>
+    </section>
+
+    <section class="panel hand-panel" id="mano" aria-labelledby="mano-title">
+      <h2 id="mano-title">Su telefono</h2>
+      <p class="muted small">Cerca, messaggi, avvisi, account e Vendi stanno in una barra sul lato, sotto il pollice. Scegli da che parte.</p>
+      <form class="hand-form" method="POST" action={actions.account.setHand} autocomplete="off">
+        <fieldset>
+          <legend class="sr">Lato della barra dei comandi</legend>
+          {
+            (['destra', 'sinistra'] as const).map((hand) => (
+              <label class="hand-choice">
+                <input type="radio" name="hand" value={hand} checked={(profile?.left_handed ? 'sinistra' : 'destra') === hand} />
+                <svg class="hand-phone" viewBox="0 0 40 64" aria-hidden="true">
+                  <rect class="hp-body" x="1" y="1" width="38" height="62" rx="7" />
+                  <rect class="hp-line" x="7" y="9" width="14" height="3" rx="1.5" />
+                  <rect class="hp-line" x="7" y="16" width="26" height="2" rx="1" />
+                  <rect class="hp-line" x="7" y="21" width="20" height="2" rx="1" />
+                  <rect class="hp-dock" x="5" y="53" width="30" height="6" rx="2" />
+                  <rect class="hp-rail" x={hand === 'destra' ? 29 : 5} y="27" width="6" height="22" rx="2" />
+                </svg>
+                <span>
+                  {hand === 'destra' ? 'A destra' : 'A sinistra'}
+                  <span class="muted small">{hand === 'destra' ? 'Per chi usa il telefono con la destra.' : 'Per chi è mancino.'}</span>
+                </span>
+              </label>
+            ))
+          }
         </fieldset>
         <noscript><button class="btn" type="submit">Salva</button></noscript>
       </form>
@@ -401,12 +434,26 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
   // Nome ed email degli avvisi: niente bottone "Salva", si salva uscendo dal campo o cambiando la casella
   import { actions } from 'astro:actions';
   import { autosave } from '../lib/autosave.ts';
+  import { applyHand, type Hand } from '../core/hand.ts';
 
   const nameForm = document.querySelector<HTMLFormElement>('form.name-form');
   if (nameForm) {
     autosave(nameForm, {
       save: (form) => actions.account.updateName(form),
       message: () => 'Nome salvato: è quello che vedono gli altri',
+    });
+  }
+  // Lato della barra su telefono: si sposta subito, poi si salva nel profilo
+  const handForm = document.querySelector<HTMLFormElement>('form.hand-form');
+  if (handForm) {
+    handForm.addEventListener('change', (event) => {
+      const input = event.target as HTMLInputElement;
+      if (input.name === 'hand') applyHand(input.value as Hand);
+    });
+    autosave(handForm, {
+      save: (form) => actions.account.setHand(form),
+      message: (_label, data) =>
+        (data as { hand: Hand }).hand === 'sinistra' ? 'Su telefono la barra sta a sinistra' : 'Su telefono la barra sta a destra',
     });
   }
   const emailForm = document.querySelector<HTMLFormElement>('form.email-form');
@@ -455,6 +502,20 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
   .email-form legend { margin-bottom: 4px; }
   /* Con "Mai" i tipi non contano: restano modificabili ma in secondo piano */
   .email-form:has(input[value='mai']:checked) .email-kinds { opacity: 0.5; }
+  /* Lato della barra su telefono: due scelte con un telefono disegnato */
+  .hand-panel { gap: 12px; }
+  .hand-panel h2 { font: 500 16px/1.3 var(--f-body); letter-spacing: 0; }
+  .hand-form fieldset { display: flex; flex-wrap: wrap; gap: 12px; border: 0; padding: 0; margin: 0; }
+  .hand-choice { position: relative; display: flex; align-items: center; gap: 14px; min-width: 220px; flex: 1; max-width: 320px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2); font-size: 15px; cursor: pointer; }
+  .hand-choice:has(input:checked) { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+  .hand-choice:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .hand-choice input { position: absolute; opacity: 0; pointer-events: none; }
+  .hand-choice .small { display: block; margin-top: 2px; }
+  .hand-phone { width: 30px; height: 48px; flex: none; }
+  .hp-body { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; }
+  .hp-line { fill: var(--line-strong); opacity: 0.5; }
+  .hp-dock { fill: var(--line-strong); opacity: 0.35; }
+  .hp-rail { fill: var(--ink); }
   .name-panel summary { cursor: pointer; font-size: 14px; }
   .name-form { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-top: 12px; }
   .name-form .fld { flex: 1; min-width: 200px; }

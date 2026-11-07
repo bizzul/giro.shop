@@ -45,7 +45,7 @@ const STATUS: Record<string, string> = { pubblicato: 'In vendita', in_trattativa
 
     <Thread conversation={conversation} userId={user.id} />
 
-    <form class="composer" method="POST" action={actions.messages.send}>
+    <form class="composer" method="POST" action={actions.messages.send} data-bottom-ui>
       <input type="hidden" name="conversationId" value={conversation.id} />
       <label class="sr" for="body">Messaggio</label>
       <textarea id="body" name="body" rows="2" maxlength="2000" placeholder={`Scrivi a ${conversation.otherName}`}></textarea>

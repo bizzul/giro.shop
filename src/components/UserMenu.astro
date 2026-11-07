@@ -7,15 +7,17 @@ import { unreadCount } from '../lib/messages.ts';
 
 const { user, supabase } = Astro.locals;
 let name: string | null = null;
+let leftHanded = false;
 let unread = 0;
 let alerts = 0;
 if (user && supabase) {
   const [{ data }, count, notices] = await Promise.all([
-    supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
+    supabase.from('profiles').select('display_name, left_handed').eq('id', user.id).maybeSingle(),
     unreadCount(supabase, user.id),
     supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('read_at', null),
   ]);
   name = data?.display_name ?? null;
+  leftHanded = data?.left_handed ?? false;
   unread = count;
   alerts = notices.count ?? 0;
 }
@@ -50,8 +52,22 @@ if (user && supabase) {
         <span class="nav-avatar" aria-hidden="true">{(name ?? '?').trim().charAt(0).toUpperCase()}</span>
         <span class="nav-text nav-name">{name ?? 'Il mio account'}</span>
       </a>
+      {/* Il lato della barra su telefono segue l'account anche su un dispositivo nuovo (chiave come in core/hand.ts) */}
+      <script is:inline define:vars={{ hand: leftHanded ? 'sinistra' : 'destra' }}>
+        if (hand === 'sinistra') document.documentElement.dataset.mano = 'sinistra';
+        else delete document.documentElement.dataset.mano;
+        try {
+          localStorage.setItem('giro:mano', hand);
+        } catch {}
+      </script>
     </>
   ) : (
-    <a href="/accedi">Accedi</a>
+    <a href="/accedi" class="nav-login">
+      <svg class="rail-ico" viewBox="0 0 16 16" aria-hidden="true">
+        <circle cx="8" cy="5.5" r="2.75" />
+        <path d="M2.75 14a5.25 5.25 0 0 1 10.5 0" />
+      </svg>
+      <span class="rail-text">Accedi</span>
+    </a>
   )
 }
