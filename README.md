@@ -35,6 +35,8 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 - **Frasi al posto dei filtri.** «scrivania in legno sotto i 150 franchi vicino a Lugano» diventa categoria, prezzo,
   zona con raggio e materiale. Ogni filtro capito è un chip che si toglie con un clic; i risultati si aggiornano mentre
   scrivi, senza ricaricare la pagina.
+- **Si scorre e basta.** Gli annunci arrivano a pagine da 24 mentre scorri, anche nella home; l'indirizzo ricorda fin
+  dove sei arrivato. Senza JavaScript resta il bottone «Mostra altri».
 - **Ricerca per significato.** «sofà» trova il divano, «Fahrrad» le bici, «per fare il caffè» la macchina del caffè,
   anche se l'annuncio non contiene quelle parole. Usa un modello che gira sul server (EmbeddingGemma), non un servizio
   esterno. Gli annunci trovati così sono segnati «stesso significato» e vengono dopo quelli con le parole esatte;
@@ -155,6 +157,11 @@ Due indirizzi per Claude o un altro client MCP:
 
 ### Sul telefono
 
+- La ricerca sta in basso, sotto il pollice, e sale sopra la tastiera.
+- Cerca, messaggi, avvisi, salvati, account e **Vendi** stanno in una barra sul lato, sopra la ricerca o la barra
+  della scheda. Esce di lato scorrendo verso il basso e torna scorrendo verso l'alto.
+- Per chi è mancino la barra va a sinistra: si sceglie nella pagina dell'account e vale su tutti i dispositivi.
+
 ![Ricerca e scheda annuncio sul telefono](docs/screenshots/13-telefono.webp)
 
 ## Come è fatto
@@ -227,7 +234,7 @@ Il sito gira sul Mac mini di casa con Supabase in locale ed è pubblico attraver
 sito e l'API di Supabase che serve ai browser. Per aggiornarlo, dal MacBook:
 
 ```bash
-git push macmini main && ssh macmini ~/piazza/deploy/macmini/aggiorna.sh
+git push macmini main && ssh macmini 'piazza/deploy/macmini/aggiorna.sh'
 ```
 
 Tutto il resto (porte, avvio automatico, email vere, riavvii) è in [deploy/macmini/LEGGIMI.md](deploy/macmini/LEGGIMI.md).

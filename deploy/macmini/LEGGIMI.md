@@ -28,7 +28,7 @@ Le porte di Supabase sono diverse da quelle di wintax (54321–54329): le scegli
 Dal MacBook, nella cartella del progetto:
 
 ```bash
-git push macmini main && ssh macmini ~/piazza/deploy/macmini/aggiorna.sh
+git push macmini main && ssh macmini 'piazza/deploy/macmini/aggiorna.sh'
 ```
 
 `aggiorna.sh` installa le dipendenze, applica le nuove migrazioni, rifà la build e riavvia il sito. I dati restano.

@@ -217,8 +217,17 @@ try {
   await page.goto(`${BASE}/moderazione`);
   await shot(page, '12-moderazione', { full: true, maxHeight: 1400 });
 
-  // Telefono: home e scheda, affiancate
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'it-CH', colorScheme: 'light', reducedMotion: 'reduce' });
+  // Telefono: ricerca e scheda, affiancate. Con l'accesso di prova, per vedere tutta la barra dei comandi sul lato
+  const phone = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    locale: 'it-CH',
+    colorScheme: 'light',
+    reducedMotion: 'reduce',
+    storageState: await desktop.storageState(),
+  });
   await phone.addInitScript(HIDE_DEV_TOOLBAR);
   const mobile = await phone.newPage();
   await mobile.goto(`${BASE}/cerca?q=${encodeURIComponent('bici da corsa')}`);
