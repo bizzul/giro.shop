@@ -115,6 +115,8 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
       <div class="head-actions">
         <a class="btn primary" href="/vendi">Nuovo annuncio</a>
         <a class="btn" href="/salvati">Salvati</a>
+        {/* Come ti vedono gli altri; con l'account sospeso il profilo non è visibile */}
+        {!profile?.suspended_at && <a class="btn" href={`/venditore/${user.id}`}>Profilo pubblico</a>}
         {profile?.is_moderator && <a class="btn" href="/moderazione">Moderazione</a>}
         <form method="POST" action={actions.account.signOut}>
           <button class="btn" type="submit">Esci</button>

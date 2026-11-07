@@ -25,6 +25,15 @@ test('accesso con il link via email', async () => {
   await expect(page.getByRole('heading', { name: 'Email degli avvisi' })).toBeVisible();
 });
 
+test('dal proprio account al profilo pubblico', async () => {
+  await page.goto('/miei-annunci');
+  const name = (await page.getByRole('heading', { level: 1 }).textContent())?.trim() ?? '';
+  await page.getByRole('link', { name: 'Profilo pubblico' }).click();
+  await expect(page).toHaveURL(/\/venditore\/[0-9a-f-]{36}$/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(name);
+  await expect(page.getByRole('heading', { name: 'In vendita' })).toBeVisible();
+});
+
 test('salvare una ricerca dai risultati', async () => {
   const q = 'bici da corsa sotto i 900 franchi';
   await page.goto(`/cerca?q=${encodeURIComponent(q)}`);
