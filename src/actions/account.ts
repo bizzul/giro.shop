@@ -16,6 +16,7 @@ import { afterPriceChange, afterPriceEdit, afterPublish, afterSale, afterTextCha
 import { siteOrigin } from '../lib/notify.ts';
 import { adminClient } from '../lib/admin.ts';
 import { disconnect } from '../lib/oauth.ts';
+import { storePhoto, type StoredPhoto } from '../lib/photo-store.ts';
 
 /** Spedizione dal form: casella "si spedisce" e costo facoltativo. */
 const shippingFields = {
@@ -312,16 +313,16 @@ export const account = {
         .single();
       if (error || !listing) throw new ActionError({ code: 'BAD_REQUEST', message: `Non ho pubblicato l'annuncio: ${error?.message}` });
 
-      // Foto nella cartella dell'utente: foto/<utente>/<annuncio>/<n>.jpg
-      const rows: Array<{ listing_id: string; storage_path: string; position: number }> = [];
+      // Foto nella cartella dell'utente: foto/<utente>/<annuncio>/<n>.jpg, con la miniatura <n>-sm.webp accanto
+      const rows: Array<StoredPhoto & { listing_id: string; position: number }> = [];
       for (const [i, file] of files.entries()) {
         const path = `${user.id}/${listing.id}/${i}.${EXTENSION[file.type as ImageMediaType]}`;
-        const { error: uploadError } = await supabase.storage.from('foto').upload(path, file, { contentType: file.type });
-        if (uploadError) {
+        const stored = await storePhoto(supabase, path, file, file.type);
+        if (stored.error !== null) {
           await supabase.from('listings').delete().eq('id', listing.id);
-          throw new ActionError({ code: 'BAD_REQUEST', message: `Caricamento della foto ${i + 1} non riuscito: ${uploadError.message}` });
+          throw new ActionError({ code: 'BAD_REQUEST', message: `Caricamento della foto ${i + 1} non riuscito: ${stored.error}` });
         }
-        rows.push({ listing_id: listing.id, storage_path: path, position: i });
+        rows.push({ listing_id: listing.id, position: i, ...stored.photo });
       }
       if (rows.length) {
         const { error: photoError } = await supabase.from('listing_photos').insert(rows);
@@ -511,14 +512,14 @@ export const account = {
 
       const { data: current, error: readError } = await supabase
         .from('listings')
-        .select('id, title, description, price_chf, photos:listing_photos(id, storage_path, position)')
+        .select('id, title, description, price_chf, photos:listing_photos(id, storage_path, small_path, position)')
         .eq('id', input.id)
         .eq('seller_id', user.id)
         .maybeSingle();
       if (readError || !current) throw new ActionError({ code: 'NOT_FOUND', message: 'Annuncio non trovato tra i tuoi.' });
 
       // Prima si controllano le foto: se qualcosa non va, l'annuncio resta com'era
-      const photos = (current.photos ?? []) as Array<{ id: number; storage_path: string; position: number }>;
+      const photos = (current.photos ?? []) as Array<{ id: number; storage_path: string; small_path: string | null; position: number }>;
       const files = (input.photos ?? []).filter((f) => f.size > 0);
       const plan = planPhotoOrder(input.order ?? [], photos.map((p) => p.storage_path), files.length);
       if (!plan.ok) throw new ActionError({ code: 'BAD_REQUEST', message: plan.error });
@@ -551,15 +552,15 @@ export const account = {
       if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Modifiche non salvate: ${error.message}` });
       if (settings) await saveListingSettings(supabase, user.id, input.id, settings);
 
-      // Foto nuove nella cartella dell'utente
-      const uploaded = new Map<number, string>();
+      // Foto nuove nella cartella dell'utente, con la miniatura accanto
+      const uploaded = new Map<number, StoredPhoto>();
       for (const slot of plan.slots) {
         if (slot.kind !== 'new') continue;
         const file = files[slot.fileIndex];
         const path = `${user.id}/${input.id}/${Date.now()}-${slot.fileIndex}.${EXTENSION[file.type as ImageMediaType]}`;
-        const { error: uploadError } = await supabase.storage.from('foto').upload(path, file, { contentType: file.type });
-        if (uploadError) throw new ActionError({ code: 'BAD_REQUEST', message: `Caricamento di "${file.name}" non riuscito: ${uploadError.message}` });
-        uploaded.set(slot.fileIndex, path);
+        const stored = await storePhoto(supabase, path, file, file.type);
+        if (stored.error !== null) throw new ActionError({ code: 'BAD_REQUEST', message: `Caricamento di "${file.name}" non riuscito: ${stored.error}` });
+        uploaded.set(slot.fileIndex, stored.photo);
       }
 
       // Posizioni nell'ordine scelto: la prima è la copertina
@@ -568,7 +569,7 @@ export const account = {
         const result =
           slot.kind === 'existing'
             ? await supabase.from('listing_photos').update({ position }).eq('id', byPath.get(slot.path)!.id)
-            : await supabase.from('listing_photos').insert({ listing_id: input.id, storage_path: uploaded.get(slot.fileIndex), position });
+            : await supabase.from('listing_photos').insert({ listing_id: input.id, position, ...uploaded.get(slot.fileIndex)! });
         if (result.error) throw new ActionError({ code: 'BAD_REQUEST', message: `Foto non salvate: ${result.error.message}` });
       }
 
@@ -577,7 +578,8 @@ export const account = {
       const removed = photos.filter((p) => !kept.has(p.storage_path));
       if (removed.length) {
         await supabase.from('listing_photos').delete().in('id', removed.map((p) => p.id));
-        const own = removed.map((p) => p.storage_path).filter((path) => path.startsWith(`${user.id}/`));
+        // Anche le miniature
+        const own = removed.flatMap((p) => [p.storage_path, p.small_path ?? '']).filter((path) => path.startsWith(`${user.id}/`));
         if (own.length) {
           const { data: gone, error: removeError } = await supabase.storage.from('foto').remove(own);
           if (removeError || (gone?.length ?? 0) < own.length) console.warn(`[piazza] foto non cancellate dallo storage: ${removeError?.message ?? own.join(', ')}`);
@@ -594,7 +596,7 @@ export const account = {
         afterPriceEdit(input.id);
       }
       // Le foto come sono ora, nell'ordine: chi salva da solo (senza ricaricare) le usa per non rimandarle
-      const paths = plan.slots.map((slot) => (slot.kind === 'existing' ? slot.path : uploaded.get(slot.fileIndex)!));
+      const paths = plan.slots.map((slot) => (slot.kind === 'existing' ? slot.path : uploaded.get(slot.fileIndex)!.storage_path));
       return { id: input.id, photos: paths.map((path) => ({ path, url: photoUrl(path) })) };
     },
   }),

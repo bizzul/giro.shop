@@ -274,6 +274,9 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
   Senza chiave tutto il resto funziona.
 - **EmbeddingGemma** (via transformers.js, sul server, circa 200 MB scaricati una volta) per la ricerca per significato;
   i vettori stanno in una tabella che solo il server legge e scrive.
+- **Foto:** il browser le riduce a 1568 px (e le ridisegna se hanno la posizione GPS); il server salva accanto una
+  miniatura WebP da 480 px per le schede degli elenchi (`src/lib/photo-store.ts`, con sharp) e le dimensioni vere. Senza
+  miniatura le pagine usano la foto intera.
 - **Intestazioni di sicurezza** su tutte le risposte del server (`src/lib/security-headers.ts`): HSTS, niente cornici da
   altri siti (offerte, pagamenti e cancellazioni non si possono far cliccare di nascosto), `nosniff`, Referrer-Policy e
   Permissions-Policy (la posizione solo per «Distanze da te»). I moduli da altri siti si rifiutano nel middleware.
@@ -319,14 +322,15 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 
 | Comando | Cosa verifica |
 | --- | --- |
-| `pnpm test` | 140 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, SEO, intestazioni di sicurezza, coordinate GPS delle foto, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
-| `pnpm test:e2e` | 33 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi, comune dalla foto o dalla posizione (e foto inviate senza), avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente |
+| `pnpm test` | 150 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, passkey, SEO, intestazioni di sicurezza, coordinate GPS e miniature delle foto, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
+| `pnpm test:e2e` | 34 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi (con la miniatura della foto nelle schede), comune dalla foto o dalla posizione (e foto inviate senza), avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente |
 | `pnpm test:db` | 118 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger, pagamenti, tariffe) |
 | `pnpm test:moderazione` | 37 controlli sull'agente di moderazione con un modello finto che segue un copione |
 | `pnpm test:oauth` | 25 controlli sul login OAuth del connettore con il client MCP ufficiale |
 | `pnpm mcp:smoke` | Prova il server MCP via HTTP |
 | `pnpm screenshots` | Rifà le immagini di questo README |
 | `pnpm email:anteprima <cartella>` | Anteprima delle email (accesso, avviso, riassunto) per computer e telefono |
+| `pnpm foto:miniature` | Crea le miniature che mancano alle foto caricate (foto di prima delle miniature, o una non riuscita) |
 | `pnpm email:modelli` | Rigenera i modelli delle email di Supabase dal disegno comune (`src/lib/email-design.ts`) |
 
 Tutto serve `pnpm exec supabase start`; i controlli anche `pnpm dev` acceso. Puliscono quello che creano.

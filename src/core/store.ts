@@ -19,7 +19,7 @@ export const LISTING_SELECT = `
   status, published_at, created_at, expires_at, sold_price_chf, seller_id, buyer_id, shipping, shipping_chf, highlights,
   seller:profiles!listings_seller_id_fkey(display_name, phone_verified_at, shop:shops(name, active_until)),
   promotions(ends_at),
-  photos:listing_photos(storage_path, position, credit, width, height),
+  photos:listing_photos(storage_path, small_path, position, credit, width, height),
   history:price_history(price_chf, changed_at),
   questions(id, body, answer, created_at, answered_at, helpful, asker:profiles!questions_asker_id_fkey(display_name))
 `;
@@ -80,7 +80,7 @@ interface Row {
   highlights?: string[] | null;
   seller: { display_name: string; phone_verified_at: string | null; shop?: { name: string; active_until: string | null } | null } | null;
   promotions?: Array<{ ends_at: string }>;
-  photos: Array<{ storage_path: string; position: number; credit: PhotoCredit | null; width: number | null; height: number | null }>;
+  photos: Array<{ storage_path: string; small_path?: string | null; position: number; credit: PhotoCredit | null; width: number | null; height: number | null }>;
   history?: Array<{ price_chf: number | string; changed_at: string }>;
   questions?: Array<{
     id: string;
@@ -101,8 +101,9 @@ export function rowToListing(row: Row): Listing {
       const src = photoUrl(p.storage_path);
       return {
         src,
-        // Le foto di esempio hanno una versione piccola accanto; quelle caricate no.
-        srcSmall: p.storage_path.startsWith('/foto/') ? src.replace(/\.webp$/, '-sm.webp') : src,
+        // Versione piccola per le schede: quella caricata accanto alla foto (small_path), o quella delle foto di esempio;
+        // le foto vecchie senza miniatura usano la foto intera.
+        srcSmall: p.small_path ? photoUrl(p.small_path) : p.storage_path.startsWith('/foto/') ? src.replace(/\.webp$/, '-sm.webp') : src,
         width: p.width ?? 1280,
         height: p.height ?? 960,
         credit: p.credit,

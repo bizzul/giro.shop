@@ -19,6 +19,7 @@ import { forgetSavedSearches } from '../lib/demand.ts';
 import { allow } from '../lib/claude.ts';
 import { afterPriceChange, afterPublish, afterSale, afterTextChange } from '../lib/listing-events.ts';
 import { fetchImage, ImageFetchError } from '../lib/fetch-image.ts';
+import { storePhoto } from '../lib/photo-store.ts';
 import type { AccessGrant } from '../lib/oauth.ts';
 import type { Scope } from '../core/oauth.ts';
 
@@ -207,11 +208,12 @@ export function registerAccountTools(server: McpServer, options: AccountToolsOpt
 
       for (const [i, photo] of photos.entries()) {
         const path = `${userId}/${listing.id}/${i}.${EXTENSION[photo.type]}`;
-        const { error: uploadError } = await admin.storage.from('foto').upload(path, photo.bytes, { contentType: photo.type });
-        const { error: rowError } = uploadError ? { error: uploadError } : await admin.from('listing_photos').insert({ listing_id: listing.id, storage_path: path, position: i });
-        if (uploadError || rowError) {
+        // Con la miniatura accanto (src/lib/photo-store.ts)
+        const stored = await storePhoto(admin, path, photo.bytes, photo.type);
+        const { error: rowError } = stored.error !== null ? { error: null } : await admin.from('listing_photos').insert({ listing_id: listing.id, position: i, ...stored.photo });
+        if (stored.error !== null || rowError) {
           await admin.from('listings').delete().eq('id', listing.id);
-          return fail(`Foto ${i + 1} non salvata (${(uploadError ?? rowError)?.message}): nessun annuncio creato.`);
+          return fail(`Foto ${i + 1} non salvata (${stored.error ?? rowError?.message}): nessun annuncio creato.`);
         }
       }
 

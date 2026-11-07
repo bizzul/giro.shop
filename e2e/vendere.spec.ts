@@ -69,6 +69,15 @@ test('Scatta e vendi: foto, bozza, pubblicazione', async () => {
   listingId = new URL(seller.url()).pathname.split('/').pop()!;
   await expect(seller.getByRole('heading', { level: 1 })).toHaveText(title);
   await expect(seller.locator('.price, [data-price]').first()).toContainText('320');
+
+  // Accanto alla foto c'è la miniatura WebP, ed è quella che usano le schede degli elenchi
+  const { data: photo } = await admin.from('listing_photos').select('small_path, width, height').eq('listing_id', listingId).single();
+  expect(photo?.small_path).toMatch(/-sm\.webp$/);
+  expect(photo?.width).toBeGreaterThan(0);
+  const small = await seller.request.get(admin.storage.from('foto').getPublicUrl(photo!.small_path!).data.publicUrl);
+  expect(small.headers()['content-type']).toBe('image/webp');
+  await seller.goto(`/cerca?q=${encodeURIComponent(title)}`);
+  await expect(seller.locator('.lcard', { hasText: title }).locator('img')).toHaveAttribute('src', /-sm\.webp$/);
 });
 
 test('chi aveva salvato «sofà» riceve l\'avviso del divano', async () => {

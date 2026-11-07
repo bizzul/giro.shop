@@ -8,6 +8,7 @@ import type { Listing } from '../core/types.ts';
 import { normalize } from '../core/text.ts';
 import { adminClient } from './admin.ts';
 import { fetchImage, ImageFetchError } from './fetch-image.ts';
+import { storePhoto } from './photo-store.ts';
 import { afterPriceChange, afterPublish } from './listing-events.ts';
 
 /**
@@ -143,8 +144,8 @@ export async function importCatalog(supabase: SupabaseClient, userId: string, ro
     }
     for (const [i, photo] of photos.entries()) {
       const path = `${userId}/${listing.id}/${i}.${EXTENSION[photo.type]}`;
-      const { error: uploadError } = await supabase.storage.from('foto').upload(path, photo.bytes, { contentType: photo.type });
-      if (!uploadError) await supabase.from('listing_photos').insert({ listing_id: listing.id, storage_path: path, position: i });
+      const stored = await storePhoto(supabase, path, photo.bytes, photo.type);
+      if (stored.error === null) await supabase.from('listing_photos').insert({ listing_id: listing.id, position: i, ...stored.photo });
     }
     (photos.length ? published : drafts).push(listing.id);
   }
