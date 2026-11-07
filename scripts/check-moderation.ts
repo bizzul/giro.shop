@@ -23,6 +23,7 @@ const results: Array<{ check: string; ok: boolean; detail?: string }> = [];
 const expect = (check: string, ok: boolean, detail?: string) => results.push({ check, ok, detail });
 const tag = Math.random().toString(36).slice(2, 8);
 const ORIGIN = 'http://localhost:4321';
+const started = new Date().toISOString();
 
 async function makeUser(name: string): Promise<{ client: SupabaseClient; id: string }> {
   const email = `${name}-${tag}@esempio.test`;
@@ -227,6 +228,8 @@ try {
   expect('esecuzione', false, (error as Error).stack ?? String(error));
 } finally {
   if (targets.length) await admin.from('moderation_actions').delete().in('target', targets);
+  // Le proposte dell'agente avvisano tutti i moderatori, anche quelli veri (es. l'utente di prova): via gli avvisi della verifica
+  await admin.from('notifications').delete().eq('kind', 'segnalazione').eq('url', '/moderazione').gte('created_at', started);
   for (const id of users) await admin.auth.admin.deleteUser(id);
 }
 

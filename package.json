@@ -19,7 +19,8 @@
     "test:db": "node scripts/check-db.ts",
     "test:moderazione": "node scripts/check-moderation.ts",
     "test:oauth": "node scripts/check-oauth.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "screenshots": "node scripts/screenshots.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.5.0",
