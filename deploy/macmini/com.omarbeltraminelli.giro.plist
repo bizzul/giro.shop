@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- giro.shop sul Mac mini: il server Astro su 127.0.0.1:4321 (lo raggiunge solo il tunnel). Vedi LEGGIMI.md -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.omarbeltraminelli.giro</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/obmd/piazza</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>--env-file=/Users/obmd/piazza/.env</string>
+    <string>--max-http-header-size=65536</string>
+    <string>/Users/obmd/piazza/dist/server/entry.mjs</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOST</key>
+    <string>127.0.0.1</string>
+    <key>PORT</key>
+    <string>4321</string>
+    <key>NODE_ENV</key>
+    <string>production</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/obmd/Library/Logs/giro.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/obmd/Library/Logs/giro.log</string>
+</dict>
+</plist>

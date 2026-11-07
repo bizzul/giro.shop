@@ -1,0 +1,14 @@
+# Tunnel Cloudflare «giro»: giro.omarbeltraminelli.com → Mac mini.
+# Le credenziali del tunnel stanno in ~/.cloudflared (non nel repository).
+# Passano solo: l'API di Supabase che serve ai browser (accesso, dati con le regole RLS, foto) e il sito.
+# Studio, database, Mailpit e il resto di Kong (/pg, /functions, ...) restano raggiungibili solo dal Mac mini.
+tunnel: 958638c6-e364-4501-b1cf-1676858c2552
+credentials-file: /Users/obmd/.cloudflared/958638c6-e364-4501-b1cf-1676858c2552.json
+ingress:
+  - hostname: giro.omarbeltraminelli.com
+    path: ^/(auth|rest|storage)/v1/
+    service: http://127.0.0.1:54421
+  - hostname: giro.omarbeltraminelli.com
+    service: http://127.0.0.1:4321
+  # nient'altro passa dal tunnel
+  - service: http_status:404
