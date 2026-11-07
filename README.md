@@ -243,8 +243,9 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
 - Informativa sulla privacy (nLPD) e condizioni d'uso, con le regole della comunità prese dalla stessa fonte usata
   dall'agente di moderazione.
 - **Scarica i tuoi dati** (un file JSON con tutto) ed **elimina l'account** dalla pagina dell'account.
-- Solo cookie tecnici, niente tracciamento. Accesso con link via email, senza password; chi vuole aggiunge una passkey
-  dall'account (impronta, viso o PIN) ed entra senza aspettare l'email. Visite agli annunci e ricerche si
+- Solo cookie tecnici, niente tracciamento. Accesso con link via email, senza password; subito dopo il primo accesso
+  il sito propone di salvare una passkey (impronta, viso o PIN, una volta sola e solo a chi non ne ha), che si aggiunge
+  anche dall'account: la volta dopo si entra senza aspettare l'email. Visite agli annunci e ricerche si
   contano solo in forma anonima (vedi l'informativa: «Conteggi anonimi»).
 - Coordinate delle foto e posizione del telefono restano nel browser: al server arriva solo il comune. Le foto con la
   posizione si ridisegnano prima dell'invio, così nell'annuncio non resta dove sono state scattate.
@@ -332,8 +333,8 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 
 | Comando | Cosa verifica |
 | --- | --- |
-| `pnpm test` | 153 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, passkey, SEO, indirizzi con il titolo e pagine /usato, intestazioni di sicurezza, coordinate GPS e miniature delle foto, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
-| `pnpm test:e2e` | 35 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi (con la miniatura della foto nelle schede), bozza ritrovata dopo l'accesso, comune dalla foto o dalla posizione (e foto inviate senza), avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente, passkey (aggiunta, accesso senza email e rimozione, con un autenticatore virtuale) |
+| `pnpm test` | 157 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, passkey, SEO, indirizzi con il titolo e pagine /usato, categorie, intestazioni di sicurezza, coordinate GPS e miniature delle foto, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
+| `pnpm test:e2e` | 36 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi (con la miniatura della foto nelle schede), bozza ritrovata dopo l'accesso, comune dalla foto o dalla posizione (e foto inviate senza), avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente, passkey (proposta dopo l'accesso, aggiunta, accesso senza email e rimozione, con un autenticatore virtuale) |
 | `pnpm test:db` | 118 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger, pagamenti, tariffe) |
 | `pnpm test:moderazione` | 37 controlli sull'agente di moderazione con un modello finto che segue un copione |
 | `pnpm test:oauth` | 25 controlli sul login OAuth del connettore con il client MCP ufficiale |

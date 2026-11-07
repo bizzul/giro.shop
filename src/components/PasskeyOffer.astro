@@ -1,0 +1,68 @@
+---
+/**
+ * Dopo un accesso con il link via email, a chi non ha ancora una passkey: «Salva una passkey» per entrare
+ * la volta dopo con impronta, viso o PIN, senza aspettare l'email. Lo decide il ritorno dal link
+ * (src/pages/auth/callback.ts, cookie giro_offri_passkey); qui il riquadro c'è sempre ma resta nascosto,
+ * così le pagine in cache vanno bene per tutti.
+ */
+---
+
+<aside class="passkey-offer wrap" data-passkey-offer hidden aria-labelledby="passkey-offer-title">
+  <div class="po-box">
+    <div class="po-text">
+      <h2 id="passkey-offer-title" tabindex="-1">La prossima volta, entra con un tocco</h2>
+      <p>Salva una passkey su questo dispositivo: entrerai con l'impronta, il viso o il PIN, senza aspettare il link.</p>
+      <p class="po-error error" role="alert" hidden></p>
+    </div>
+    <div class="po-actions">
+      <button class="btn primary" type="button" data-passkey-save>Salva una passkey</button>
+      <button class="btn" type="button" data-passkey-later>Non ora</button>
+    </div>
+  </div>
+</aside>
+
+<script>
+  import { addPasskey } from '../lib/passkey-add.ts';
+  import { passkeysSupported } from '../lib/webauthn.ts';
+  import { toast } from '../lib/toast.ts';
+
+  const COOKIE = 'giro_offri_passkey';
+  const box = document.querySelector<HTMLElement>('[data-passkey-offer]');
+  const wanted = document.cookie.split('; ').some((c) => c === `${COOKIE}=1`);
+  if (box && wanted) {
+    // Si propone una volta sola per accesso
+    document.cookie = `${COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
+    if (passkeysSupported()) {
+      box.hidden = false;
+      const save = box.querySelector<HTMLButtonElement>('[data-passkey-save]')!;
+      const later = box.querySelector<HTMLButtonElement>('[data-passkey-later]')!;
+      const error = box.querySelector<HTMLElement>('.po-error')!;
+      save.addEventListener('click', async () => {
+        save.disabled = true;
+        error.hidden = true;
+        const result = await addPasskey();
+        save.disabled = false;
+        if (result.ok) {
+          box.hidden = true;
+          toast('Passkey salvata: la prossima volta tocca «Entra con una passkey»');
+        } else if (result.message) {
+          error.textContent = result.message;
+          error.hidden = false;
+        }
+      });
+      later.addEventListener('click', () => {
+        box.hidden = true;
+      });
+    }
+  }
+</script>
+
+<style>
+  .passkey-offer { margin-top: 16px; }
+  .po-box { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; padding: 18px 20px; border-radius: 8px; background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
+  .po-text { display: grid; gap: 4px; max-width: 560px; }
+  .po-text h2 { font: 500 17px/1.3 var(--f-display); letter-spacing: -0.01em; }
+  .po-text p { font-size: 14px; color: var(--muted); }
+  .po-text .error { color: inherit; }
+  .po-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+</style>

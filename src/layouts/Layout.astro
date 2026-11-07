@@ -7,6 +7,7 @@ import instrumentLatin from '../assets/fonts/instrument-sans-latin.woff2?url';
 import martianLatin from '../assets/fonts/martian-mono-latin.woff2?url';
 import UserMenu from '../components/UserMenu.astro';
 import PlacePicker from '../components/PlacePicker.astro';
+import PasskeyOffer from '../components/PasskeyOffer.astro';
 import Toasts from '../components/Toasts.astro';
 import { jsonLdScript } from '../core/seo.ts';
 import { siteOrigin } from '../lib/notify.ts';
@@ -150,6 +151,7 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(HAND_SCRIPT).d
       </div>
     </header>
     <main id="contenuto">
+      <PasskeyOffer />
       <slot />
     </main>
     <PlacePicker />
