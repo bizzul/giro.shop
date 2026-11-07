@@ -19,6 +19,17 @@ export const CATEGORY_IDS = [
   'collezionismo',
   'giardino',
   'affitti',
+  'immobili',
+  'lavoro',
+  'servizi',
+  'animali',
+  'libri',
+  'sport',
+  'eventi',
+  'viaggi',
+  'salute',
+  'gastronomia',
+  'affari',
   'altro',
 ] as const;
 
