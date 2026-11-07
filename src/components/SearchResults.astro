@@ -356,6 +356,19 @@ const chipHref = (text: string) => (text ? `/cerca?q=${encodeURIComponent(text)}
   .place-btn { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; border: 0; background: none; padding: 0; color: var(--muted); font: 400 13.5px/1.4 var(--f-body); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
   .place-btn:hover { color: var(--ink); }
   .place-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+  /* Telefono: il titolo prende tutta la riga e «Distanze da te» va a capo dal lato opposto alla barra laterale
+     (che sta a destra, o a sinistra per chi è mancino), così all'apertura non ci finisce sotto.
+     I comandi di testo si toccano su circa 40px d'altezza senza spostare niente. */
+  @media (max-width: 760px) {
+    .bar { justify-content: flex-start; }
+    .browse-h { flex-basis: 100%; justify-content: flex-start; }
+    .place-btn { margin-left: 0; }
+    :global(:root[data-mano='sinistra']) .bar { justify-content: space-between; }
+    :global(:root[data-mano='sinistra']) .browse-h { justify-content: space-between; }
+    :global(:root[data-mano='sinistra']) .place-btn { margin-left: auto; }
+    .place-btn, .browse-h a, .save-search { position: relative; }
+    .place-btn::after, .browse-h a::after, .save-search::after { content: ''; position: absolute; inset: -10px -6px; }
+  }
   .sort select {
     font: 500 14px/1.4 var(--f-body);
     color: var(--ink);

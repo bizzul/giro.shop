@@ -1,9 +1,11 @@
+import type { APIContext, MiddlewareNext } from 'astro';
 import { defineMiddleware } from 'astro:middleware';
 import { configureStore, refreshListings } from './core/store.ts';
 import { createRequestClient, SUPABASE_KEY, SUPABASE_SERVER_URL, SUPABASE_URL } from './lib/supabase.ts';
 import { maybeRunMaintenance } from './lib/maintenance.ts';
 import { invalidateListingPages } from './lib/cache.ts';
 import { crossSiteResponse, isCrossSiteForm } from './lib/origin-check.ts';
+import { withSecurityHeaders } from './lib/security-headers.ts';
 
 configureStore(SUPABASE_SERVER_URL, SUPABASE_KEY, SUPABASE_URL);
 
@@ -38,6 +40,11 @@ const PUBLIC_PATHS = new Set([
 ]);
 
 export const onRequest = defineMiddleware(async (context, next) => {
+  // Le intestazioni di sicurezza valgono per tutte le risposte, anche per quelle che finiscono in cache
+  return withSecurityHeaders(await handle(context, next), context.url);
+});
+
+async function handle(context: APIContext, next: MiddlewareNext): Promise<Response> {
   // Moduli da altri siti: rifiutati, tranne gli endpoint OAuth dei token (vedi lib/origin-check.ts)
   if (isCrossSiteForm(context.request, context.url)) return crossSiteResponse(context.request);
   await refreshListings();
@@ -70,4 +77,4 @@ export const onRequest = defineMiddleware(async (context, next) => {
     // Alcune risposte (es. redirect) hanno intestazioni non modificabili.
   }
   return response;
-});
+}

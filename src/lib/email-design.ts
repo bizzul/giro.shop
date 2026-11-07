@@ -120,7 +120,7 @@ export function emailLayout({ origin, preheader, body, footer = '' }: LayoutInpu
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <title>giro.shop</title>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500&family=Instrument+Sans:wght@400;500&family=Martian+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="${origin}/fonts/fonts.css" rel="stylesheet">
 <style>
   @media (max-width: 600px) {
     .giro-pad { padding: 24px 20px !important; }

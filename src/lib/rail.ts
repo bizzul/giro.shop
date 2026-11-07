@@ -4,7 +4,8 @@
  *   cioè gli elementi con [data-bottom-ui]: lo spazio che occupano diventa --rail-lift;
  * - esce di lato quando si scorre verso il basso (classe rail-away su <html>) e torna scorrendo verso l'alto,
  *   così non copre gli annunci mentre si guarda;
- * - esce anche quando è aperta la tastiera (classe rail-kb), che prende il suo posto.
+ * - esce anche quando è aperta la tastiera (classe rail-kb), che prende il suo posto;
+ * - esce finché il fuoco sta su un comando che coprirebbe (tastiera fisica, comandi vocali).
  */
 const PHONE = '(max-width: 760px)';
 /** Scorrimento minimo prima di nascondere o mostrare la barra, per non farla tremolare. */
@@ -21,6 +22,8 @@ export function initRail() {
   const phone = matchMedia(PHONE);
   let lastY = scrollY;
   let away = false;
+  /** Il fuoco è su un comando che la barra coprirebbe. */
+  let covered = false;
   let frame = 0;
 
   /** Quanto occupano dal fondo dello schermo le barre fissate in basso che si vedono ora. */
@@ -53,7 +56,7 @@ export function initRail() {
     else if (delta > STEP) away = true;
     else if (delta < -STEP) away = false;
     if (Math.abs(delta) > STEP || y < TOP) lastY = y;
-    root.classList.toggle('rail-away', away);
+    root.classList.toggle('rail-away', away || covered);
     root.classList.toggle('rail-kb', keyboardOpen());
   }
 
@@ -77,6 +80,25 @@ export function initRail() {
   // Le barre in basso entrano ed escono con una transizione (es. quella della scheda annuncio)
   document.addEventListener('transitionend', (event) => {
     if ((event.target as Element).closest?.('[data-bottom-ui]')) schedule();
+  });
+  // Un comando sotto la barra che prende il fuoco (tastiera, comandi vocali): la barra esce di lato finché il fuoco
+  // resta lì, così il comando si vede. La posizione della barra è quella di quando si vede: offsetLeft e offsetTop
+  // ignorano lo spostamento di lato.
+  const rail = document.querySelector<HTMLElement>('.top nav');
+  document.addEventListener('focusin', (event) => {
+    const target = event.target;
+    covered = false;
+    if (phone.matches && rail && target instanceof Element && !rail.contains(target)) {
+      const a = target.getBoundingClientRect();
+      const left = rail.offsetLeft;
+      const top = rail.offsetTop;
+      covered = a.right > left && a.left < left + rail.offsetWidth && a.bottom > top && a.top < top + rail.offsetHeight;
+    }
+    schedule();
+  });
+  document.addEventListener('focusout', () => {
+    covered = false;
+    schedule();
   });
   // Il riquadro per scrivere cresce con il testo; le server island arrivano dopo il caricamento
   if ('ResizeObserver' in window) {

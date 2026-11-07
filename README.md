@@ -80,7 +80,8 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 - Salva (cuore), confronta, scrivi a chi vende, segnala. Profilo di chi vende con valutazioni e tempi di risposta.
 - Etichette **«In vetrina»** (vetrina mirata pagata) e **«Negozio»** (account Pro); sui mobili grandi senza spedizione,
   le ditte di trasporto della zona.
-- Per Google: dati strutturati (Product/Offer), link canonici, sitemap e robots.txt.
+- Per Google: dati strutturati (Product/Offer e il percorso BreadcrumbList; in home Organization e WebSite con la
+  ricerca), link canonici, sitemap e robots.txt.
 
 <p>
   <img src="docs/screenshots/04-annuncio.webp" alt="Scheda annuncio con stima del prezzo e sintesi" width="62%">
@@ -236,6 +237,8 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
 - **Scarica i tuoi dati** (un file JSON con tutto) ed **elimina l'account** dalla pagina dell'account.
 - Solo cookie tecnici, niente tracciamento. Accesso con link via email, senza password. Visite agli annunci e ricerche si
   contano solo in forma anonima (vedi l'informativa: «Conteggi anonimi»).
+- I font (Archivo, Instrument Sans, Martian Mono) li serve il sito stesso da `public/fonts`, anche alle email: aprire una
+  pagina o un'email non manda nessuna richiesta a Google.
 
 ### Sul telefono
 
@@ -243,6 +246,8 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
 - Cerca, messaggi, avvisi, salvati, account e **Vendi** stanno in una barra sul lato, sopra la ricerca o la barra
   della scheda. Esce di lato scorrendo verso il basso e torna scorrendo verso l'alto.
 - Per chi è mancino la barra va a sinistra: si sceglie nella pagina dell'account e vale su tutti i dispositivi.
+- La barra non copre i comandi: «Distanze da te» va a capo dal lato libero e, se il fuoco della tastiera finisce su un
+  comando che sta sotto la barra, la barra si sposta finché il fuoco resta lì. I link di testo si toccano su circa 40px.
 
 ![Ricerca e scheda annuncio sul telefono](docs/screenshots/13-telefono.webp)
 
@@ -261,6 +266,9 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
   Senza chiave tutto il resto funziona.
 - **EmbeddingGemma** (via transformers.js, sul server, circa 200 MB scaricati una volta) per la ricerca per significato;
   i vettori stanno in una tabella che solo il server legge e scrive.
+- **Intestazioni di sicurezza** su tutte le risposte del server (`src/lib/security-headers.ts`): HSTS, niente cornici da
+  altri siti (offerte, pagamenti e cancellazioni non si possono far cliccare di nascosto), `nosniff`, Referrer-Policy e
+  Permissions-Policy (la posizione solo per «Distanze da te»). I moduli da altri siti si rifiutano nel middleware.
 - Lavori periodici (promemoria di scadenza, annunci scaduti, ribassi automatici, consigli sul prezzo, promemoria dei
   ritiri, prezzi di prima alla fine delle modifiche in blocco, pagamenti protetti rilasciati dopo il ritiro, riassunto
   delle email, vettori nuovi) agganciati alle richieste, al massimo ogni 15 minuti.
@@ -301,7 +309,7 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 
 | Comando | Cosa verifica |
 | --- | --- |
-| `pnpm test` | 131 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, SEO, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
+| `pnpm test` | 136 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, SEO, intestazioni di sicurezza, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
 | `pnpm test:e2e` | 30 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi, avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente |
 | `pnpm test:db` | 118 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger, pagamenti, tariffe) |
 | `pnpm test:moderazione` | 37 controlli sull'agente di moderazione con un modello finto che segue un copione |
@@ -334,6 +342,7 @@ src/
   mcp/         server MCP (HTTP e stdio) e strumenti dell'account
   pages/       pagine ed endpoint (anche /pro, /partner, /pagamento, /oauth e /.well-known)
   components/  schede, ricerca, isole Preact (Scatta e vendi, Svuota casa, comune ricercabile, foto)
+public/        font del sito e delle email, logo per le email, foto di esempio
 supabase/      configurazione, migrazioni e dati di prova
 tests/         test unitari (vitest)
 e2e/           test nel browser (Playwright)

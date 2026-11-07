@@ -56,6 +56,55 @@ export function listingJsonLd(listing: Listing, origin: string, comune?: Comune)
   };
 }
 
+/**
+ * Chi siamo per i motori di ricerca, nella home: Organization (nome, logo, zona) e WebSite (nome del sito nei
+ * risultati e indirizzo della ricerca a frasi, per chi sa usarlo).
+ */
+export function siteJsonLd(origin: string): Record<string, unknown> {
+  const org = `${origin}/#organizzazione`;
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Organization',
+        '@id': org,
+        name: 'giro.shop',
+        url: `${origin}/`,
+        logo: `${origin}/favicon.svg`,
+        description: "Il mercatino dell'usato tra privati in Ticino.",
+        areaServed: { '@type': 'AdministrativeArea', name: 'Canton Ticino' },
+      },
+      {
+        '@type': 'WebSite',
+        '@id': `${origin}/#sito`,
+        name: 'giro.shop',
+        url: `${origin}/`,
+        inLanguage: 'it-CH',
+        publisher: { '@id': org },
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: { '@type': 'EntryPoint', urlTemplate: `${origin}/cerca?q={search_term_string}` },
+          'query-input': 'required name=search_term_string',
+        },
+      },
+    ],
+  };
+}
+
+/** Il percorso fino alla pagina (BreadcrumbList): ogni passo tranne l'ultimo ha il suo indirizzo. */
+export function breadcrumbJsonLd(origin: string, steps: Array<{ name: string; path: string }>): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: steps.map((step, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: step.name,
+      item: `${origin}${step.path}`,
+    })),
+  };
+}
+
 /** JSON da mettere dentro <script type="application/ld+json">, senza poter chiudere lo script. */
 export function jsonLdScript(data: unknown): string {
   return JSON.stringify(data).replace(/</g, '\\u003c');

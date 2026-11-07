@@ -6,11 +6,13 @@ import TicinoMap from '../components/TicinoMap.astro';
 import DealOfTheDay from '../components/DealOfTheDay.astro';
 import WantedStrip from '../components/WantedStrip.astro';
 import { LISTINGS_TAG } from '../lib/cache.ts';
+import { siteJsonLd } from '../core/seo.ts';
+import { siteOrigin } from '../lib/notify.ts';
 
 Astro.cache.set({ tags: [LISTINGS_TAG] });
 ---
 
-<Layout title="giro.shop · il mercatino del Ticino">
+<Layout title="giro.shop · il mercatino del Ticino" jsonLd={siteJsonLd(siteOrigin(Astro.url.origin))}>
   <section class="wrap hero-in">
     <TicinoMap />
     <h1>Compra e vendi in Ticino, a parole tue.</h1>

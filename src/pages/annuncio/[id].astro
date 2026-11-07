@@ -14,7 +14,7 @@ import { tokenize } from '../../core/text.ts';
 import { LANGUAGES } from '../../core/claude.ts';
 import { claudeKey } from '../../lib/claude.ts';
 import { replyTime, sellerProfile } from '../../lib/sellers.ts';
-import { listingJsonLd } from '../../core/seo.ts';
+import { breadcrumbJsonLd, listingJsonLd } from '../../core/seo.ts';
 import { siteOrigin } from '../../lib/notify.ts';
 import { LISTINGS_TAG } from '../../lib/cache.ts';
 import { getListing, getPhoto, sourceName } from '../../core/store.ts';
@@ -88,7 +88,13 @@ const canTranslate = Boolean(claudeKey());
   description={listing.description}
   image={photo?.src}
   ogType="product"
-  jsonLd={listingJsonLd(listing, siteOrigin(Astro.url.origin), comune)}
+  jsonLd={[
+    listingJsonLd(listing, siteOrigin(Astro.url.origin), comune),
+    breadcrumbJsonLd(siteOrigin(Astro.url.origin), [
+      { name: 'Annunci', path: '/cerca' },
+      { name: listing.title, path: `/annuncio/${listing.id}` },
+    ]),
+  ]}
 >
   <section class="wrap band">
     <p class="crumbs muted"><a href="/cerca">Annunci</a> · {category.name}</p>

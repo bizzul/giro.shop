@@ -11,8 +11,8 @@ interface Props {
   description?: string;
   /** Immagine per le anteprime dei link condivisi (Open Graph). */
   image?: string;
-  /** Dati strutturati schema.org per i motori di ricerca. */
-  jsonLd?: Record<string, unknown>;
+  /** Dati strutturati schema.org per i motori di ricerca: uno o più blocchi. */
+  jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>;
   /** "product" per le schede annuncio, "website" per il resto. */
   ogType?: 'website' | 'product';
 }
@@ -29,6 +29,7 @@ const path = Astro.url.pathname;
 const origin = siteOrigin(Astro.url.origin);
 const canonical = `${origin}${path}`;
 const ogImage = image ? (image.startsWith('http') ? image : `${origin}${image}`) : undefined;
+const jsonLdBlocks = jsonLd ? [jsonLd].flat() : [];
 const summary = description.length > 200 ? `${description.slice(0, 197)}…` : description;
 const nav = [
   { href: '/cerca', label: 'Cerca' },
@@ -80,14 +81,13 @@ const year = new Date().getFullYear();
     <meta property="og:url" content={canonical} />
     {ogImage && <meta property="og:image" content={ogImage} />}
     <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
-    {jsonLd && <script type="application/ld+json" set:html={jsonLdScript(jsonLd)} />}
+    {jsonLdBlocks.map((data) => <script type="application/ld+json" set:html={jsonLdScript(data)} />)}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@300..700&family=Instrument+Sans:wght@400..600&family=Martian+Mono:wght@400..500&display=swap"
-    />
+    <!-- Font serviti da noi (public/fonts), niente richieste a Google: si caricano subito quelli dei caratteri latini -->
+    <link rel="preload" href="/fonts/instrument-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/martian-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/fonts/fonts.css" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)" />
     <script is:inline>
