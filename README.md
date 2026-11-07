@@ -323,7 +323,7 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 | Comando | Cosa verifica |
 | --- | --- |
 | `pnpm test` | 150 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, passkey, SEO, intestazioni di sicurezza, coordinate GPS e miniature delle foto, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
-| `pnpm test:e2e` | 34 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi (con la miniatura della foto nelle schede), comune dalla foto o dalla posizione (e foto inviate senza), avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente |
+| `pnpm test:e2e` | 34 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi (con la miniatura della foto nelle schede), comune dalla foto o dalla posizione (e foto inviate senza), avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente, passkey (aggiunta, accesso senza email e rimozione, con un autenticatore virtuale) |
 | `pnpm test:db` | 118 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger, pagamenti, tariffe) |
 | `pnpm test:moderazione` | 37 controlli sull'agente di moderazione con un modello finto che segue un copione |
 | `pnpm test:oauth` | 25 controlli sul login OAuth del connettore con il client MCP ufficiale |
@@ -348,7 +348,7 @@ sito e l'API di Supabase che serve ai browser. Per aggiornarlo, dal MacBook:
 git push macmini main && ssh macmini 'piazza/deploy/macmini/aggiorna.sh'
 ```
 
-Tutto il resto (porte, avvio automatico, email vere, riavvii) è in [deploy/macmini/LEGGIMI.md](deploy/macmini/LEGGIMI.md).
+Tutto il resto (porte, avvio automatico, email vere, dominio delle passkey, riavvii) è in [deploy/macmini/LEGGIMI.md](deploy/macmini/LEGGIMI.md).
 
 ## Struttura
 
