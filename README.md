@@ -176,6 +176,32 @@ Due indirizzi per Claude o un altro client MCP:
   <img src="docs/screenshots/11-consenso.webp" alt="Consenso OAuth per collegare Claude" width="49%">
 </p>
 
+### Ricavi
+
+Pubblicare resta gratis per i privati. Per ora ogni pagamento è **di prova**: la pagina `/pagamento/<id>` mostra il
+riepilogo e un bottone che fa come se si fosse pagato, senza addebiti (`src/lib/payments.ts` dice dove agganciare un
+fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts`.
+
+- **Pro per negozi** (`/pro`, CHF 12.90 al mese o 119.88 all'anno): la pagina venditore diventa la pagina del negozio
+  (nome, indirizzo, orari, sito, telefono) e ogni annuncio porta «Negozio»; **import del catalogo** da CSV (colonne
+  riconosciute in italiano, tedesco e inglese, separatore indovinato, anteprima con gli errori riga per riga);
+  **prezzi in blocco a parole** («tutti gli sci −20% fino a domenica»: anteprima, conferma, ritorno ai prezzi di prima
+  alla scadenza o con un tocco); i **numeri del negozio**; auto, moto e affitti senza costi.
+- **Vetrina mirata** (CHF 3 per 7 giorni): dal «I miei annunci», l'annuncio va in cima alle ricerche che gli
+  corrispondono, con l'etichetta «In vetrina», e chi ha una ricerca salvata che lo riguarda riceve subito un avviso.
+- **Annunci a pagamento** per auto (CHF 9.90), moto e scooter (4.90) e **affitti** (19.90, categoria nuova con il prezzo
+  al mese): senza Pro l'annuncio nasce in bozza e si pubblica dopo il pagamento. Lo controlla un trigger nel database,
+  quindi vale anche per il connettore MCP e per chi scrive direttamente nel database.
+- **Partner locali** (`/partner`): sgombero, traslochi, trasporto, riparazioni, pulizie, filtrati per zona. Le ditte si
+  candidano dalla pagina, chi modera le accende; compaiono dopo Svuota casa e sui mobili grandi senza spedizione. Ogni
+  richiesta di preventivo arriva al partner per email e resta registrata con la tariffa (CHF 5), da fatturare a fine mese
+  dalla pagina di moderazione.
+- **Pagamento protetto** (commissione a chi compra: 5% + 50 centesimi, al massimo CHF 30): chi compra paga dalla
+  conversazione, i soldi restano fermi; «Ho ricevuto l'oggetto» li manda a chi vende e segna l'annuncio venduto, «C'è un
+  problema» li blocca finché decide chi modera, chi vende può rimborsare. Senza problemi vanno a chi vende 2 giorni dopo
+  il ritiro. **Spento online** finché non c'è il parere di un giurista: si accende con `PIAZZA_PAGAMENTO_PROTETTO=on`
+  (in sviluppo è sempre acceso).
+
 ### Privacy e dati
 
 - Informativa sulla privacy (nLPD) e condizioni d'uso, con le regole della comunità prese dalla stessa fonte usata
@@ -245,9 +271,9 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 
 | Comando | Cosa verifica |
 | --- | --- |
-| `pnpm test` | 120 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, SEO, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa |
-| `pnpm test:e2e` | 23 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi, avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi e «lo cercano in», Svuota casa, ricerca salvata, email, collegare un assistente |
-| `pnpm test:db` | 98 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger) |
+| `pnpm test` | 129 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, SEO, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
+| `pnpm test:e2e` | 28 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi, avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente |
+| `pnpm test:db` | 117 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger, pagamenti, tariffe) |
 | `pnpm test:moderazione` | 37 controlli sull'agente di moderazione con un modello finto che segue un copione |
 | `pnpm test:oauth` | 25 controlli sul login OAuth del connettore con il client MCP ufficiale |
 | `pnpm mcp:smoke` | Prova il server MCP via HTTP |
@@ -296,7 +322,8 @@ rilancia `build`.
 
 ## Cosa manca
 
-- Servizio email vero sul Mac mini (SMTP), per accessi e avvisi fuori casa
+- Fornitore di pagamento vero (Stripe o Payrexx, con TWINT): ora tutti i pagamenti sono di prova
+- Parere di un giurista sul pagamento protetto (legge sul riciclaggio) prima di accenderlo online
 - Fornitore SMS per verificare il cellulare online
 - Chiave di Claude online per bozze da foto, traduzioni, ricerca con foto e agente di moderazione
 - Elenco ufficiale dei comuni con coordinate swisstopo (ora 33 comuni con coordinate approssimative)

@@ -13,6 +13,9 @@ import { alerts } from './alerts.ts';
 import { appeals } from './appeals.ts';
 import { messages } from './messages.ts';
 import { moderation } from './moderation.ts';
+import { partners } from './partners.ts';
+import { payments } from './payments.ts';
+import { proActions } from './pro.ts';
 import { questions } from './questions.ts';
 import { ratings } from './ratings.ts';
 import { reports } from './reports.ts';
@@ -24,6 +27,9 @@ export const server = {
   appeals,
   messages,
   moderation,
+  partners,
+  payments,
+  pro: proActions,
   questions,
   ratings,
   reports,

@@ -24,6 +24,11 @@ export const VERDICT_LABEL: Record<PriceVerdict, string> = {
 };
 
 /** Formato svizzero: CHF 1'450.– per i prezzi interi, CHF 3'699.90 con i centesimi. */
+/** Il prezzo come si legge sull'annuncio: per gli affitti è al mese. */
+export function priceText(listing: { priceChf: number; category: string }): string {
+  return listing.category === 'affitti' ? `${formatChf(listing.priceChf)} al mese` : formatChf(listing.priceChf);
+}
+
 export function formatChf(value: number): string {
   if (value === 0) return 'Regalo';
   const whole = Math.trunc(value);

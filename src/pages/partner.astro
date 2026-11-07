@@ -1,0 +1,160 @@
+---
+/**
+ * Partner locali: sgombero, traslochi, trasporto, riparazioni, pulizie in Ticino.
+ * Si filtra per servizio e zona (?servizio=, ?zona=, anche dai link di Svuota casa e degli annunci).
+ * Chi chiede un preventivo manda nome, contatto e messaggio al partner; il partner paga per ogni contatto.
+ */
+import Layout from '../layouts/Layout.astro';
+import { actions, isInputError } from 'astro:actions';
+import { partnersFor, SERVICES, type Service } from '../lib/partners.ts';
+import { getListing } from '../core/store.ts';
+
+const DISTRICTS = ['Bellinzona', 'Blenio', 'Leventina', 'Locarno', 'Lugano', 'Mendrisio', 'Riviera', 'Vallemaggia'];
+const service = (Astro.url.searchParams.get('servizio') ?? '') as Service | '';
+const zone = Astro.url.searchParams.get('zona') ?? '';
+const listingId = Astro.url.searchParams.get('annuncio') ?? '';
+const listing = listingId ? getListing(listingId) : undefined;
+const validService = service && service in SERVICES ? service : null;
+const validZone = DISTRICTS.includes(zone) ? zone : null;
+const list = await partnersFor(validService, validZone);
+
+const contacted = Astro.getActionResult(actions.partners.contact);
+const applied = Astro.getActionResult(actions.partners.apply);
+const fieldErrors = [contacted, applied].flatMap((r) => (r?.error && isInputError(r.error) ? Object.values(r.error.fields).flat() : []));
+const error = fieldErrors.join(' ') || [contacted, applied].find((r) => r?.error)?.error?.message;
+const user = Astro.locals.user;
+---
+
+<Layout title="Partner in Ticino · giro.shop" description="Sgombero, traslochi, trasporto, riparazioni e pulizie in Ticino: chiedi un preventivo a chi lavora nella tua zona.">
+  <section class="wrap band partners">
+    <header class="head">
+      <span class="label">Partner</span>
+      <h1>Una mano, vicino a casa.</h1>
+      <p class="muted">
+        Ditte del Ticino per sgomberare, traslocare, trasportare un mobile grande, riparare o pulire. Chiedi un preventivo: il tuo messaggio arriva a
+        loro, e decidi tu.
+      </p>
+    </header>
+
+    {contacted?.data && <p class="notice" role="status">Richiesta inviata: il partner ti risponde al contatto che hai lasciato.</p>}
+    {applied?.data && <p class="notice" role="status">Richiesta ricevuta: ti scriviamo appena l'abbiamo controllata.</p>}
+    {error && <p class="error" role="alert">{error}</p>}
+
+    <form class="filters" method="GET">
+      <label class="fld">
+        <span class="label">Servizio</span>
+        <select name="servizio">
+          <option value="">Tutti</option>
+          {Object.entries(SERVICES).map(([key, label]) => <option value={key} selected={key === validService}>{label}</option>)}
+        </select>
+      </label>
+      <label class="fld">
+        <span class="label">Zona</span>
+        <select name="zona">
+          <option value="">Tutto il Ticino</option>
+          {DISTRICTS.map((d) => <option value={d} selected={d === validZone}>{d}</option>)}
+        </select>
+      </label>
+      {listing && <input type="hidden" name="annuncio" value={listing.id} />}
+      <button class="btn" type="submit">Mostra</button>
+    </form>
+
+    {
+      list.length === 0 ? (
+        <div class="panel">
+          <h3>Ancora nessun partner {validService ? `per ${SERVICES[validService].toLowerCase()}` : ''} {validZone ? `in zona ${validZone}` : ''}.</h3>
+          <p class="muted">Stiamo cercando ditte serie in tutto il Ticino. Prova un'altra zona, o conosci qualcuno? Qui sotto si candida.</p>
+        </div>
+      ) : (
+        <ul class="cards">
+          {list.map((p) => (
+            <li class="panel card" id={`p-${p.id}`}>
+              <span class="label">{SERVICES[p.service]}</span>
+              <h2>{p.name}</h2>
+              <p class="muted small">{p.districts.length ? p.districts.join(', ') : 'Tutto il Ticino'}</p>
+              {p.about && <p>{p.about}</p>}
+              <p class="small links">
+                {p.phone && <a href={`tel:${p.phone.replace(/\s/g, '')}`}>{p.phone}</a>}
+                {p.website && (
+                  <a href={p.website} rel="nofollow noopener" target="_blank">
+                    {p.website.replace(/^https?:\/\//, '')}
+                  </a>
+                )}
+              </p>
+              <details class="ask" open={Boolean(contacted?.error) && Astro.url.searchParams.get('p') === p.id}>
+                <summary class="btn">Chiedi un preventivo</summary>
+                <form method="POST" action={`${actions.partners.contact}&p=${p.id}`}>
+                  <input type="hidden" name="partnerId" value={p.id} />
+                  {listing && <input type="hidden" name="listingId" value={listing.id} />}
+                  <label class="fld"><span class="label">Nome</span><input name="name" maxlength="80" required /></label>
+                  <label class="fld"><span class="label">Telefono o email</span><input name="contact" maxlength="120" required /></label>
+                  <label class="fld">
+                    <span class="label">Cosa serve</span>
+                    <textarea name="message" rows="3" maxlength="1000" required>{listing ? `Per «${listing.title}»: ` : ''}</textarea>
+                  </label>
+                  <label class="check small">
+                    <input type="checkbox" name="consent" required /> Mando nome, contatto e messaggio a {p.name} per avere un preventivo.
+                  </label>
+                  <button class="btn primary" type="submit">Invia la richiesta</button>
+                </form>
+              </details>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+
+    <details class="panel join" id="diventa">
+      <summary><b>Hai una ditta di sgomberi, traslochi o riparazioni? Diventa partner</b></summary>
+      <p class="muted small">Compari dove serve: dopo uno Svuota casa, su un mobile grande da ritirare, qui. Paghi solo i contatti che ricevi.</p>
+      <form method="POST" action={actions.partners.apply}>
+        <div class="row">
+          <label class="fld"><span class="label">Ditta</span><input name="name" maxlength="80" required /></label>
+          <label class="fld">
+            <span class="label">Servizio</span>
+            <select name="service">{Object.entries(SERVICES).map(([key, label]) => <option value={key}>{label}</option>)}</select>
+          </label>
+        </div>
+        <fieldset class="fld">
+          <legend class="label">Zone (nessuna = tutto il Ticino)</legend>
+          <div class="zones">
+            {DISTRICTS.map((d) => (
+              <label class="check small"><input type="checkbox" name="district" value={d} /> {d}</label>
+            ))}
+          </div>
+        </fieldset>
+        <label class="fld"><span class="label">Due righe su di voi</span><textarea name="about" rows="2" maxlength="400"></textarea></label>
+        <div class="row">
+          <label class="fld"><span class="label">Email per le richieste</span><input name="email" type="email" maxlength="120" value={user?.email ?? ''} required /></label>
+          <label class="fld"><span class="label">Telefono</span><input name="phone" maxlength="30" /></label>
+        </div>
+        <label class="fld"><span class="label">Sito</span><input name="website" type="url" maxlength="200" placeholder="https://" /></label>
+        <button class="btn" type="submit">Mandaci la richiesta</button>
+      </form>
+    </details>
+  </section>
+</Layout>
+
+<style>
+  .partners { display: grid; gap: 28px; max-width: 900px; }
+  .head { display: grid; gap: 12px; }
+  .head h1 { font-size: clamp(32px, 4.4vw, 48px); }
+  .notice { background: var(--surface); border-radius: 4px; padding: 10px 12px; font-size: 14px; }
+  .filters { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+  .fld { display: grid; gap: 6px; }
+  .fld input, .fld textarea, .fld select { font: 400 15px/1.4 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 10px 12px; width: 100%; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .card { gap: 8px; align-content: start; }
+  .card h2 { font: 500 20px/1.25 var(--f-display); }
+  .links { display: flex; gap: 12px; flex-wrap: wrap; }
+  .ask { width: 100%; }
+  .ask summary { list-style: none; display: inline-flex; }
+  .ask summary::-webkit-details-marker { display: none; }
+  .ask form, .join form { display: grid; gap: 12px; margin-top: 12px; }
+  .check { display: flex; gap: 8px; align-items: start; }
+  .join summary { cursor: pointer; }
+  .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+  fieldset { border: 0; padding: 0; margin: 0; }
+  .zones { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+</style>

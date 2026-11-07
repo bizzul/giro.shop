@@ -23,6 +23,10 @@ const decided = Astro.getActionResult(actions.moderation.decide);
 const undone = Astro.getActionResult(actions.moderation.undo);
 const asked = Astro.getActionResult(actions.moderation.askAgent);
 const appealed = Astro.getActionResult(actions.moderation.decideAppeal);
+const partnerSet = Astro.getActionResult(actions.moderation.partnerSet);
+const protectedDecided = Astro.getActionResult(actions.moderation.protectedDecide);
+if (partnerSet?.data) return Astro.redirect(`/moderazione?fatto=partner-${partnerSet.data.action}#partner`, 303);
+if (protectedDecided?.data) return Astro.redirect(`/moderazione?fatto=protetto-${protectedDecided.data.decision}#pagamenti`, 303);
 const riskOk = Astro.getActionResult(actions.moderation.riskOk);
 const riskHide = Astro.getActionResult(actions.moderation.riskHide);
 if (riskOk?.data) return Astro.redirect('/moderazione?fatto=rischio-ok#rischio', 303);
@@ -31,7 +35,7 @@ if (appealed?.data) return Astro.redirect(`/moderazione?fatto=contestazione-${ap
 if (decided?.data) return Astro.redirect(`/moderazione?fatto=${decided.data.decision}`, 303);
 if (undone?.data) return Astro.redirect('/moderazione?fatto=annulla#registro', 303);
 if (asked?.data) return Astro.redirect(`/moderazione?fatto=agente-${asked.data.action}`, 303);
-const error = [decided, undone, asked, appealed, riskOk, riskHide].find((r) => r?.error)?.error?.message;
+const error = [decided, undone, asked, appealed, riskOk, riskHide, partnerSet, protectedDecided].find((r) => r?.error)?.error?.message;
 const done = Astro.url.searchParams.get('fatto');
 const NOTICE: Record<string, string> = {
   nascondi: 'Nascosto: chi ha segnalato e chi ha pubblicato sono stati avvisati.',
@@ -45,7 +49,25 @@ const NOTICE: Record<string, string> = {
   'contestazione-respingi': 'Contestazione respinta: la persona ha ricevuto la tua risposta.',
   'rischio-ok': "Segnato come controllato: torna qui solo se il rischio sale.",
   'rischio-nascondi': "Annuncio nascosto: chi l'ha pubblicato è stato avvisato e può contestare.",
+  'partner-attiva': 'Partner acceso: compare nella pagina Partner e dove serve.',
+  'partner-spegni': 'Partner spento.',
+  'partner-togli': 'Richiesta tolta.',
+  'protetto-rimborsa': 'Rimborsato: chi ha pagato e chi vende sono stati avvisati.',
+  'protetto-paga': 'Pagato a chi vende: l\'annuncio è venduto.',
 };
+
+// Partner: richieste da controllare, attivi con i contatti del mese da fatturare
+const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+const [{ data: partnerRows }, { data: leadRows }, { data: disputed }] = await Promise.all([
+  admin.from('partners').select('id, name, service, districts, email, phone, website, about, fee_chf, active, created_at').order('created_at', { ascending: false }),
+  admin.from('partner_leads').select('partner_id, fee_chf').gte('created_at', monthStart),
+  admin.from('payments').select('id, description, amount_chf, metadata, created_at, user_id, payee_id').eq('kind', 'protetto').eq('status', 'contestato').order('created_at'),
+]);
+const leadsOf = new Map<string, { n: number; chf: number }>();
+for (const l of leadRows ?? []) {
+  const t = leadsOf.get(l.partner_id) ?? { n: 0, chf: 0 };
+  leadsOf.set(l.partner_id, { n: t.n + 1, chf: t.chf + Number(l.fee_chf) });
+}
 
 // Annunci a rischio truffa non ancora guardati, dal più rischioso
 const { data: riskData } = await admin
@@ -222,6 +244,39 @@ const pct = (c: number | null) => (c != null ? `${Math.round(c * 100)}%` : '');
 
     {done && NOTICE[done] && <p class="notice" role="status">{NOTICE[done]}</p>}
     {error && <p class="error" role="alert">{error}</p>}
+
+    {
+      (disputed ?? []).length > 0 && (
+        <section id="pagamenti" aria-labelledby="pagamenti-titolo">
+          <div class="section-h">
+            <h2 id="pagamenti-titolo">Pagamenti protetti contestati</h2>
+            <span class="muted small">I soldi restano fermi finché decidete</span>
+          </div>
+          <ul class="reports">
+            {(disputed ?? []).map((p) => (
+              <li class="panel">
+                <div class="r-top">
+                  <span class="badge sun">{formatChf(Number(p.amount_chf))}</span>
+                  <span class="muted small">pagato {formatAge(p.created_at)}</span>
+                </div>
+                <span class="title">{p.description}</span>
+                {(p.metadata as { dispute?: string }).dispute && <blockquote>«{(p.metadata as { dispute?: string }).dispute}»</blockquote>}
+                <div class="risk-actions">
+                  <form method="POST" action={actions.moderation.protectedDecide}>
+                    <input type="hidden" name="paymentId" value={p.id} />
+                    <button class="btn" type="submit" name="decision" value="rimborsa">Rimborsa chi ha pagato</button>
+                  </form>
+                  <form method="POST" action={actions.moderation.protectedDecide}>
+                    <input type="hidden" name="paymentId" value={p.id} />
+                    <button class="btn" type="submit" name="decision" value="paga">Paga chi vende</button>
+                  </form>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
 
     {
       risky.length > 0 && (
@@ -434,6 +489,52 @@ const pct = (c: number | null) => (c != null ? `${Math.round(c * 100)}%` : '');
                     </button>
                   </div>
                 </form>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </section>
+
+    <section id="partner" aria-labelledby="partner-titolo">
+      <div class="section-h">
+        <h2 id="partner-titolo">Partner</h2>
+        <span class="muted small">Contatti di questo mese, da fatturare</span>
+      </div>
+      {
+        (partnerRows ?? []).length === 0 ? (
+          <p class="muted small">Ancora nessuna richiesta. Le ditte si candidano dalla pagina <a href="/partner#diventa">Partner</a>.</p>
+        ) : (
+          <ul class="reports">
+            {(partnerRows ?? []).map((p) => (
+              <li class="panel">
+                <div class="r-top">
+                  <span class:list={['badge', p.active ? 'ok' : 'sun']}>{p.active ? 'Attivo' : 'Da controllare'}</span>
+                  <span class="muted small">{p.service} · {p.districts.length ? p.districts.join(', ') : 'tutto il Ticino'}</span>
+                </div>
+                <span class="title">{p.name}</span>
+                <span class="muted small">
+                  {p.email}{p.phone ? ` · ${p.phone}` : ''}{p.website ? ` · ${p.website}` : ''} · {formatChf(Number(p.fee_chf))} a contatto
+                </span>
+                {p.about && <blockquote>{p.about}</blockquote>}
+                {p.active && (
+                  <span class="small">
+                    {leadsOf.get(p.id)?.n ?? 0} contatti questo mese · {formatChf(leadsOf.get(p.id)?.chf ?? 0)}
+                  </span>
+                )}
+                <div class="risk-actions">
+                  <form method="POST" action={actions.moderation.partnerSet}>
+                    <input type="hidden" name="id" value={p.id} />
+                    {p.active ? (
+                      <button class="btn" type="submit" name="action" value="spegni">Spegni</button>
+                    ) : (
+                      <>
+                        <button class="btn" type="submit" name="action" value="attiva">Attiva</button>
+                        <button class="btn" type="submit" name="action" value="togli">Togli</button>
+                      </>
+                    )}
+                  </form>
+                </div>
               </li>
             ))}
           </ul>

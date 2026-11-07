@@ -21,6 +21,7 @@ export const ICON_PATHS: Record<string, string> = {
   vase: 'M24 8h16M26 8v8a14 14 0 00-8 14c0 12 8 26 14 26s14-14 14-26a14 14 0 00-8-14V8',
   garden: 'M32 56V30M32 30c0-10 8-18 18-18 0 10-8 18-18 18zM32 38c0-8-6-14-14-14 0 8 6 14 14 14z',
   box: 'M8 20l24-10 24 10v26L32 56 8 46zM8 20l24 10 24-10M32 30v26',
+  house: 'M8 30L32 10l24 20M14 25v29h36V25M27 54V40h10v14',
 };
 
 export function iconPath(icon: string): string {

@@ -1,0 +1,302 @@
+---
+/**
+ * giro.shop Pro, per negozi dell'usato, garage, agenzie e antiquari:
+ * chi non ce l'ha vede cosa offre e lo attiva; chi ce l'ha gestisce qui il negozio.
+ */
+import Layout from '../layouts/Layout.astro';
+import { actions } from 'astro:actions';
+import { PAID_CATEGORIES, PRO_PLANS } from '../core/pricing.ts';
+import { getCategory } from '../core/categories.ts';
+import { formatChf, formatDay, CONDITION_LABEL } from '../core/format.ts';
+import { getComune } from '../core/comuni.ts';
+import { MAX_CATALOG_ROWS } from '../core/catalog.ts';
+import { shopNumbers } from '../lib/pro.ts';
+import type { CategoryId } from '../core/types.ts';
+
+const { user, supabase } = Astro.locals;
+
+const saved = Astro.getActionResult(actions.pro.saveShop);
+const preview = Astro.getActionResult(actions.pro.bulkPreview);
+const applied = Astro.getActionResult(actions.pro.bulkApply);
+const undone = Astro.getActionResult(actions.pro.bulkUndo);
+const catalog = Astro.getActionResult(actions.pro.catalogPreview);
+const imported = Astro.getActionResult(actions.pro.catalogImport);
+const error =
+  [saved, preview, applied, undone, catalog, imported].find((r) => r?.error)?.error?.message ?? Astro.url.searchParams.get('errore')?.slice(0, 200);
+const done = Astro.url.searchParams.get('fatto');
+const notice =
+  done === 'attivo'
+    ? 'Pro attivo. Completa i dati del negozio: compaiono sulla tua pagina pubblica.'
+    : saved?.data
+      ? 'Negozio salvato.'
+      : applied?.data
+        ? `Prezzi cambiati su ${applied.data.changed} annunci${applied.data.endsAt ? `: tornano come prima ${formatDay(applied.data.endsAt, 'il')}` : ''}.`
+        : undone?.data
+          ? `Prezzi di prima rimessi su ${undone.data.restored} annunci.`
+          : imported?.data
+            ? `Importati ${imported.data.published} annunci in vendita${imported.data.drafts ? ` e ${imported.data.drafts} in bozza (senza foto)` : ''}.`
+            : null;
+
+const { data: shop } = user && supabase ? await supabase.from('shops').select('*').eq('user_id', user.id).maybeSingle() : { data: null };
+const active = Boolean(shop?.active_until && new Date(shop.active_until) > new Date());
+const numbers = active && user && supabase ? await shopNumbers(supabase, user.id) : null;
+const { data: changes } =
+  active && supabase
+    ? await supabase.from('bulk_changes').select('id, phrase, pct, ends_at, items, created_at, restored_at').order('created_at', { ascending: false }).limit(5)
+    : { data: [] };
+const paid = Object.entries(PAID_CATEGORIES).map(([id, chf]) => `${getCategory(id as CategoryId).name.toLowerCase()} (${formatChf(chf!)})`);
+const pct = (n: number) => `${n > 0 ? '+' : '−'}${Math.abs(Number(n))}%`;
+---
+
+<Layout title="Pro per negozi · giro.shop" description="giro.shop Pro: la pagina del tuo negozio, il catalogo importato da un file, prezzi cambiati in blocco a parole e i numeri delle vendite.">
+  <section class="wrap band pro">
+    <header class="pro-head">
+      <span class="label">giro.shop Pro</span>
+      <h1>{active ? shop!.name : 'Il tuo negozio, in Ticino, a parole.'}</h1>
+      {
+        active ? (
+          <p class="muted">
+            Pro attivo fino {formatDay(shop!.active_until!, 'al')} · <a href={`/venditore/${user!.id}`}>La pagina del negozio</a>
+          </p>
+        ) : (
+          <p class="muted lede">Per negozi dell'usato, garage, agenzie e antiquari: chi cerca in Ticino trova te, e tu lavori meno.</p>
+        )
+      }
+    </header>
+
+    {notice && <p class="notice" role="status">{notice}</p>}
+    {error && <p class="error" role="alert">{error}</p>}
+
+    {
+      !active && (
+        <>
+          <ul class="perks">
+            <li>
+              <b>La pagina del negozio</b>
+              <span>Nome, indirizzo, orari, sito e telefono, con tutti i tuoi annunci e il marchio «Negozio» su ogni annuncio.</span>
+            </li>
+            <li>
+              <b>Il catalogo da un file</b>
+              <span>Esporti da Excel o dal gestionale, carichi il CSV: categorie e condizioni si sistemano da sole.</span>
+            </li>
+            <li>
+              <b>Prezzi in blocco, a parole</b>
+              <span>«Tutti gli sci −20% fino a domenica»: i prezzi cambiano e poi tornano come prima.</span>
+            </li>
+            <li>
+              <b>I numeri delle vendite</b>
+              <span>Visite, salvati, contatti, vendite del mese e giorni per vendere.</span>
+            </li>
+            <li>
+              <b>Auto, moto e affitti senza costi</b>
+              <span>Per i privati la pubblicazione costa: {paid.join(', ')}.</span>
+            </li>
+          </ul>
+          <div class="plans">
+            {(Object.entries(PRO_PLANS) as Array<[keyof typeof PRO_PLANS, (typeof PRO_PLANS)[keyof typeof PRO_PLANS]]>).map(([key, plan]) => (
+              <form class="panel plan" method="POST" action="/pagamento/nuovo">
+                <span class="label">{plan.label}</span>
+                <b class="mono">{formatChf(plan.chf)}</b>
+                <input type="hidden" name="kind" value="pro" />
+                <input type="hidden" name="plan" value={key} />
+                <input type="hidden" name="back" value="/pro" />
+                {user ? (
+                  <button class={`btn ${key === 'anno' ? 'primary' : ''}`} type="submit">
+                    Attiva Pro
+                  </button>
+                ) : (
+                  <a class="btn" href="/accedi?next=/pro">
+                    Accedi per attivare
+                  </a>
+                )}
+              </form>
+            ))}
+          </div>
+        </>
+      )
+    }
+
+    {
+      active && numbers && (
+        <>
+          <ul class="numbers" aria-label="I numeri del negozio">
+            <li><b>{numbers.onSale}</b><span>in vendita{numbers.drafts ? `, ${numbers.drafts} in bozza` : ''}</span></li>
+            <li><b>{numbers.views}</b><span>visite ({numbers.viewsWeek} in 7 giorni)</span></li>
+            <li><b>{numbers.contacts}</b><span>contatti · {numbers.saves} salvati</span></li>
+            <li><b>{numbers.soldMonth}</b><span>vendite in 30 giorni{numbers.daysToSell != null ? ` · ${numbers.daysToSell} giorni per vendere` : ''}</span></li>
+          </ul>
+
+          <section class="panel" id="negozio" aria-labelledby="negozio-titolo">
+            <h2 id="negozio-titolo">Il negozio</h2>
+            <form class="shop-form" method="POST" action={actions.pro.saveShop}>
+              <label class="fld"><span class="label">Nome</span><input name="name" value={shop!.name} maxlength="60" required /></label>
+              <label class="fld"><span class="label">Chi siete</span><textarea name="about" rows="3" maxlength="600">{shop!.about ?? ''}</textarea></label>
+              <div class="row">
+                <label class="fld"><span class="label">Indirizzo</span><input name="address" value={shop!.address ?? ''} maxlength="120" /></label>
+                <label class="fld"><span class="label">Orari</span><input name="hours" value={shop!.hours ?? ''} maxlength="200" placeholder="Ma–Ve 9–12, 14–18.30; Sa 9–16" /></label>
+              </div>
+              <div class="row">
+                <label class="fld"><span class="label">Sito</span><input name="website" type="url" value={shop!.website ?? ''} maxlength="200" placeholder="https://" /></label>
+                <label class="fld"><span class="label">Telefono</span><input name="phone" value={shop!.phone ?? ''} maxlength="30" /></label>
+              </div>
+              <button class="btn primary" type="submit">Salva il negozio</button>
+            </form>
+          </section>
+
+          <section class="panel" id="blocco" aria-labelledby="blocco-titolo">
+            <h2 id="blocco-titolo">Prezzi in blocco, a parole</h2>
+            <p class="muted small">Per esempio «tutti gli sci −20% fino a domenica», «arredamento −10% per 7 giorni», «+5% su tutto». Prima vedi cosa cambia, poi confermi.</p>
+            <form class="line" method="POST" action={actions.pro.bulkPreview}>
+              <label class="sr" for="phrase">La modifica</label>
+              <input id="phrase" name="phrase" value={preview?.data?.phrase ?? ''} maxlength="200" placeholder="tutti gli sci −20% fino a domenica" required />
+              <button class="btn" type="submit">Vedi cosa cambia</button>
+            </form>
+            {preview?.data && (
+              <div class="preview">
+                <p>
+                  <b>{pct(preview.data.pct)}</b> su {preview.data.items.length === 1 ? '1 annuncio' : `${preview.data.items.length} annunci`}
+                  {preview.data.query ? ` («${preview.data.query}»)` : ' (tutti)'}
+                  {preview.data.endsAt ? `, fino ${formatDay(preview.data.endsAt, 'al')}` : ', per sempre'}.
+                </p>
+                {preview.data.items.length > 0 && (
+                  <>
+                    <ul class="changes small">
+                      {preview.data.items.map((i) => (
+                        <li><span>{i.title}</span><span class="mono">{formatChf(i.old)} → {formatChf(i.next)}</span></li>
+                      ))}
+                    </ul>
+                    <form method="POST" action={actions.pro.bulkApply}>
+                      <input type="hidden" name="phrase" value={preview.data.phrase} />
+                      <button class="btn primary" type="submit">Conferma</button>
+                    </form>
+                  </>
+                )}
+              </div>
+            )}
+            {(changes ?? []).length > 0 && (
+              <ul class="history small">
+                {(changes ?? []).map((c) => (
+                  <li>
+                    <span>
+                      «{c.phrase}» · {(c.items as unknown[]).length} annunci ·{' '}
+                      {c.restored_at ? 'prezzi di prima rimessi' : c.ends_at ? `fino ${formatDay(c.ends_at, 'al')}` : 'per sempre'}
+                    </span>
+                    {!c.restored_at && (
+                      <form method="POST" action={actions.pro.bulkUndo}>
+                        <input type="hidden" name="id" value={c.id} />
+                        <button class="btn" type="submit">Prezzi di prima</button>
+                      </form>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section class="panel" id="catalogo" aria-labelledby="catalogo-titolo">
+            <h2 id="catalogo-titolo">Importa il catalogo</h2>
+            <p class="muted small">
+              Un file CSV, una riga per oggetto, fino a {MAX_CATALOG_ROWS}. Colonne: <code>titolo</code>, <code>prezzo</code> e, se vuoi, <code>descrizione</code>,
+              <code>categoria</code>, <code>condizione</code>, <code>comune</code>, <code>foto</code> (indirizzi https, separati da spazi), <code>spedizione</code> (sì/no).
+              Con le foto gli annunci vanno in vendita subito, senza restano in bozza.
+            </p>
+            {catalog?.data ? (
+              <div class="preview">
+                <p>
+                  {catalog.data.rows.filter((r) => !r.errors.length).length} oggetti pronti
+                  {catalog.data.rows.some((r) => r.errors.length) && `, ${catalog.data.rows.filter((r) => r.errors.length).length} da correggere`}.
+                </p>
+                <div class="table-wrap">
+                  <table class="small">
+                    <thead><tr><th>Riga</th><th>Titolo</th><th>Categoria</th><th>Condizione</th><th>Prezzo</th><th>Comune</th><th>Foto</th></tr></thead>
+                    <tbody>
+                      {catalog.data.rows.map((r) => (
+                        <tr class:list={[{ bad: r.errors.length > 0 }]}>
+                          <td>{r.line}</td>
+                          <td>{r.title}{r.errors.length > 0 && <span class="err"> · {r.errors.join(', ')}</span>}</td>
+                          <td>{getCategory(r.category).name}</td>
+                          <td>{CONDITION_LABEL[r.condition]}</td>
+                          <td class="mono">{r.priceChf != null ? formatChf(r.priceChf) : '—'}</td>
+                          <td>{r.comuneId ? getComune(r.comuneId)?.name : '—'}</td>
+                          <td>{r.photos.length}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <form method="POST" action={actions.pro.catalogImport}>
+                  <input type="hidden" name="csv" value={catalog.data.csv} />
+                  <input type="hidden" name="comune" value={catalog.data.comune} />
+                  <button class="btn primary" type="submit" disabled={!catalog.data.rows.some((r) => !r.errors.length)}>
+                    Importa {catalog.data.rows.filter((r) => !r.errors.length).length} oggetti
+                  </button>
+                  <a class="btn" href="/pro#catalogo">Ricomincia</a>
+                </form>
+              </div>
+            ) : (
+              <form class="catalog-form" method="POST" action={actions.pro.catalogPreview} enctype="multipart/form-data">
+                <label class="fld"><span class="label">File CSV</span><input type="file" name="file" accept=".csv,text/csv,text/plain" /></label>
+                <label class="fld"><span class="label">Oppure incollalo qui</span><textarea name="csv" rows="4" placeholder={'titolo;prezzo;comune;foto\nSci Atomic 170 cm;180;Lugano;https://…'}></textarea></label>
+                <label class="fld"><span class="label">Comune per le righe che non lo dicono</span><input name="comune" value="" placeholder="es. Lugano" /></label>
+                <button class="btn" type="submit">Controlla il file</button>
+              </form>
+            )}
+          </section>
+
+          <details class="panel renew">
+            <summary>Rinnova Pro</summary>
+            <div class="plans">
+              {(Object.entries(PRO_PLANS) as Array<[keyof typeof PRO_PLANS, (typeof PRO_PLANS)[keyof typeof PRO_PLANS]]>).map(([key, plan]) => (
+                <form method="POST" action="/pagamento/nuovo">
+                  <input type="hidden" name="kind" value="pro" />
+                  <input type="hidden" name="plan" value={key} />
+                  <input type="hidden" name="back" value="/pro" />
+                  <button class="btn" type="submit">{plan.label} in più · {formatChf(plan.chf)}</button>
+                </form>
+              ))}
+            </div>
+          </details>
+        </>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .pro { display: grid; gap: 28px; max-width: 900px; }
+  .pro-head { display: grid; gap: 12px; }
+  .pro-head h1 { font-size: clamp(32px, 4.4vw, 48px); }
+  .lede { max-width: 56ch; }
+  .notice { background: var(--surface); border-radius: 4px; padding: 10px 12px; font-size: 14px; }
+  .perks { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .perks li { display: grid; gap: 4px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .perks b { font-weight: 500; font-size: 16px; }
+  .perks span { color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .plans { display: flex; gap: 16px; flex-wrap: wrap; }
+  .plan { gap: 10px; min-width: 220px; }
+  .plan b { font-size: 28px; font-weight: 500; }
+  .numbers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .numbers li { display: grid; gap: 4px; padding: 16px 12px 16px 0; }
+  .numbers b { font: 400 26px/1.1 var(--f-display); }
+  .numbers span { font-size: 13px; color: var(--muted); }
+  @media (max-width: 640px) { .numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .panel h2 { font: 500 20px/1.3 var(--f-display); }
+  .shop-form, .catalog-form { display: grid; gap: 14px; width: 100%; }
+  .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+  .fld { display: grid; gap: 6px; }
+  .fld input, .fld textarea, .line input { font: 400 15px/1.4 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 10px 12px; width: 100%; }
+  .line { display: flex; gap: 10px; width: 100%; flex-wrap: wrap; }
+  .line input { flex: 1 1 260px; width: auto; }
+  .preview { display: grid; gap: 12px; width: 100%; }
+  .changes, .history { display: grid; gap: 6px; width: 100%; }
+  .changes li, .history li { display: flex; justify-content: space-between; gap: 12px; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 6px; flex-wrap: wrap; }
+  .history .btn { padding: 8px 12px; }
+  .table-wrap { overflow-x: auto; width: 100%; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 500; color: var(--muted); }
+  tr.bad td { color: var(--bad); }
+  .err { color: var(--bad); }
+  .renew summary { cursor: pointer; }
+</style>

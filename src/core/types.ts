@@ -18,6 +18,7 @@ export const CATEGORY_IDS = [
   'musica',
   'collezionismo',
   'giardino',
+  'affitti',
   'altro',
 ] as const;
 
@@ -78,6 +79,10 @@ export interface Listing {
   priceHistory?: PricePoint[];
   /** Domande pubbliche con le risposte di chi vende, dalla più vecchia. */
   questions?: Question[];
+  /** In vetrina mirata fino a questo momento (primo posto nelle ricerche che gli corrispondono). */
+  promotedUntil?: string;
+  /** Chi vende ha un negozio Pro attivo: il suo nome. */
+  shop?: string;
 }
 
 export interface PricePoint {

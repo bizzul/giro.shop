@@ -1,4 +1,5 @@
 import { ActionError, defineAction } from 'astro:actions';
+import { forgetSavedSearches } from '../lib/demand.ts';
 import { z } from 'astro/zod';
 import { parseQuery } from '../core/query.ts';
 import { requireUser } from './account.ts';
@@ -20,6 +21,7 @@ export const alerts = {
       }
       const { filters } = parseQuery(q);
       const { data, error } = await supabase.from('alerts').insert({ user_id: user.id, query: q, filters }).select('id').single();
+      forgetSavedSearches();
       if (error || !data) throw new ActionError({ code: 'BAD_REQUEST', message: `Ricerca non salvata: ${error?.message}` });
       return { id: data.id as string, query: q, already: false };
     },
@@ -31,6 +33,7 @@ export const alerts = {
     handler: async ({ id }, context) => {
       const { supabase, user } = requireUser(context);
       const { error } = await supabase.from('alerts').delete().eq('id', id).eq('user_id', user.id);
+      forgetSavedSearches();
       if (error) throw new ActionError({ code: 'BAD_REQUEST', message: `Ricerca non tolta: ${error.message}` });
       return { id };
     },

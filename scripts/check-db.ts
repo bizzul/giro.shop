@@ -9,6 +9,7 @@
 import { execFileSync } from 'node:child_process';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { LISTING_SELECT } from '../src/core/store.ts';
+import { PAID_CATEGORIES } from '../src/core/pricing.ts';
 
 const status = JSON.parse(execFileSync('supabase', ['status', '--output', 'json'], { encoding: 'utf8' }));
 const URL: string = status.API_URL;
@@ -278,6 +279,41 @@ try {
     JSON.stringify(mine.data ?? mine.error),
   );
   expect('le statistiche degli altri non si vedono', !((await intruder.client.rpc('my_listing_stats')).data as unknown[] | null)?.length);
+
+  // Ricavi: pagamenti, negozi Pro, pubblicazione a pagamento, vetrine, partner
+  const future = new Date(Date.now() + 864e5).toISOString();
+  expect('nessuno si crea un pagamento da solo', Boolean((await buyer.client.from('payments').insert({ user_id: buyer.id, kind: 'pro', amount_chf: 1, description: 'finto' })).error));
+  const { data: pay } = await admin.from('payments').insert({ user_id: buyer.id, kind: 'vetrina', amount_chf: 3, description: 'prova', status: 'in_attesa' }).select('id').single();
+  expect('ognuno vede i propri pagamenti, non quelli degli altri', !denied(await buyer.client.from('payments').select('id').eq('id', pay!.id)) && denied(await intruder.client.from('payments').select('id').eq('id', pay!.id)));
+  expect('nessuno si segna pagato da solo', Boolean((await buyer.client.from('payments').update({ status: 'pagato' }).eq('id', pay!.id)).error));
+  expect('nessuno si attiva Pro da solo', Boolean((await seller.client.from('shops').insert({ user_id: seller.id, name: 'Negozio', active_until: future })).error));
+  expect('chi vende crea il proprio negozio, spento', !(await seller.client.from('shops').insert({ user_id: seller.id, name: 'Negozio di prova' })).error);
+  expect('un negozio spento non si vede', denied(await anon.from('shops').select('name').eq('user_id', seller.id)));
+  expect('chi vende non allunga Pro da solo', Boolean((await seller.client.from('shops').update({ active_until: future }).eq('user_id', seller.id)).error));
+  const car = { seller_id: seller.id, title: 'Auto di prova', category_id: 'auto', price_chf: 5000, condition: 'buono', comune_id: 'lugano' };
+  expect('in auto senza pagare non si pubblica', Boolean((await seller.client.from('listings').insert({ ...car, status: 'pubblicato' })).error));
+  const carDraft = await seller.client.from('listings').insert({ ...car, status: 'bozza' }).select('id').single();
+  expect('in auto la bozza sì', !carDraft.error, carDraft.error?.message);
+  expect('dalla bozza non si pubblica senza pagare', Boolean((await seller.client.from('listings').update({ status: 'pubblicato' }).eq('id', carDraft.data!.id)).error));
+  expect('un annuncio gratuito non si sposta in auto senza pagare', Boolean((await seller.client.from('listings').update({ category_id: 'auto' }).eq('id', qListing)).error));
+  await admin.from('payments').insert({ user_id: seller.id, kind: 'annuncio', amount_chf: 9.9, description: 'pubblicazione', status: 'pagato', listing_id: carDraft.data!.id });
+  expect('pagata la pubblicazione, si pubblica', !(await seller.client.from('listings').update({ status: 'pubblicato' }).eq('id', carDraft.data!.id)).error);
+  await admin.from('shops').update({ active_until: future }).eq('user_id', seller.id);
+  expect('un negozio attivo si vede', !denied(await anon.from('shops').select('name').eq('user_id', seller.id)));
+  expect('con Pro moto e auto si pubblicano gratis', !(await seller.client.from('listings').insert({ ...car, category_id: 'moto_scooter', status: 'pubblicato' })).error);
+  const { data: fees } = await anon.from('listing_fees').select('category_id, price_chf');
+  const dbFees = Object.fromEntries((fees ?? []).map((f) => [f.category_id, Number(f.price_chf)]));
+  expect('tariffe del database uguali a src/core/pricing.ts', JSON.stringify(dbFees, Object.keys(dbFees).sort()) === JSON.stringify(PAID_CATEGORIES, Object.keys(dbFees).sort()), JSON.stringify(dbFees));
+  expect('le vetrine le crea solo il server', Boolean((await seller.client.from('promotions').insert({ listing_id: listingId, user_id: seller.id, ends_at: future })).error));
+  const { data: partner } = await admin.from('partners').insert({ name: 'Ditta di prova', service: 'sgombero', email: `ditta-${tag}@esempio.test` }).select('id').single();
+  try {
+    expect('un partner da controllare non si vede', denied(await anon.from('partners').select('id').eq('id', partner!.id)));
+    await admin.from('partners').update({ active: true }).eq('id', partner!.id);
+    expect("un partner attivo si vede, ma non la sua email", !denied(await anon.from('partners').select('id, name').eq('id', partner!.id)) && Boolean((await anon.from('partners').select('email').eq('id', partner!.id)).error));
+    expect('i contatti ai partner li legge solo il server', denied(await buyer.client.from('partner_leads').select('id')) && Boolean((await buyer.client.from('partner_leads').insert({ partner_id: partner!.id, name: 'x', contact: 'x', message: 'x' })).error));
+  } finally {
+    await admin.from('partners').delete().eq('id', partner!.id);
+  }
 
   const stats = await anon.rpc('seller_stats', { seller: seller.id });
   const st = (stats.data as Array<{ rating_count: number; sold: number }> | null)?.[0];

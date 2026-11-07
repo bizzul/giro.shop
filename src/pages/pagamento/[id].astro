@@ -1,0 +1,94 @@
+---
+/**
+ * Pagina di pagamento. Per ora "di prova": nessun addebito, il bottone segna il pagamento come fatto.
+ * Con un fornitore vero (Stripe, Payrexx) qui si va alla sua pagina e la conferma arriva da lui.
+ */
+import Layout from '../../layouts/Layout.astro';
+import { actions } from 'astro:actions';
+import { formatChf } from '../../core/format.ts';
+import { getPayment } from '../../lib/payments.ts';
+
+const { user } = Astro.locals;
+const id = Astro.params.id ?? '';
+if (!user) return Astro.redirect(`/accedi?next=/pagamento/${id}`);
+
+const confirmed = Astro.getActionResult(actions.payments.confirm);
+const cancelled = Astro.getActionResult(actions.payments.cancel);
+if (confirmed?.data) return Astro.redirect(confirmed.data.url, 303);
+if (cancelled?.data) return Astro.redirect(cancelled.data.url, 303);
+const error = confirmed?.error?.message ?? cancelled?.error?.message;
+
+const payment = /^[0-9a-f-]{36}$/i.test(id) ? await getPayment(id) : null;
+if (!payment || payment.user_id !== user.id) return new Response('Pagamento non trovato', { status: 404 });
+const back = typeof payment.metadata.returnUrl === 'string' ? payment.metadata.returnUrl : '/miei-annunci';
+const STATUS: Record<string, string> = {
+  pagato: 'Pagato',
+  annullato: 'Annullato',
+  trattenuto: 'Pagato: i soldi sono trattenuti fino alla consegna',
+  rilasciato: 'Pagato e arrivato a chi vende',
+  rimborsato: 'Rimborsato',
+  contestato: 'Fermo: problema segnalato',
+};
+---
+
+<Layout title="Pagamento · giro.shop">
+  <section class="wrap band pay">
+    <span class="label">Pagamento</span>
+    <h1>{formatChf(payment.amount_chf)}</h1>
+    <p class="what">{payment.description}</p>
+    {
+      payment.kind === 'protetto' && (
+        <dl class="split">
+          <div>
+            <dt>Oggetto</dt>
+            <dd class="mono">{formatChf(payment.amount_chf - payment.fee_chf)}</dd>
+          </div>
+          <div>
+            <dt>Commissione del pagamento protetto</dt>
+            <dd class="mono">{formatChf(payment.fee_chf)}</dd>
+          </div>
+        </dl>
+      )
+    }
+
+    {error && <p class="error" role="alert">{error}</p>}
+
+    {
+      payment.status === 'in_attesa' ? (
+        <div class="panel test">
+          <p>
+            <b>Pagamento di prova.</b> Nessun addebito: carta e TWINT arrivano più avanti. Il bottone fa come se avessi pagato.
+          </p>
+          <div class="actions">
+            <form method="POST" action={actions.payments.confirm}>
+              <input type="hidden" name="id" value={payment.id} />
+              <button class="btn primary big" type="submit">
+                Paga {formatChf(payment.amount_chf)} (prova)
+              </button>
+            </form>
+            <form method="POST" action={actions.payments.cancel}>
+              <input type="hidden" name="id" value={payment.id} />
+              <button class="btn" type="submit">Annulla</button>
+            </form>
+          </div>
+        </div>
+      ) : (
+        <p class="notice" role="status">
+          {STATUS[payment.status] ?? payment.status}. <a href={back}>Continua</a>
+        </p>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .pay { display: grid; gap: 16px; max-width: 560px; }
+  .pay h1 { font-family: var(--f-mono); font-size: clamp(36px, 6vw, 56px); }
+  .what { font-size: 17px; }
+  .split { display: grid; gap: 6px; font-size: 14px; }
+  .split div { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  .split dt { color: var(--muted); }
+  .test { gap: 18px; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .notice { background: var(--surface); border-radius: 4px; padding: 10px 12px; font-size: 14px; }
+</style>

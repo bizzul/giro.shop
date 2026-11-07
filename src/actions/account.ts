@@ -8,6 +8,8 @@ import { EMAIL_GROUPS, EMAIL_MODES, offKindsFromGroups, type EmailMode } from '.
 import { normalizeSwissMobile } from '../core/phone.ts';
 import { HANDS } from '../core/hand.ts';
 import { AVAILABILITY_KEYS } from '../core/pickup.ts';
+import { listingFee } from '../core/pricing.ts';
+import { createPayment } from '../lib/payments.ts';
 import { MIN_PHOTOS, planPhotoOrder } from '../core/photos.ts';
 import { invalidateListingPages } from '../lib/cache.ts';
 import { afterPriceChange, afterPriceEdit, afterPublish, afterSale, afterTextChange } from '../lib/listing-events.ts';
@@ -284,11 +286,15 @@ export const account = {
           .map((a) => [String(a.name).toLowerCase(), String(a.value)]),
       );
 
+      // Auto, moto e affitti: senza negozio Pro l'annuncio nasce in bozza e si pubblica dopo il pagamento
+      const fee = listingFee(input.category);
+      const { data: pro } = fee ? await supabase.rpc('is_pro', { p_user: user.id }) : { data: true };
+      const mustPay = Boolean(fee && !pro);
       const { data: listing, error } = await supabase
         .from('listings')
         .insert({
           seller_id: user.id,
-          status: 'pubblicato',
+          status: mustPay ? 'bozza' : 'pubblicato',
           title: input.title,
           description: input.description,
           category_id: input.category,
@@ -322,10 +328,21 @@ export const account = {
         if (photoError) throw new ActionError({ code: 'BAD_REQUEST', message: `Annuncio pubblicato, ma le foto non sono state collegate: ${photoError.message}` });
       }
 
+      if (mustPay) {
+        const payment = await createPayment({
+          userId: user.id,
+          kind: 'annuncio',
+          amountChf: fee!,
+          description: `Pubblicazione per 90 giorni: «${input.title}»`,
+          listingId: listing.id,
+          returnUrl: `/annuncio/${listing.id}`,
+        });
+        return { id: listing.id as string, payUrl: payment.url as string | undefined };
+      }
       await refreshListings(true);
       await invalidateListingPages(context);
       afterPublish(listing.id, siteOrigin(context.url.origin), () => invalidateListingPages(context));
-      return { id: listing.id as string };
+      return { id: listing.id as string, payUrl: undefined as string | undefined };
     },
   }),
 

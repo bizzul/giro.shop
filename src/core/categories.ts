@@ -230,6 +230,23 @@ export const CATEGORIES: Category[] = [
     ],
   },
   {
+    id: 'affitti',
+    name: 'Affitti',
+    icon: 'house',
+    keywords: [
+      ['box auto', 'Box e posteggi'],
+      ['posteggi', 'Box e posteggi'],
+      ['appartament', 'Appartamenti'],
+      ['monolocal', 'Monolocali'],
+      ['bilocal', 'Bilocali'],
+      ['trilocal', 'Trilocali'],
+      ['locali', 'Appartamenti'],
+      ['affitt', 'Affitti'],
+      ['stanza', 'Stanze'],
+      ['rustic', 'Rustici'],
+    ],
+  },
+  {
     id: 'altro',
     name: 'Altro',
     icon: 'box',

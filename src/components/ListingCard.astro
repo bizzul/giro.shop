@@ -3,7 +3,7 @@ import type { Listing, PriceVerdict } from '../core/types.ts';
 import CategoryIcon from './CategoryIcon.astro';
 import { getComune } from '../core/comuni.ts';
 import { getPhoto } from '../core/store.ts';
-import { formatChf, formatKm, isNew, VERDICT_LABEL } from '../core/format.ts';
+import { formatKm, isNew, priceText, VERDICT_LABEL } from '../core/format.ts';
 
 interface Props {
   listing: Listing;
@@ -19,7 +19,9 @@ const comune = getComune(listing.comuneId);
 const photo = getPhoto(listing.id);
 const verdictTone = verdict === 'sopra_mercato' ? 'bad' : 'ok';
 // Al massimo due badge sulla foto, in ordine di importanza.
+const promoted = listing.promotedUntil != null && new Date(listing.promotedUntil) > new Date();
 const badges = [
+  promoted && { tone: 'volt', label: 'In vetrina' },
   listing.priceChf === 0 && { tone: 'volt', label: 'Regalo' },
   isNew(listing.publishedAt) && { tone: 'sun', label: 'Nuovo oggi' },
   verdict && listing.priceChf > 0 && { tone: verdictTone, label: VERDICT_LABEL[verdict] },
@@ -59,7 +61,7 @@ const badges = [
   </div>
   <div class="lb">
     <span class="lrow">
-      <span class="lprice">{formatChf(listing.priceChf)}</span>
+      <span class="lprice">{priceText(listing)}</span>
       {
         listing.negotiating ? (
           <span class="lstate sun">In trattativa</span>

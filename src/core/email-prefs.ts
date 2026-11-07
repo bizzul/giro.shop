@@ -27,7 +27,8 @@ export type NoticeKind =
   | 'segnalazione'
   | 'contestazione'
   | 'consiglio'
-  | 'ritiro';
+  | 'ritiro'
+  | 'pagamento';
 
 export interface EmailGroup {
   key: string;
@@ -49,7 +50,8 @@ export const EMAIL_GROUPS: EmailGroup[] = [
   { key: 'ritiri', label: 'Promemoria dei ritiri concordati', kinds: ['ritiro'] },
 ];
 
-const ALWAYS_NOW: NoticeKind[] = ['segnalazione', 'contestazione'];
+/** Moderazione e pagamenti: arrivano sempre subito (tranne con "mai"), non si spengono per tipo. */
+const ALWAYS_NOW: NoticeKind[] = ['segnalazione', 'contestazione', 'pagamento'];
 
 export interface EmailPrefs {
   email_mode: EmailMode;

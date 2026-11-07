@@ -19,10 +19,11 @@ import { siteOrigin } from '../../lib/notify.ts';
 import { LISTINGS_TAG } from '../../lib/cache.ts';
 import { getListing, getPhoto, sourceName } from '../../core/store.ts';
 import { getComune } from '../../core/comuni.ts';
+import { partnersFor } from '../../lib/partners.ts';
 import { getCategory } from '../../core/categories.ts';
 import { estimatePrice, priceVerdict } from '../../core/price.ts';
 import { similarTo } from '../../core/search.ts';
-import { CONDITION_LABEL, VERDICT_LABEL, formatAge, formatChf, formatChfRange } from '../../core/format.ts';
+import { CONDITION_LABEL, VERDICT_LABEL, formatAge, formatChf, formatChfRange, priceText } from '../../core/format.ts';
 
 const listing = getListing(Astro.params.id ?? '');
 if (!listing) {
@@ -32,6 +33,9 @@ if (!listing) {
 Astro.cache.set({ tags: [LISTINGS_TAG] });
 const sold = listing.status === 'venduto';
 const comune = getComune(listing.comuneId);
+// Mobile grande da ritirare senza spedizione: i partner di trasporto della zona, se ce ne sono
+const bulky = ['arredamento', 'elettrodomestici', 'giardino'].includes(listing.category) && !listing.shipping && listing.status !== 'venduto';
+const movers = bulky && comune ? await partnersFor('trasporto', comune.district) : [];
 const photo = getPhoto(listing.id);
 const morePhotos = (listing.photos ?? []).slice(1);
 const category = getCategory(listing.category);
@@ -146,12 +150,13 @@ const canTranslate = Boolean(claudeKey());
       <div class="info">
         <h1 class="title" data-tr="title">{listing.title}</h1>
         <div class="price-row">
-          <span class="price mono">{formatChf(listing.priceChf)}</span>
+          <span class="price mono">{priceText(listing)}</span>
           {reducedFrom != null && <a class="badge ok" href="#storico">Ridotto da {formatChf(reducedFrom)}</a>}
           {sold && <span class="badge plain">Venduto</span>}
           {!sold && listing.negotiating && <span class="badge sun">In trattativa</span>}
           {!sold && !listing.negotiating && listing.negotiable && <span class="badge plain">Trattabile</span>}
           {!sold && verdict && <span class={`badge ${verdict === 'sopra_mercato' ? 'bad' : 'ok'}`}>{VERDICT_LABEL[verdict]}</span>}
+          {!sold && listing.promotedUntil && new Date(listing.promotedUntil) > new Date() && <span class="badge volt" title="Chi vende ha pagato la vetrina mirata">In vetrina</span>}
         </div>
 
         {
@@ -233,6 +238,7 @@ const canTranslate = Boolean(claudeKey());
             <p class="name">
               {listing.sellerId ? <a class="seller-link" href={`/venditore/${listing.sellerId}`}>{listing.seller.name}</a> : listing.seller.name}
               {listing.seller.verified && <span class="badge ok">Cellulare verificato</span>}
+              {listing.shop && <span class="badge plain" title="Negozio con account Pro">Negozio · {listing.shop}</span>}
             </p>
             {
               stats && (
@@ -288,6 +294,11 @@ const canTranslate = Boolean(claudeKey());
                     <button class="link-button ask-dist" type="button" data-place-open data-place-ask>
                       Quanto dista da te?
                     </button>
+                  )}
+                  {movers.length > 0 && comune && (
+                    <a class="ask-dist" href={`/partner?servizio=trasporto&zona=${comune.district}&annuncio=${encodeURIComponent(listing.id)}`}>
+                      Serve un trasporto? {movers.length === 1 ? '1 ditta' : `${movers.length} ditte`} in zona
+                    </a>
                   )}
                 </dd>
               </div>
@@ -435,7 +446,7 @@ const canTranslate = Boolean(claudeKey());
       <div class="buybar" data-buybar data-bottom-ui>
         {photo && <img src={photo.srcSmall} alt="" width="56" height="42" decoding="async" />}
         <span class="bb-info">
-          <span class="bb-price mono">{formatChf(listing.priceChf)}</span>
+          <span class="bb-price mono">{priceText(listing)}</span>
           <span class="bb-title">{listing.title}</span>
         </span>
         {listing.priceChf > 0 && (

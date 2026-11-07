@@ -10,7 +10,7 @@ import { replyTime, sellerProfile } from '../../lib/sellers.ts';
 
 const id = Astro.params.id ?? '';
 const valid = /^[0-9a-f-]{36}$/i.test(id);
-const { stats, ratings } = valid ? await sellerProfile(id) : { stats: null, ratings: [] };
+const { stats, ratings, shop } = valid ? await sellerProfile(id) : { stats: null, ratings: [], shop: null };
 if (!stats || stats.suspended) return new Response('Profilo non trovato', { status: 404 });
 
 Astro.cache.set({ tags: [LISTINGS_TAG] });
@@ -19,19 +19,34 @@ const forSale = mine.filter((l) => l.status === 'pubblicato').sort((a, b) => b.p
 const memberSince = new Date(stats.memberSince).toLocaleDateString('it-CH', { month: 'long', year: 'numeric' });
 ---
 
-<Layout title={`${stats.name} · giro.shop`} description={`Annunci e valutazioni di ${stats.name} su giro.shop`}>
+<Layout title={`${shop?.name ?? stats.name} · giro.shop`} description={shop?.about ?? `Annunci e valutazioni di ${stats.name} su giro.shop`}>
   <section class="wrap band profile">
     <header class="head">
-      <span class="avatar" aria-hidden="true">{stats.name.trim().charAt(0).toUpperCase()}</span>
+      <span class="avatar" aria-hidden="true">{(shop?.name ?? stats.name).trim().charAt(0).toUpperCase()}</span>
       <div>
-        <h1>{stats.name}</h1>
+        <h1>{shop?.name ?? stats.name}</h1>
         <p class="badges">
+          {shop && <span class="badge plain">Negozio Pro · {stats.name}</span>}
           {stats.phoneVerified && <span class="badge ok">Cellulare verificato</span>}
           <span class="muted small">Su giro.shop da {memberSince}</span>
           <a class="report small" href={`/segnala?utente=${id}`}>Segnala questo utente</a>
         </p>
       </div>
     </header>
+
+    {
+      shop && (shop.about || shop.address || shop.hours || shop.website || shop.phone) && (
+        <section class="shop" aria-label="Il negozio">
+          {shop.about && <p class="about">{shop.about}</p>}
+          <dl>
+            {shop.address && (<div><dt>Indirizzo</dt><dd>{shop.address}</dd></div>)}
+            {shop.hours && (<div><dt>Orari</dt><dd>{shop.hours}</dd></div>)}
+            {shop.phone && (<div><dt>Telefono</dt><dd><a href={`tel:${shop.phone.replace(/\s/g, '')}`}>{shop.phone}</a></dd></div>)}
+            {shop.website && (<div><dt>Sito</dt><dd><a href={shop.website} rel="nofollow noopener" target="_blank">{shop.website.replace(/^https?:\/\//, '')}</a></dd></div>)}
+          </dl>
+        </section>
+      )
+    }
 
     <ul class="facts" aria-label="Affidabilità">
       <li>
@@ -97,4 +112,9 @@ const memberSince = new Date(stats.memberSince).toLocaleDateString('it-CH', { mo
   @media (max-width: 640px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   #valutazioni { max-width: 760px; }
   .report { color: var(--muted); text-underline-offset: 3px; }
+  .shop { display: grid; gap: 14px; max-width: 760px; }
+  .shop .about { font-size: 16px; line-height: 1.55; }
+  .shop dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 24px; }
+  .shop dt { font: 500 11px/1.4 var(--f-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .shop dd { font-size: 15px; overflow-wrap: anywhere; }
 </style>

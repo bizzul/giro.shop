@@ -17,7 +17,8 @@ const MAX_AGE_MS = 10_000;
 export const LISTING_SELECT = `
   id, title, description, category_id, tags, attributes, price_chf, negotiable, condition, comune_id,
   status, published_at, created_at, expires_at, sold_price_chf, seller_id, buyer_id, shipping, shipping_chf, highlights,
-  seller:profiles!listings_seller_id_fkey(display_name, phone_verified_at),
+  seller:profiles!listings_seller_id_fkey(display_name, phone_verified_at, shop:shops(name, active_until)),
+  promotions(ends_at),
   photos:listing_photos(storage_path, position, credit, width, height),
   history:price_history(price_chf, changed_at),
   questions(id, body, answer, created_at, answered_at, helpful, asker:profiles!questions_asker_id_fkey(display_name))
@@ -77,7 +78,8 @@ interface Row {
   shipping?: boolean;
   shipping_chf?: number | string | null;
   highlights?: string[] | null;
-  seller: { display_name: string; phone_verified_at: string | null } | null;
+  seller: { display_name: string; phone_verified_at: string | null; shop?: { name: string; active_until: string | null } | null } | null;
+  promotions?: Array<{ ends_at: string }>;
   photos: Array<{ storage_path: string; position: number; credit: PhotoCredit | null; width: number | null; height: number | null }>;
   history?: Array<{ price_chf: number | string; changed_at: string }>;
   questions?: Array<{
@@ -128,6 +130,8 @@ export function rowToListing(row: Row): Listing {
     shippingChf: row.shipping_chf != null ? Number(row.shipping_chf) : undefined,
     buyerId: row.buyer_id ?? undefined,
     highlights: row.highlights?.length ? row.highlights : undefined,
+    promotedUntil: (row.promotions ?? []).map((p) => p.ends_at).sort().at(-1),
+    shop: row.seller?.shop?.active_until && new Date(row.seller.shop.active_until) > new Date() ? row.seller.shop.name : undefined,
     priceHistory: row.history
       ? row.history
           .map((h): PricePoint => ({ priceChf: Number(h.price_chf), at: h.changed_at }))

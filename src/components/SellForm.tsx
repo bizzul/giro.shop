@@ -105,7 +105,8 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
       setError(actionError?.message ?? 'Pubblicazione non riuscita. Riprova.');
       return;
     }
-    location.href = `/annuncio/${data.id}`;
+    // Auto, moto e affitti: prima si paga la pubblicazione
+    location.href = data.payUrl ?? `/annuncio/${data.id}`;
   }
 
   function restart() {

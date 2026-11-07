@@ -12,6 +12,7 @@ import { connectionsOf } from '../lib/oauth.ts';
 import { estimatePrice } from '../core/price.ts';
 import { daysBetween, priceTip } from '../core/insights.ts';
 import { AVAILABILITY, formatPickup } from '../core/pickup.ts';
+import { listingFee, VETRINA } from '../core/pricing.ts';
 import '../styles/sell.css';
 
 const user = Astro.locals.user;
@@ -40,8 +41,13 @@ const { data: authData } = await supabase.auth.getUser();
 const authUser = authData.user;
 const verifiedPhone = authUser?.phone && authUser.phone_confirmed_at ? `+${authUser.phone}` : null;
 const pendingPhone = phoneStart?.data?.phone ?? (authUser?.new_phone ? `+${authUser.new_phone}` : null);
-const error = [nameResult, statusResult, deleteResult, signOut, emailResult, handResult, renewResult, deleted, lowerResult, outcomeResult].find((r) => r?.error)?.error?.message;
-const notice = outcomeResult?.data
+const error =
+  [nameResult, statusResult, deleteResult, signOut, emailResult, handResult, renewResult, deleted, lowerResult, outcomeResult].find((r) => r?.error)?.error?.message ??
+  Astro.url.searchParams.get('errore')?.slice(0, 200);
+const done = Astro.url.searchParams.get('fatto');
+const notice = done === 'vetrina'
+  ? `In vetrina per ${VETRINA.days} giorni: è in cima alle ricerche che gli corrispondono e chi lo cerca ha ricevuto un avviso.`
+  : outcomeResult?.data
   ? "Peccato. L'annuncio è di nuovo in vendita: nella conversazione puoi proporre un altro ritiro."
   : lowerResult?.data
   ? `Prezzo abbassato a ${formatChf(lowerResult.data.price)}: chi aveva salvato l'annuncio riceve un avviso.`
@@ -124,6 +130,8 @@ const [{ data: statRows }, { data: settingRows }, { data: sellerSettings }] = aw
   supabase.from('seller_settings').select('assistant_on, availability').eq('user_id', user.id).maybeSingle(),
 ]);
 const availability: string[] = sellerSettings?.availability ?? [];
+// Con un negozio Pro auto, moto e affitti si pubblicano gratis
+const { data: isPro } = await supabase.rpc('is_pro', { p_user: user.id });
 type Stats = { views_total: number; views_week: number; saves: number; contacts: number; questions: number; last_contact_at: string | null };
 const statsOf = new Map(((statRows ?? []) as Array<Stats & { listing_id: string }>).map((r) => [r.listing_id, r]));
 const dropOf = new Map((settingRows ?? []).filter((r) => r.drop_pct != null).map((r) => [r.listing_id as string, { pct: Number(r.drop_pct), floor: Number(r.drop_floor_chf) }]));
@@ -157,6 +165,8 @@ const listings = (rows ?? []).map((r) => {
     buyers: buyersOf.get(r.id) ?? [],
     pickup: onSale ? pickupOf.get(r.id) : undefined,
     wanted: demandOf.get(r.id)?.people ?? 0,
+    promotedUntil: getListing(r.id)?.promotedUntil,
+    fee: isPro ? null : listingFee(r.category_id),
     stats,
     estimate,
     market,
@@ -193,6 +203,7 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
         <a class="btn" href="/salvati">Salvati</a>
         {/* Come ti vedono gli altri; con l'account sospeso il profilo non è visibile */}
         {!profile?.suspended_at && <a class="btn" href={`/venditore/${user.id}`}>Profilo pubblico</a>}
+        <a class="btn" href="/pro">{isPro ? 'Il negozio Pro' : 'Pro per negozi'}</a>
         {profile?.is_moderator && <a class="btn" href="/moderazione">Moderazione</a>}
         <form method="POST" action={actions.account.signOut}>
           <button class="btn" type="submit">Esci</button>
@@ -514,6 +525,30 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
                   </div>
                 </div>
               )}
+              {(l.status === 'pubblicato' || l.status === 'in_trattativa') && !l.hidden_at && (
+                <div class="vetrina small">
+                  {l.promotedUntil && l.promotedUntil > nowIso ? (
+                    <span>
+                      <b>In vetrina</b> fino {formatDay(l.promotedUntil, 'al')}: in cima alle ricerche che gli corrispondono.
+                    </span>
+                  ) : (
+                    <>
+                      <span>
+                        <b>Vetrina mirata</b> ·{' '}
+                        {l.wanted > 0
+                          ? `avvisa ${l.wanted === 1 ? "la persona che lo cerca" : `le ${l.wanted} persone che lo cercano`} e mettilo in cima alle loro ricerche per ${VETRINA.days} giorni`
+                          : `in cima alle ricerche che gli corrispondono per ${VETRINA.days} giorni`}
+                      </span>
+                      <form method="POST" action="/pagamento/nuovo">
+                        <input type="hidden" name="kind" value="vetrina" />
+                        <input type="hidden" name="listingId" value={l.id} />
+                        <input type="hidden" name="back" value="/miei-annunci" />
+                        <button class="btn" type="submit">{formatChf(VETRINA.chf)}</button>
+                      </form>
+                    </>
+                  )}
+                </div>
+              )}
               {l.tip && (
                 <div class="tip small">
                   <p>
@@ -581,6 +616,13 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
                   </>
                 ) : l.status === 'scaduto' ? null : l.status === 'bozza' && l.photos.length === 0 ? (
                   <a class="btn primary" href={`/miei-annunci/${l.id}#foto`}>Aggiungi una foto per pubblicare</a>
+                ) : l.status === 'bozza' && l.fee ? (
+                  <form method="POST" action="/pagamento/nuovo">
+                    <input type="hidden" name="kind" value="annuncio" />
+                    <input type="hidden" name="listingId" value={l.id} />
+                    <input type="hidden" name="back" value="/miei-annunci" />
+                    <button class="btn primary" type="submit">Paga e pubblica ({formatChf(l.fee)})</button>
+                  </form>
                 ) : (
                   <form method="POST" action={actions.account.setListingStatus}>
                     <input type="hidden" name="id" value={l.id} />
@@ -727,6 +769,10 @@ const daysLeft = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime
   /* Consiglio sul prezzo: sotto la riga, dopo i comandi */
   .tip { grid-column: 1 / -1; order: 1; display: grid; gap: 10px; background: var(--surface); border-radius: 4px; padding: 12px 14px; }
   .tip-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* Vetrina mirata: una riga sotto l'annuncio, dopo i comandi */
+  .vetrina { grid-column: 1 / -1; order: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; border-top: 1px dashed var(--line); padding-top: 10px; }
+  .vetrina b { font-weight: 500; }
+  .vetrina .btn { padding: 8px 12px; }
   .tip-actions .btn { padding: 10px 12px; }
   .buyer { max-width: 160px; font: 400 14px/1.2 var(--f-body); padding: 9px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); color: var(--ink); }
   .danger summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 10px 4px; }

@@ -6,6 +6,7 @@ import { getConversation } from '../../lib/messages.ts';
 import { formatChf } from '../../core/format.ts';
 import { formatPickup, zurichDay } from '../../core/pickup.ts';
 import { getComune } from '../../core/comuni.ts';
+import { protectedPaymentsOn, protectedQuote } from '../../lib/protected.ts';
 
 const { user, supabase } = Astro.locals;
 const id = Astro.params.id ?? '';
@@ -14,8 +15,12 @@ if (!user || !supabase) return Astro.redirect(`/accedi?next=/messaggi/${id}`);
 // Dopo un invio o una risposta si ricarica la pagina con GET, così il form non si reinvia
 const sent = Astro.getActionResult(actions.messages.send);
 const responded = Astro.getActionResult(actions.messages.respond);
-if (sent?.data || responded?.data) return Astro.redirect(`/messaggi/${id}#fondo`, 303);
-const error = sent?.error?.message ?? responded?.error?.message;
+const released = Astro.getActionResult(actions.payments.release);
+const disputed = Astro.getActionResult(actions.payments.dispute);
+const refunded = Astro.getActionResult(actions.payments.refund);
+if (sent?.data || responded?.data || released?.data || disputed?.data || refunded?.data) return Astro.redirect(`/messaggi/${id}#fondo`, 303);
+const error =
+  [sent, responded, released, disputed, refunded].find((r) => r?.error)?.error?.message ?? Astro.url.searchParams.get('errore')?.slice(0, 200);
 
 const conversation = await getConversation(supabase, user.id, id);
 if (!conversation) return new Response('Conversazione non trovata', { status: 404 });
@@ -24,6 +29,22 @@ const STATUS: Record<string, string> = { pubblicato: 'In vendita', in_trattativa
 const placeDefault = getComune(conversation.listingComuneId ?? '')?.name ?? '';
 const today = zurichDay(new Date());
 const pickupPast = conversation.pickupAt ? new Date(conversation.pickupAt) < new Date() : false;
+
+// Pagamento protetto: l'ultimo di questa conversazione, e quanto costerebbe a chi compra
+const { data: lastPayment } = await supabase
+  .from('payments')
+  .select('id, status, amount_chf, fee_chf, metadata, user_id, payee_id')
+  .eq('conversation_id', conversation.id)
+  .eq('kind', 'protetto')
+  .in('status', ['trattenuto', 'contestato', 'rilasciato', 'rimborsato'])
+  .order('created_at', { ascending: false })
+  .limit(1)
+  .maybeSingle();
+const held = lastPayment && ['trattenuto', 'contestato'].includes(lastPayment.status) ? lastPayment : null;
+const itemOf = (p: { amount_chf: number | string; fee_chf: number | string; metadata: unknown }) =>
+  Number((p.metadata as { itemChf?: number }).itemChf ?? Number(p.amount_chf) - Number(p.fee_chf));
+const quote =
+  protectedPaymentsOn() && conversation.role === 'compro' && !held && openForOffers ? await protectedQuote(conversation.id) : null;
 ---
 
 <Layout title={`${conversation.otherName} · ${conversation.listingTitle} · giro.shop`}>
@@ -59,6 +80,61 @@ const pickupPast = conversation.pickupAt ? new Date(conversation.pickupAt) < new
     }
 
     {error && <p class="error" role="alert">{error}</p>}
+
+    {
+      held && held.status === 'trattenuto' && conversation.role === 'compro' && (
+        <div class="panel protected">
+          <p>
+            <b>Hai pagato {formatChf(itemOf(held))} con il pagamento protetto.</b> I soldi restano fermi: quando hai l'oggetto e va tutto bene,
+            confermalo e arrivano a {conversation.otherName}.
+          </p>
+          <div class="protected-actions">
+            <form method="POST" action={actions.payments.release}>
+              <input type="hidden" name="paymentId" value={held.id} />
+              <button class="btn primary" type="submit">Ho ricevuto l'oggetto, va tutto bene</button>
+            </form>
+            <details>
+              <summary class="small">C'è un problema</summary>
+              <form method="POST" action={actions.payments.dispute}>
+                <input type="hidden" name="paymentId" value={held.id} />
+                <label class="sr" for="reason">Cosa non va</label>
+                <textarea id="reason" name="reason" rows="2" maxlength="500" placeholder="Es. l'oggetto non funziona, non è quello delle foto" required></textarea>
+                <button class="btn" type="submit">Segnala: i soldi restano fermi</button>
+              </form>
+            </details>
+          </div>
+        </div>
+      )
+    }
+    {
+      held && held.status === 'trattenuto' && conversation.role === 'vendo' && (
+        <div class="panel protected">
+          <p>
+            <b>{formatChf(itemOf(held))} trattenuti per te</b> con il pagamento protetto. Arrivano quando {conversation.otherName} conferma di aver
+            ricevuto l'oggetto (o da soli, due giorni dopo il ritiro).
+          </p>
+          <form method="POST" action={actions.payments.refund}>
+            <input type="hidden" name="paymentId" value={held.id} />
+            <button class="btn" type="submit">Non posso consegnare: rimborsa</button>
+          </form>
+        </div>
+      )
+    }
+    {held && held.status === 'contestato' && <p class="pickup-set"><b>Pagamento protetto fermo:</b> è stato segnalato un problema e decide chi modera.</p>}
+    {
+      quote && (
+        <form class="panel protected" method="POST" action="/pagamento/nuovo">
+          <p>
+            <b>Pagamento protetto.</b> Paghi qui {formatChf(quote.itemChf)} più {formatChf(quote.feeChf)} di commissione: i soldi restano fermi
+            finché confermi di aver ricevuto l'oggetto. Se qualcosa va storto, decide chi modera.
+          </p>
+          <input type="hidden" name="kind" value="protetto" />
+          <input type="hidden" name="conversationId" value={conversation.id} />
+          <input type="hidden" name="back" value={`/messaggi/${conversation.id}`} />
+          <button class="btn" type="submit">Paga protetto · {formatChf(quote.totalChf)}</button>
+        </form>
+      )
+    }
 
     <Thread conversation={conversation} userId={user.id} />
 
@@ -147,6 +223,12 @@ const pickupPast = conversation.pickupAt ? new Date(conversation.pickupAt) < new
   .offer-field { display: grid; gap: 6px; }
   .chf { display: inline-flex; align-items: center; gap: 8px; font: 500 14px/1 var(--f-mono); }
   .pickup-set { background: var(--surface); border-radius: 4px; padding: 10px 14px; font-size: 14.5px; }
+  .protected { gap: 12px; padding: 16px 18px; font-size: 14.5px; }
+  .protected b { font-weight: 500; }
+  .protected-actions { display: grid; gap: 10px; width: 100%; }
+  .protected-actions details form { display: grid; gap: 8px; margin-top: 8px; }
+  .protected-actions textarea { width: 100%; font: 400 15px/1.5 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; padding: 8px 10px; }
+  .protected-actions summary { cursor: pointer; }
   .pickup-set b { font-weight: 500; }
   .pickup-set.past { color: var(--muted); }
   .pickup-field summary { cursor: pointer; font-size: 14px; }

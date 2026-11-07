@@ -6,6 +6,9 @@ import { applyDecision, ModerationError, undoAction } from '../lib/moderation.ts
 import { moderateWithAgent } from '../lib/moderation-agent.ts';
 import { notify, siteOrigin } from '../lib/notify.ts';
 import { requireUser } from './account.ts';
+import { forgetPartners } from '../lib/partners.ts';
+import { PaymentError } from '../lib/payments.ts';
+import { refundProtected, resolveForSeller } from '../lib/protected.ts';
 
 /** Solo chi ha is_moderator nel profilo (lo assegna chi gestisce il database). */
 export async function requireModerator(context: ActionAPIContext) {
@@ -160,6 +163,38 @@ export const moderation = {
         .eq('listing_id', listingId);
       await invalidateListingPages(context);
       return { listingId };
+    },
+  }),
+
+  /** Partner: accende, spegne o toglie una richiesta. */
+  partnerSet: defineAction({
+    accept: 'form',
+    input: z.object({ id: z.string().uuid(), action: z.enum(['attiva', 'spegni', 'togli']) }),
+    handler: async ({ id, action }, context) => {
+      const { admin } = await requireModerator(context);
+      const { error } =
+        action === 'togli' ? await admin.from('partners').delete().eq('id', id) : await admin.from('partners').update({ active: action === 'attiva' }).eq('id', id);
+      if (error) throw new ActionError({ code: 'BAD_REQUEST', message: error.message });
+      forgetPartners();
+      return { id, action };
+    },
+  }),
+
+  /** Pagamento protetto contestato: rimborsa chi ha pagato, o paga chi vende. */
+  protectedDecide: defineAction({
+    accept: 'form',
+    input: z.object({ paymentId: z.string().uuid(), decision: z.enum(['rimborsa', 'paga']) }),
+    handler: async ({ paymentId, decision }, context) => {
+      await requireModerator(context);
+      const origin = siteOrigin(context.url.origin);
+      const invalidate = () => invalidateListingPages(context);
+      try {
+        if (decision === 'rimborsa') await refundProtected(paymentId, 'moderazione', origin, invalidate);
+        else await resolveForSeller(paymentId, origin, invalidate);
+      } catch (error) {
+        throw error instanceof PaymentError ? new ActionError({ code: 'BAD_REQUEST', message: error.message }) : error;
+      }
+      return { paymentId, decision };
     },
   }),
 

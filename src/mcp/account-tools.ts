@@ -3,6 +3,7 @@
  * Ogni strumento controlla il permesso concesso (ricerche, annunci) e lavora solo sui dati di quella persona:
  * il server usa la chiave di servizio, quindi i controlli "è tuo?" sono qui, espliciti, in ogni query.
  */
+import { listingFee } from '../core/pricing.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { CATEGORY_IDS, CONDITIONS } from '../core/types.ts';
@@ -14,6 +15,7 @@ import { MIN_PHOTOS } from '../core/photos.ts';
 import { MAX_PHOTOS } from '../core/draft.ts';
 import { formatChf } from '../core/format.ts';
 import { adminClient } from '../lib/admin.ts';
+import { forgetSavedSearches } from '../lib/demand.ts';
 import { allow } from '../lib/claude.ts';
 import { afterPriceChange, afterPublish, afterSale, afterTextChange } from '../lib/listing-events.ts';
 import { fetchImage, ImageFetchError } from '../lib/fetch-image.ts';
@@ -76,6 +78,7 @@ export function registerAccountTools(server: McpServer, options: AccountToolsOpt
       if ((existing?.length ?? 0) >= MAX_SEARCHES) return fail(`La persona ha già ${MAX_SEARCHES} ricerche salvate: prima toglierne una (delete_saved_search).`);
       const { filters } = parseQuery(q);
       const { data, error } = await admin.from('alerts').insert({ user_id: userId, query: q, filters }).select('id').single();
+      forgetSavedSearches();
       if (error || !data) return fail(`Ricerca non salvata: ${error?.message}`);
       return text({
         saved: true,
@@ -123,6 +126,7 @@ export function registerAccountTools(server: McpServer, options: AccountToolsOpt
     async ({ id }) => {
       if (!has('ricerche')) return missing('ricerche');
       const { data, error } = await admin.from('alerts').delete().eq('id', id).eq('user_id', userId).select('query');
+      forgetSavedSearches();
       if (error) return fail(`Ricerca non tolta: ${error.message}`);
       if (!data?.length) return fail('Ricerca non trovata tra quelle della persona.');
       return text({ deleted: true, query: data[0].query });
@@ -172,7 +176,11 @@ export function registerAccountTools(server: McpServer, options: AccountToolsOpt
           return fail(`La foto ${i + 1} (${url}) non si può usare: ${why}. Nessun annuncio creato.`);
         }
       }
-      const draft = photos.length < MIN_PHOTOS;
+      // Auto, moto e affitti senza negozio Pro: in bozza, la pubblicazione si paga dal sito
+      const fee = listingFee(input.category);
+      const { data: pro } = fee ? await admin.rpc('is_pro', { p_user: userId }) : { data: true };
+      const unpaid = Boolean(fee && !pro);
+      const draft = photos.length < MIN_PHOTOS || unpaid;
 
       const { data: listing, error } = await admin
         .from('listings')
@@ -210,6 +218,15 @@ export function registerAccountTools(server: McpServer, options: AccountToolsOpt
       await refreshListings(true);
       await invalidate();
       const editUrl = `${baseUrl}/miei-annunci/${listing.id}`;
+      if (unpaid && photos.length >= MIN_PHOTOS) {
+        return text({
+          published: false,
+          status: 'bozza',
+          id: listing.id,
+          next_step: `In questa categoria la pubblicazione costa ${formatChf(fee!)} (gratis con un negozio Pro). Mostra questo link alla persona: in I miei annunci tocca «Paga e pubblica».`,
+          pay_url: `${baseUrl}/miei-annunci#a-${listing.id}`,
+        });
+      }
       if (draft) {
         return text({
           published: false,

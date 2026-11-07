@@ -17,6 +17,16 @@ export interface SellerStats {
   ratingCount: number;
 }
 
+/** Il negozio Pro di chi vende, se è attivo. */
+export interface Shop {
+  name: string;
+  about: string | null;
+  address: string | null;
+  website: string | null;
+  phone: string | null;
+  hours: string | null;
+}
+
 export interface Rating {
   id: string;
   listingId: string;
@@ -28,10 +38,10 @@ export interface Rating {
 }
 
 /** Numeri pubblici su chi vende (nessun contenuto dei messaggi) e le sue ultime valutazioni. */
-export async function sellerProfile(sellerId: string): Promise<{ stats: SellerStats | null; ratings: Rating[] }> {
+export async function sellerProfile(sellerId: string): Promise<{ stats: SellerStats | null; ratings: Rating[]; shop: Shop | null }> {
   const c = anon();
-  if (!c) return { stats: null, ratings: [] };
-  const [{ data: rows }, { data: list }, { data: profile }] = await Promise.all([
+  if (!c) return { stats: null, ratings: [], shop: null };
+  const [{ data: rows }, { data: list }, { data: profile }, { data: shop }] = await Promise.all([
     c.rpc('seller_stats', { seller: sellerId }),
     c
       .from('ratings')
@@ -40,6 +50,8 @@ export async function sellerProfile(sellerId: string): Promise<{ stats: SellerSt
       .order('created_at', { ascending: false })
       .limit(50),
     c.from('profiles').select('display_name, suspended_at').eq('id', sellerId).maybeSingle(),
+    // Solo i negozi attivi sono visibili a tutti (regola nel database)
+    c.from('shops').select('name, about, address, website, phone, hours').eq('user_id', sellerId).maybeSingle(),
   ]);
   const r = (rows as Array<Record<string, unknown>> | null)?.[0];
   const stats: SellerStats | null = r
@@ -65,7 +77,7 @@ export async function sellerProfile(sellerId: string): Promise<{ stats: SellerSt
     createdAt: x.created_at,
     raterName: x.rater?.display_name ?? 'Utente',
   }));
-  return { stats, ratings };
+  return { stats, ratings, shop: (shop as Shop | null) ?? null };
 }
 
 /** "entro 20 minuti", "entro 3 ore", "entro 2 giorni" */

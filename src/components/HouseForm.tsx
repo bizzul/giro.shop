@@ -3,6 +3,7 @@ import { actions } from 'astro:actions';
 import type { Box, HouseItem, HouseResult } from '../core/house.ts';
 import { CONDITION_LABEL, formatChf } from '../core/format.ts';
 import { getCategory } from '../core/categories.ts';
+import { resolveComune } from '../core/comuni.ts';
 import PhotoManager, { type PhotoItem } from './PhotoManager.tsx';
 import ComunePicker from './ComunePicker.tsx';
 
@@ -20,9 +21,10 @@ interface Row extends HouseItem {
   priceText: string;
   file: File | null;
   preview: string | null;
-  state: 'da_pubblicare' | 'pubblico' | 'pubblicato' | 'errore';
+  state: 'da_pubblicare' | 'pubblico' | 'pubblicato' | 'da_pagare' | 'errore';
   message?: string;
   listingId?: string;
+  payUrl?: string;
 }
 
 /** Ritaglia l'oggetto dalla foto (nel browser); senza riquadro resta la foto intera. */
@@ -108,7 +110,7 @@ export default function HouseForm({ signedIn = false, aiOn = false, max = 10 }: 
   async function publishAll() {
     setError(null);
     if (!comune) return setError('Scegli il comune di ritiro.');
-    const chosen = rows.filter((r) => r.include && r.state !== 'pubblicato');
+    const chosen = rows.filter((r) => r.include && r.state !== 'pubblicato' && r.state !== 'da_pagare');
     if (!chosen.length) return setError('Scegli almeno un oggetto da pubblicare.');
     const bad = chosen.find((r) => r.title.trim().length < 3 || r.priceText === '');
     if (bad) return setError(`Controlla «${bad.title || 'senza titolo'}»: servono un titolo e un prezzo (0 se lo regali).`);
@@ -132,13 +134,20 @@ export default function HouseForm({ signedIn = false, aiOn = false, max = 10 }: 
       const whole = photos[r.photo]?.file;
       if (r.box && whole) form.append('photos', whole);
       const { data, error: actionError } = await actions.account.publishListing(form);
-      update(r.key, data ? { state: 'pubblicato', listingId: data.id } : { state: 'errore', message: actionError?.message ?? 'Non pubblicato.' });
+      update(
+        r.key,
+        data?.payUrl
+          ? { state: 'da_pagare', listingId: data.id, payUrl: data.payUrl }
+          : data
+            ? { state: 'pubblicato', listingId: data.id }
+            : { state: 'errore', message: actionError?.message ?? 'Non pubblicato.' },
+      );
     }
     setStatus('finished');
   }
 
   if (status === 'done' || status === 'publishing' || status === 'finished') {
-    const chosen = rows.filter((r) => r.include && r.state !== 'pubblicato').length;
+    const chosen = rows.filter((r) => r.include && r.state !== 'pubblicato' && r.state !== 'da_pagare').length;
     const published = rows.filter((r) => r.state === 'pubblicato').length;
     return (
       <div class="house panel">
@@ -190,6 +199,11 @@ export default function HouseForm({ signedIn = false, aiOn = false, max = 10 }: 
                   </a>
                 )}
                 {r.state === 'errore' && <span class="small error-text">{r.message}</span>}
+                {r.state === 'da_pagare' && r.payUrl && (
+                  <a class="small" href={r.payUrl}>
+                    In bozza: in questa categoria la pubblicazione è a pagamento. Paga e pubblica
+                  </a>
+                )}
               </div>
               <label class="pb-input house-price">
                 <span>CHF</span>
@@ -221,6 +235,15 @@ export default function HouseForm({ signedIn = false, aiOn = false, max = 10 }: 
           <p class="notice" role="status">
             {published === 1 ? 'Pubblicato 1 annuncio' : `Pubblicati ${published} annunci`}: chi li cerca riceve un avviso. Li gestisci da{' '}
             <a href="/miei-annunci">I miei annunci</a>.
+          </p>
+        )}
+        {status === 'finished' && (
+          <p class="small">
+            Quello che non vendi va via comunque?{' '}
+            <a href={`/partner?servizio=sgombero${resolveComune(comune)?.district ? `&zona=${resolveComune(comune)!.district}` : ''}`}>
+              Ditte di sgombero e traslochi in zona
+            </a>
+            .
           </p>
         )}
 

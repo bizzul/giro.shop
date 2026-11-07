@@ -53,6 +53,7 @@ insert into public.categories (id, name) values
   ('musica', 'Musica e strumenti'),
   ('collezionismo', 'Antiquariato e collezioni'),
   ('giardino', 'Casa e giardino'),
+  ('affitti', 'Affitti'),
   ('altro', 'Altro')
 on conflict (id) do nothing;
 

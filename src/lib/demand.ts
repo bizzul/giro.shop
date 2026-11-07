@@ -10,6 +10,11 @@ import { similaritiesFor, similaritiesToText } from './semantic.ts';
 
 let cache: { at: number; searches: SavedSearch[] } | null = null;
 
+/** Dopo che qualcuno salva o toglie una ricerca: la prossima lettura va al database. */
+export function forgetSavedSearches(): void {
+  cache = null;
+}
+
 /** Le ricerche salvate di tutti, al massimo 20 secondi vecchie. */
 export async function savedSearches(): Promise<SavedSearch[]> {
   if (cache && Date.now() - cache.at < 20_000) return cache.searches;

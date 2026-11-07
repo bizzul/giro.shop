@@ -228,7 +228,11 @@ function scoreListing(filters: SearchFilters, listing: Listing, now: number, fro
   const proximity = origin && distance != null && filters.radiusKm ? 1 - distance / filters.radiusKm : 0;
   const ageDays = (now - new Date(listing.publishedAt).getTime()) / 864e5;
   const freshness = Math.max(0, 1 - ageDays / 14);
+  // Vetrina mirata: in cima alle ricerche che gli corrispondono, finché dura (sempre con l'etichetta)
+  const promoted = listing.promotedUntil != null && new Date(listing.promotedUntil).getTime() > now;
+  if (promoted) reasons.unshift('in vetrina');
   const score =
+    (promoted ? 150 : 0) +
     relevance * 100 +
     proximity * 25 +
     freshness * 10 +
