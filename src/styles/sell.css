@@ -203,3 +203,6 @@
   .house-thumb { width: 72px; }
   .house-price { grid-column: 2 / -1; }
 }
+/* Primo annuncio senza account: email e codice a 6 cifre sotto la bozza */
+.code-step { width: 100%; max-width: 420px; }
+.code-step .code-input { font-family: var(--f-mono); letter-spacing: 0.25em; max-width: 12ch; }

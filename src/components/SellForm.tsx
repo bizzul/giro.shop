@@ -38,6 +38,12 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
   };
 
   const [resumed, setResumed] = useState(false);
+  // Primo annuncio senza account: email, codice a 6 cifre nella stessa pagina, poi si pubblica
+  const [authed, setAuthed] = useState(signedIn);
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => () => photos.forEach((p) => URL.revokeObjectURL(p.url)), []);
 
@@ -58,10 +64,9 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
     });
   }, []);
 
-  /** Salva la bozza nel browser e va ad accedere: il link via email riporta qui. */
-  async function signInKeepingDraft(event: Event) {
+  /** La bozza nel browser (IndexedDB): se si entra con il link o dalla pagina di accesso, al ritorno si ritrova. */
+  async function keepDraft() {
     if (!draft) return;
-    event.preventDefault();
     await saveSellDraft({
       draft,
       title,
@@ -72,7 +77,41 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
       shippingChf,
       photos: photos.flatMap((p) => (p.file ? [{ file: p.file, ...(p.gps ? { gps: p.gps } : {}) }] : [])),
     });
+  }
+
+  /** Va alla pagina di accesso (link o passkey) tenendo la bozza. */
+  async function signInKeepingDraft(event: Event) {
+    if (!draft) return;
+    event.preventDefault();
+    await keepDraft();
     location.href = '/accedi?next=/vendi';
+  }
+
+  /** Manda l'email con il codice (e il link, che riporta qui con la bozza). Se l'account non c'è, nasce adesso. */
+  async function sendCode() {
+    setError(null);
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Scrivi un indirizzo email valido.');
+    setChecking(true);
+    await keepDraft();
+    const form = new FormData();
+    form.append('email', email.trim());
+    form.append('next', '/vendi');
+    const { error: sendError } = await actions.account.sendMagicLink(form);
+    setChecking(false);
+    if (sendError) return setError(sendError.message);
+    setCodeSent(true);
+  }
+
+  /** Controlla il codice: la sessione si apre in questa pagina e l'annuncio si pubblica subito. */
+  async function confirmAndPublish() {
+    setError(null);
+    if (!/^\d{6}$/.test(code.trim())) return setError('Il codice ha 6 cifre.');
+    setChecking(true);
+    const { error: codeError } = await actions.account.verifyCode({ email: email.trim(), code: code.trim(), next: '/vendi' });
+    setChecking(false);
+    if (codeError) return setError(codeError.message);
+    setAuthed(true);
+    await publish();
   }
 
   // "Lo cercano in 4": chi ha una ricerca salvata per un oggetto così (serve il comune, per chi cerca vicino a casa)
@@ -341,24 +380,61 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
           </p>
         )}
 
+        {!authed && (
+          <div class="fld code-step">
+            {!codeSent ? (
+              <>
+                <label class="label" for="publish-email">
+                  La tua email, per pubblicare
+                </label>
+                <input id="publish-email" type="email" autoComplete="email" inputMode="email" placeholder="nome@esempio.ch" value={email} onInput={(e) => setEmail((e.target as HTMLInputElement).value)} />
+                <small>
+                  Ti mandiamo un codice di 6 cifre, niente password. Hai già un account?{' '}
+                  <a href="/accedi?next=/vendi" onClick={signInKeepingDraft}>
+                    Accedi con il link o la passkey
+                  </a>
+                  .
+                </small>
+              </>
+            ) : (
+              <>
+                <label class="label" for="publish-code">
+                  Codice
+                </label>
+                <input id="publish-code" class="code-input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="123456" value={code} onInput={(e) => setCode((e.target as HTMLInputElement).value.replace(/[^\d]/g, ''))} />
+                <small>
+                  Ti abbiamo scritto a <b>{email}</b>: scrivi il codice, oppure apri il link nell'email (la bozza resta salvata).{' '}
+                  <button type="button" class="link-button" onClick={() => setCodeSent(false)}>
+                    Cambia email
+                  </button>
+                </small>
+              </>
+            )}
+          </div>
+        )}
+
         <div class="actions">
-          {signedIn ? (
+          {authed ? (
             <button class="btn primary" type="button" onClick={publish} disabled={publishing || photos.length === 0}>
               {publishing ? 'Pubblico…' : 'Pubblica annuncio'}
             </button>
+          ) : !codeSent ? (
+            <button class="btn primary" type="button" onClick={sendCode} disabled={checking}>
+              {checking ? 'Mando il codice…' : 'Mandami il codice'}
+            </button>
           ) : (
-            <a class="btn primary" href="/accedi?next=/vendi" onClick={signInKeepingDraft}>
-              Accedi per pubblicare
-            </a>
+            <button class="btn primary" type="button" onClick={confirmAndPublish} disabled={checking || publishing || photos.length === 0}>
+              {checking || publishing ? 'Pubblico…' : 'Conferma e pubblica'}
+            </button>
           )}
           <button class="btn" type="button" onClick={restart} disabled={publishing}>
             Ricomincia
           </button>
         </div>
         <p class="muted small">
-          {signedIn
+          {authed
             ? "Dopo la pubblicazione l'annuncio resta online 90 giorni. Lo gestisci da I miei annunci."
-            : 'Per pubblicare serve un account: entri con un link via email, senza password, e la bozza resta salvata in questo browser.'}{' '}
+            : "Per pubblicare serve un account: nasce con l'email e il codice, senza password. Subito dopo puoi salvare una passkey."}{' '}
           Pubblicando accetti le <a href="/condizioni">condizioni d'uso</a>, comprese le <a href="/condizioni#regole">regole della comunità</a>.
         </p>
       </div>

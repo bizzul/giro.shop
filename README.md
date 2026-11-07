@@ -102,8 +102,11 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
   l'anello blu: si controllano prima di pubblicare. Senza chiave di Claude la bozza nasce dal testo con regole
   semplici, e la pagina lo dice.
 - Comune di ritiro con ricerca, spedizione con costo facoltativo, prezzo trattabile.
-- **La bozza non si perde:** preparata senza account, «Accedi per pubblicare» la salva nel browser (IndexedDB, foto
-  comprese) e al ritorno dal link via email si ritrova com'era; si cancella dopo la pubblicazione o con «Ricomincia».
+- **Primo annuncio senza lasciare la pagina:** chi non ha un account scrive l'email sotto la bozza, riceve un codice di 6
+  cifre e lo scrive lì; l'account nasce, l'annuncio si pubblica e subito dopo il sito propone una passkey. Lo stesso
+  codice vale anche in /accedi.
+- **La bozza non si perde:** quando parte il codice (o con «Accedi con il link o la passkey») si salva nel browser
+  (IndexedDB, foto comprese); al ritorno dal link si ritrova com'era. Si cancella dopo la pubblicazione o con «Ricomincia».
 - **Il comune si compila da solo** (anche in Svuota casa): dalle coordinate GPS della foto, lette nel browser, oppure, se
   la foto non le ha, dalla posizione del telefono, che il browser chiede una volta sola. Vale il comune più vicino entro
   25 km; quello scelto a mano non cambia più.
@@ -247,7 +250,7 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
 - Informativa sulla privacy (nLPD) e condizioni d'uso, con le regole della comunità prese dalla stessa fonte usata
   dall'agente di moderazione.
 - **Scarica i tuoi dati** (un file JSON con tutto) ed **elimina l'account** dalla pagina dell'account.
-- Solo cookie tecnici, niente tracciamento. Accesso con link via email, senza password; subito dopo il primo accesso
+- Solo cookie tecnici, niente tracciamento. Accesso con link o codice via email, senza password; subito dopo il primo accesso
   il sito propone di salvare una passkey (impronta, viso o PIN, una volta sola e solo a chi non ne ha), che si aggiunge
   anche dall'account: la volta dopo si entra senza aspettare l'email. Visite agli annunci e ricerche si
   contano solo in forma anonima (vedi l'informativa: «Conteggi anonimi»).
@@ -273,7 +276,7 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
 
 - **Astro 7** con rendering sul server (adapter Node), isole **Preact** per le parti interattive, Astro Actions per i
   moduli, server islands per le parti personali delle pagine in cache.
-- **Supabase**: Postgres con regole RLS (ognuno vede e modifica solo ciò che può), accesso con link via email (PKCE) e passkey facoltative,
+- **Supabase**: Postgres con regole RLS (ognuno vede e modifica solo ciò che può), accesso con link o codice a 6 cifre via email (PKCE) e passkey facoltative,
   Storage per le foto. Funzioni e trigger nel database per offerte, ritiri, scadenze, segnalazioni, sospensioni e
   tariffe di pubblicazione.
 - **Un solo nucleo** in `src/core` (frase → filtri, ricerca, stime, bozze, comuni) usato dal sito, dalle Actions e dal
@@ -338,7 +341,7 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 | Comando | Cosa verifica |
 | --- | --- |
 | `pnpm test` | 157 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, passkey, SEO, indirizzi con il titolo e pagine /usato, categorie, intestazioni di sicurezza, coordinate GPS e miniature delle foto, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
-| `pnpm test:e2e` | 36 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi (con la miniatura della foto nelle schede), bozza ritrovata dopo l'accesso, comune dalla foto o dalla posizione (e foto inviate senza), avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente, passkey (proposta dopo l'accesso, aggiunta, accesso senza email e rimozione, con un autenticatore virtuale) |
+| `pnpm test:e2e` | 38 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi (con la miniatura della foto nelle schede), bozza ritrovata dopo l'accesso, primo annuncio e accesso con il codice a 6 cifre, comune dalla foto o dalla posizione (e foto inviate senza), avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente, passkey (proposta dopo l'accesso, aggiunta, accesso senza email e rimozione, con un autenticatore virtuale) |
 | `pnpm test:db` | 118 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger, pagamenti, tariffe) |
 | `pnpm test:moderazione` | 37 controlli sull'agente di moderazione con un modello finto che segue un copione |
 | `pnpm test:oauth` | 25 controlli sul login OAuth del connettore con il client MCP ufficiale |

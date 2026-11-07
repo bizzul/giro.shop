@@ -24,6 +24,21 @@ async function magicLink(email: string): Promise<string> {
   throw new Error(`Nessuna email di accesso per ${email}`);
 }
 
+/** Il codice a 6 cifre dell'ultima email di accesso arrivata a `email` (Mailpit), aspettandolo fino a 15 secondi. */
+export async function accessCode(email: string): Promise<string> {
+  for (let i = 0; i < 30; i++) {
+    const res = await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`);
+    const { messages } = (await res.json()) as { messages: Array<{ ID: string }> };
+    if (messages?.length) {
+      const msg = (await (await fetch(`${MAILPIT}/api/v1/message/${messages[0].ID}`)).json()) as { HTML: string };
+      const code = msg.HTML.match(/>\s*(\d{6})\s*</)?.[1];
+      if (code) return code;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`Nessun codice di accesso per ${email}`);
+}
+
 /** Accesso vero: email in /accedi, link da Mailpit aperto nello stesso browser (PKCE). */
 export async function login(page: Page, email: string, next = '/miei-annunci') {
   await page.goto(`/accedi?next=${encodeURIComponent(next)}`);

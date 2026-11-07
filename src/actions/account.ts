@@ -17,6 +17,8 @@ import { siteOrigin } from '../lib/notify.ts';
 import { adminClient } from '../lib/admin.ts';
 import { disconnect } from '../lib/oauth.ts';
 import { storePhoto, type StoredPhoto } from '../lib/photo-store.ts';
+import { markPasskeyOffer } from '../lib/passkey-offer.ts';
+import { allow } from '../lib/claude.ts';
 
 /** Spedizione dal form: casella "si spedisce" e costo facoltativo. */
 const shippingFields = {
@@ -127,7 +129,34 @@ export const account = {
           message: error.status === 429 ? 'Troppi tentativi: riprova tra qualche minuto.' : `Non riesco a mandare il link: ${error.message}`,
         });
       }
-      return { email };
+      return { email, next: safeNext(next) };
+    },
+  }),
+
+  /**
+   * Accesso con il codice a 6 cifre della stessa email del link: si scrive nella pagina, senza cambiare app o browser
+   * (Vendi, /accedi). La sessione si scrive nei cookie, come con il link.
+   */
+  verifyCode: defineAction({
+    input: z.object({
+      email: z.string().trim().email('Scrivi un indirizzo email valido.'),
+      code: z.string().trim().regex(/^\d{6}$/, 'Il codice ha 6 cifre.'),
+      next: z.string().nullish(),
+    }),
+    handler: async ({ email, code, next }, context) => {
+      const supabase = requireSupabase(context);
+      if (!allow(`codice:${context.clientAddress}`, 20, 10 * 60_000)) {
+        throw new ActionError({ code: 'TOO_MANY_REQUESTS', message: 'Troppi tentativi: riprova tra qualche minuto.' });
+      }
+      const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+      if (error) {
+        throw new ActionError({
+          code: error.status === 429 ? 'TOO_MANY_REQUESTS' : 'BAD_REQUEST',
+          message: error.status === 429 ? 'Troppi tentativi: riprova tra qualche minuto.' : 'Codice sbagliato o scaduto: controlla l\'ultima email o chiedine uno nuovo.',
+        });
+      }
+      await markPasskeyOffer(supabase, context.cookies, context.url.protocol === 'https:');
+      return { next: safeNext(next) };
     },
   }),
 

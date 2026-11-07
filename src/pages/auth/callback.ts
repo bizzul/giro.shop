@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { safeNext } from '../../actions/account.ts';
-import { passkeysEnabled } from '../../lib/supabase.ts';
+import { markPasskeyOffer } from '../../lib/passkey-offer.ts';
 
 /** Ritorno dal link email: scambia il codice con una sessione (PKCE) e porta l'utente dove voleva andare. */
 export const GET: APIRoute = async ({ url, locals, redirect, cookies }) => {
@@ -9,11 +9,7 @@ export const GET: APIRoute = async ({ url, locals, redirect, cookies }) => {
   if (code && locals.supabase) {
     const { error } = await locals.supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      // Chi non ha ancora una passkey se la vede proporre nella pagina dove arriva (components/PasskeyOffer.astro)
-      if (await passkeysEnabled()) {
-        const { data } = await locals.supabase.auth.passkey.list();
-        if (!data?.length) cookies.set('giro_offri_passkey', '1', { path: '/', maxAge: 600, sameSite: 'lax', secure: url.protocol === 'https:' });
-      }
+      await markPasskeyOffer(locals.supabase, cookies, url.protocol === 'https:');
       return redirect(next, 303);
     }
   }

@@ -44,6 +44,11 @@ export const badge = (text: string, dot: string) =>
   `<span style="display:inline-block;margin:0 6px 6px 0;padding:6px 8px;border:1px solid ${C.line};border-radius:2px;background:#ffffff;font:500 10px/1 ${BODY};letter-spacing:.08em;text-transform:uppercase;color:${C.ink}">` +
   `<span style="display:inline-block;width:6px;height:6px;border-radius:3px;background:${dot};margin-right:6px;vertical-align:1px"></span>${esc(text)}</span>`;
 
+/** Il codice di accesso a 6 cifre, grande e spaziato, da scrivere nella pagina (anche un segnaposto: {{ .Token }}). */
+export const accessCode = (token: string) =>
+  `<p style="margin:24px 0 6px;font:400 13px/1.5 ${BODY};color:${C.muted}">Oppure scrivi questo codice nella pagina di giro.shop da cui l'hai chiesto:</p>` +
+  `<p style="margin:0;font:500 30px/1.2 ${MONO};letter-spacing:.18em;color:${C.ink}">${esc(token)}</p>`;
+
 export const price = (chf: string, size = 22) => `<span style="font:500 ${size}px/1.2 ${MONO};letter-spacing:-.02em;color:${C.ink}">${esc(chf)}</span>`;
 
 export interface CardListing {

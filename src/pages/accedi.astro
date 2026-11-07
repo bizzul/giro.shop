@@ -24,9 +24,17 @@ const deleted = Astro.url.searchParams.has('eliminato');
           <span class="label">Controlla la posta</span>
           <h1>Ti abbiamo mandato un link.</h1>
           <p class="muted">
-            Apri l'email inviata a <b>{result.data.email}</b> e tocca il link per entrare. Vale un'ora; aprilo nello stesso browser
-            da cui l'hai chiesto.
+            Apri l'email inviata a <b>{result.data.email}</b> e tocca il link, oppure scrivi qui il codice di 6 cifre che trovi
+            nella stessa email. Valgono un'ora.
           </p>
+          <form class="code-form" data-code-form data-email={result.data.email} data-next={result.data.next}>
+            <label class="fld">
+              <span class="label">Codice</span>
+              <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="123456" />
+            </label>
+            <button class="btn primary" type="submit">Entra</button>
+            <p class="error" role="alert" hidden></p>
+          </form>
           {import.meta.env.DEV && (
             <p class="small">
               In sviluppo le email non partono davvero: le trovi in Mailpit, su{' '}
@@ -111,12 +119,30 @@ const deleted = Astro.url.searchParams.has('eliminato');
       }
     });
   }
+
+  // Codice a 6 cifre della stessa email del link: si entra senza aprire il link (src/actions/account.ts, verifyCode)
+  const codeForm = document.querySelector<HTMLFormElement>('[data-code-form]');
+  codeForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const box = codeForm.querySelector<HTMLElement>('.error')!;
+    const button = codeForm.querySelector<HTMLButtonElement>('button')!;
+    button.disabled = true;
+    box.hidden = true;
+    const code = String(new FormData(codeForm).get('code') ?? '');
+    const { data, error } = await actions.account.verifyCode({ email: codeForm.dataset.email ?? '', code, next: codeForm.dataset.next });
+    button.disabled = false;
+    if (data) return location.assign(data.next);
+    box.textContent = error?.message ?? 'Non è andata: riprova.';
+    box.hidden = false;
+  });
 </script>
 
 <style>
   .auth { max-width: 560px; }
   .auth h1 { font-size: clamp(28px, 3.6vw, 40px); }
   .auth .fld { width: 100%; }
+  .code-form { display: grid; gap: 12px; width: 100%; justify-items: start; }
+  .code-form input { letter-spacing: 0.2em; font-family: var(--f-mono); max-width: 12ch; }
   .error-text { color: var(--bad); }
   .passkey-login { display: grid; gap: 10px; justify-items: start; width: 100%; }
   .passkey-login[hidden] { display: none; }
