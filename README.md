@@ -326,13 +326,11 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 | `pnpm email:anteprima <cartella>` | Anteprima delle email (accesso, avviso, riassunto) per computer e telefono |
 | `pnpm email:modelli` | Rigenera i modelli delle email di Supabase dal disegno comune (`src/lib/email-design.ts`) |
 
-I test nel browser e i controlli servono `pnpm exec supabase start` e `pnpm dev` accesi; puliscono quello che creano.
-I test nel browser si aspettano il sito senza Claude (bozze, assistente venditore e Svuota casa con le regole): se in
-`.env` c'è `ANTHROPIC_API_KEY`, accendi il server senza chiave prima di lanciarli:
-
-```bash
-pnpm exec astro dev stop && ANTHROPIC_API_KEY= pnpm dev --background && pnpm test:e2e
-```
+Tutto serve `pnpm exec supabase start`; i controlli anche `pnpm dev` acceso. Puliscono quello che creano.
+Per i test nel browser il server lo avvia Playwright: uno di sviluppo tutto suo sulla porta 4322, accanto a quello di
+tutti i giorni, sempre senza chiave di Claude anche se è nel `.env` (bozze, assistente venditore e Svuota casa con le
+regole: risultati sempre uguali e niente costi). Alla fine lo spegne. Con `E2E_BASE_URL` si prova invece un server già
+acceso.
 
 ## Online sul Mac mini
 

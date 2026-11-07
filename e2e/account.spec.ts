@@ -81,9 +81,10 @@ test('collegare un assistente AI: annullare, consentire, scollegare', async () =
 
   back = null;
   await page.goto(authorize);
+  const site = new URL(page.url()).origin;
   await page.getByRole('button', { name: 'Consenti' }).click();
   await expect.poll(() => back?.searchParams.get('code')).toBeTruthy();
-  expect(back!.searchParams.get('iss')).toBe('http://localhost:4321');
+  expect(back!.searchParams.get('iss')).toBe(site);
 
   const token = await page.request.post('/oauth/token', {
     form: { grant_type: 'authorization_code', code: back!.searchParams.get('code')!, code_verifier: verifier, redirect_uri: redirect, client_id: reg.client_id },
