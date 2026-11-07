@@ -347,6 +347,7 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 | `pnpm test:oauth` | 25 controlli sul login OAuth del connettore con il client MCP ufficiale |
 | `pnpm mcp:smoke` | Prova il server MCP via HTTP |
 | `pnpm screenshots` | Rifà le immagini di questo README |
+| `pnpm icone` | Rifà favicon, icone (iPhone, Android) e l’anteprima per le condivisioni `public/og.png` dal marchio |
 | `pnpm email:anteprima <cartella>` | Anteprima delle email (accesso, avviso, riassunto) per computer e telefono |
 | `pnpm foto:miniature` | Crea le miniature che mancano alle foto caricate (foto di prima delle miniature, o una non riuscita) |
 | `pnpm email:modelli` | Rigenera i modelli delle email di Supabase dal disegno comune (`src/lib/email-design.ts`) |

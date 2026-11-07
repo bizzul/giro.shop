@@ -1,4 +1,5 @@
 ---
+import { createHash } from 'node:crypto';
 import Layout from '../../layouts/Layout.astro';
 import { actions } from 'astro:actions';
 import CategoryIcon from '../../components/CategoryIcon.astro';
@@ -90,7 +91,9 @@ const canTranslate = Boolean(claudeKey());
 <Layout
   title={`${listing.title} · giro.shop`}
   description={listing.description}
-  image={photo?.src}
+  image={photo ? `/og/annuncio/${listing.id}.jpg?v=${createHash('sha1').update(photo.src).digest('hex').slice(0, 8)}` : undefined}
+  imageAlt={listing.title}
+  price={sold ? undefined : listing.priceChf}
   ogType="product"
   jsonLd={[
     listingJsonLd(listing, siteOrigin(Astro.url.origin), comune),

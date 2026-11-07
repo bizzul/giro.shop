@@ -17,6 +17,10 @@ interface Props {
   description?: string;
   /** Immagine per le anteprime dei link condivisi (Open Graph). */
   image?: string;
+  /** Testo alternativo dell'immagine di anteprima. */
+  imageAlt?: string;
+  /** Prezzo in CHF delle schede annuncio, per le anteprime che lo mostrano (Facebook, Pinterest). */
+  price?: number;
   /** Dati strutturati schema.org per i motori di ricerca: uno o più blocchi. */
   jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>;
   /** "product" per le schede annuncio, "website" per il resto. */
@@ -29,6 +33,8 @@ const {
   title,
   description = 'Compra e vendi in Ticino: annunci da una foto, ricerca a parole tue, connettore per assistenti AI.',
   image,
+  imageAlt,
+  price,
   jsonLd,
   ogType = 'website',
   noindex = false,
@@ -37,7 +43,10 @@ const path = Astro.url.pathname;
 // Indirizzo canonico: senza parametri, sull'indirizzo pubblico del sito
 const origin = siteOrigin(Astro.url.origin);
 const canonical = `${origin}${path}`;
-const ogImage = image ? (image.startsWith('http') ? image : `${origin}${image}`) : undefined;
+// Senza immagine propria vale l'anteprima del sito (public/og.png, pnpm icone); entrambe 1200×630
+const ogImage = image ? (image.startsWith('http') ? image : `${origin}${image}`) : `${origin}/og.png`;
+const ogImageAlt = image ? (imageAlt ?? title) : 'giro.shop: compra e vendi in Ticino';
+const ogImageType = ogImage.split('?')[0].endsWith('.png') ? 'image/png' : 'image/jpeg';
 const jsonLdBlocks = jsonLd ? [jsonLd].flat() : [];
 const summary = description.length > 200 ? `${description.slice(0, 197)}…` : description;
 const nav = [
@@ -93,10 +102,26 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(HAND_SCRIPT).d
     <meta property="og:title" content={title} />
     <meta property="og:description" content={summary} />
     <meta property="og:url" content={canonical} />
-    {ogImage && <meta property="og:image" content={ogImage} />}
-    <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:secure_url" content={ogImage} />
+    <meta property="og:image:type" content={ogImageType} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={ogImageAlt} />
+    {price != null && <meta property="product:price:amount" content={price.toFixed(2)} />}
+    {price != null && <meta property="product:price:currency" content="CHF" />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={summary} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content={ogImageAlt} />
     {jsonLdBlocks.map((data) => <script type="application/ld+json" set:html={jsonLdScript(data)} />)}
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="giro.shop" />
+    <meta name="application-name" content="giro.shop" />
     <!-- Font serviti da noi (src/styles/fonts.css), niente richieste a Google: si caricano subito quelli dei caratteri latini -->
     <link rel="preload" href={instrumentLatin} as="font" type="font/woff2" crossorigin />
     <link rel="preload" href={archivoLatin} as="font" type="font/woff2" crossorigin />

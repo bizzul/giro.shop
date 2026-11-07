@@ -14,7 +14,7 @@ configureStore(SUPABASE_SERVER_URL, SUPABASE_KEY, SUPABASE_URL);
  * così nessuna risposta in cache può contenere cookie di un utente. Il menu dell'account
  * si carica a parte come server island.
  */
-const PUBLIC_PREFIXES = ['/annuncio/', '/usato/', '/venditore/', '/foto/', '/_astro/', '/.well-known/', '/mcp/'];
+const PUBLIC_PREFIXES = ['/annuncio/', '/usato/', '/venditore/', '/foto/', '/_astro/', '/.well-known/', '/mcp/', '/og/'];
 const PUBLIC_PATHS = new Set([
   '/',
   '/cerca',
@@ -27,6 +27,13 @@ const PUBLIC_PATHS = new Set([
   '/oauth/register',
   '/oauth/revoke',
   '/favicon.svg',
+  '/favicon.ico',
+  '/apple-touch-icon.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-512.png',
+  '/site.webmanifest',
+  '/og.png',
   '/sicurezza',
   '/cercasi',
   '/confronta',
