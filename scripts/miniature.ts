@@ -6,7 +6,7 @@
  * Uso: pnpm foto:miniature   (legge .env: indirizzo di Supabase e chiave segreta)
  */
 import { createClient } from '@supabase/supabase-js';
-import { makeThumbnail, smallPathFor } from '../src/lib/photo-store.ts';
+import { CACHE, makeThumbnail, smallPathFor } from '../src/lib/photo-store.ts';
 
 const url = process.env.SUPABASE_INTERNAL_URL || process.env.PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SECRET_KEY;
@@ -30,7 +30,7 @@ for (const row of rows ?? []) {
     if (downloadError || !file) throw new Error(downloadError?.message ?? 'non trovata');
     const thumb = await makeThumbnail(await file.arrayBuffer());
     const small = smallPathFor(row.storage_path);
-    const { error: uploadError } = await admin.storage.from('foto').upload(small, thumb.bytes, { contentType: 'image/webp', upsert: true });
+    const { error: uploadError } = await admin.storage.from('foto').upload(small, thumb.bytes, { contentType: 'image/webp', upsert: true, cacheControl: CACHE });
     if (uploadError) throw new Error(uploadError.message);
     const { error: rowError } = await admin
       .from('listing_photos')

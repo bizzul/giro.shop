@@ -11,6 +11,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 /** Larghezza della miniatura: nelle schede la foto è larga al massimo 360 px, sul telefono metà schermo. */
 export const SMALL_WIDTH = 480;
 
+/** Cache delle foto nello Storage, in secondi: un anno. */
+export const CACHE = '31536000';
+
 export interface Thumbnail {
   bytes: Buffer;
   /** Dimensioni della foto intera, già girata secondo l'EXIF. */
@@ -53,7 +56,8 @@ export async function storePhoto(
   body: Blob | Uint8Array | ArrayBuffer,
   contentType: string,
 ): Promise<{ error: string; photo?: never } | { error: null; photo: StoredPhoto }> {
-  const { error } = await client.storage.from('foto').upload(path, body, { contentType });
+  // I nomi delle foto non si riusano mai: un anno di cache nel browser e su Cloudflare
+  const { error } = await client.storage.from('foto').upload(path, body, { contentType, cacheControl: CACHE });
   if (error) return { error: error.message };
   const photo: StoredPhoto = { storage_path: path, small_path: null, width: null, height: null };
   try {
@@ -61,7 +65,7 @@ export async function storePhoto(
     photo.width = thumb.width || null;
     photo.height = thumb.height || null;
     const small = smallPathFor(path);
-    const { error: smallError } = await client.storage.from('foto').upload(small, thumb.bytes, { contentType: 'image/webp' });
+    const { error: smallError } = await client.storage.from('foto').upload(small, thumb.bytes, { contentType: 'image/webp', cacheControl: CACHE });
     if (smallError) console.warn(`[giro] miniatura di ${path} non caricata: ${smallError.message}`);
     else photo.small_path = small;
   } catch (error) {

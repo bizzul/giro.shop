@@ -18,6 +18,11 @@ describe('intestazioni di sicurezza', () => {
     expect(withSecurityHeaders(page, new URL('https://giro.shop/')).headers.get('Content-Security-Policy')).toBe("frame-ancestors 'self'");
   });
 
+  it('aggiunge il divieto di cornici alla CSP della pagina', () => {
+    const page = new Response('ok', { headers: { 'Content-Security-Policy': "script-src 'self'" } });
+    expect(withSecurityHeaders(page, new URL('https://giro.shop/')).headers.get('Content-Security-Policy')).toBe("script-src 'self'; frame-ancestors 'none'");
+  });
+
   it('funziona anche con intestazioni non modificabili, senza perdere stato e corpo', async () => {
     const redirect = Response.redirect('https://giro.shop/accedi', 303);
     const out = withSecurityHeaders(redirect, new URL('https://giro.shop/'));

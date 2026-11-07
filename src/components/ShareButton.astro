@@ -1,0 +1,53 @@
+---
+/**
+ * Condividi un annuncio: sul telefono il menu del sistema (navigator.share: WhatsApp, Messaggi, Telegram…);
+ * dove non c'è, WhatsApp e «Copia link». Senza JavaScript resta il link a WhatsApp.
+ */
+interface Props {
+  url: string;
+  title: string;
+}
+const { url, title } = Astro.props;
+const text = `${title} · ${url}`;
+---
+
+<div class="share" data-share data-url={url} data-title={title}>
+  <button class="btn share-native" type="button" data-share-native hidden>Condividi</button>
+  <a class="btn share-wa" href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noopener" data-share-fallback>
+    WhatsApp
+  </a>
+  <button class="btn" type="button" data-share-copy data-share-fallback hidden>Copia link</button>
+</div>
+
+<script>
+  import { toast } from '../lib/toast.ts';
+
+  for (const box of document.querySelectorAll<HTMLElement>('[data-share]')) {
+    const url = box.dataset.url ?? location.href;
+    const title = box.dataset.title ?? document.title;
+    const native = box.querySelector<HTMLButtonElement>('[data-share-native]');
+    const copy = box.querySelector<HTMLButtonElement>('[data-share-copy]');
+    if (navigator.share && native) {
+      native.hidden = false;
+      box.querySelectorAll<HTMLElement>('[data-share-fallback]').forEach((el) => (el.hidden = true));
+      native.addEventListener('click', () => {
+        navigator.share({ title, url }).catch(() => {});
+      });
+    } else if (copy && navigator.clipboard) {
+      copy.hidden = false;
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(url);
+          toast('Link copiato');
+        } catch {
+          toast('Link non copiato', 'error');
+        }
+      });
+    }
+  }
+</script>
+
+<style>
+  .share { display: contents; }
+  .share [hidden] { display: none; }
+</style>

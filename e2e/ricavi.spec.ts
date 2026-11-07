@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { admin, deleteUsers, login, testEmail } from './helpers.ts';
 import { hydrated } from './islands.ts';
+import { listingIdFromParam } from '../src/core/seo.ts';
 
 /**
  * Ricavi, con il pagamento di prova: vetrina mirata, pubblicazione a pagamento in Auto, negozio Pro
@@ -99,7 +100,7 @@ test('auto: senza Pro la pubblicazione si paga, poi va in vendita', async () => 
   await expect(seller.locator('main')).toContainText('Pubblicazione per 90 giorni');
   await seller.getByRole('button', { name: /Paga CHF 9\.90/ }).click();
   await seller.waitForURL(/\/annuncio\//);
-  carId = new URL(seller.url()).pathname.split('/').pop()!;
+  carId = listingIdFromParam(new URL(seller.url()).pathname.split('/').pop()!);
   const { data } = await admin.from('listings').select('status, category_id').eq('id', carId).single();
   expect(data).toEqual({ status: 'pubblicato', category_id: 'auto' });
 });

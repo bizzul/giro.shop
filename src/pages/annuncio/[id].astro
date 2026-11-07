@@ -5,6 +5,7 @@ import CategoryIcon from '../../components/CategoryIcon.astro';
 import ListingCard from '../../components/ListingCard.astro';
 import ContactBox from '../../components/ContactBox.astro';
 import FavoriteButton from '../../components/FavoriteButton.astro';
+import ShareButton from '../../components/ShareButton.astro';
 import QuestionBox from '../../components/QuestionBox.astro';
 import PriceChart from '../../components/PriceChart.astro';
 import RatingsSummary from '../../components/RatingsSummary.astro';
@@ -14,7 +15,7 @@ import { tokenize } from '../../core/text.ts';
 import { LANGUAGES } from '../../core/claude.ts';
 import { claudeKey } from '../../lib/claude.ts';
 import { replyTime, sellerProfile } from '../../lib/sellers.ts';
-import { breadcrumbJsonLd, listingJsonLd } from '../../core/seo.ts';
+import { breadcrumbJsonLd, listingIdFromParam, listingJsonLd, listingPath } from '../../core/seo.ts';
 import { siteOrigin } from '../../lib/notify.ts';
 import { LISTINGS_TAG } from '../../lib/cache.ts';
 import { getListing, getPhoto, sourceName } from '../../core/store.ts';
@@ -25,10 +26,13 @@ import { estimatePrice, priceVerdict } from '../../core/price.ts';
 import { similarTo } from '../../core/search.ts';
 import { CONDITION_LABEL, VERDICT_LABEL, formatAge, formatChf, formatChfRange, priceText } from '../../core/format.ts';
 
-const listing = getListing(Astro.params.id ?? '');
+const listing = getListing(listingIdFromParam(Astro.params.id ?? ''));
 if (!listing) {
   return new Response('Annuncio non trovato', { status: 404 });
 }
+// Indirizzo con il titolo: i vecchi /annuncio/<codice> (e quelli con un titolo cambiato) portano lì
+const path = listingPath(listing);
+if (Astro.url.pathname !== path) return Astro.redirect(`${path}${Astro.url.search}`, 301);
 
 Astro.cache.set({ tags: [LISTINGS_TAG] });
 const sold = listing.status === 'venduto';
@@ -92,7 +96,7 @@ const canTranslate = Boolean(claudeKey());
     listingJsonLd(listing, siteOrigin(Astro.url.origin), comune),
     breadcrumbJsonLd(siteOrigin(Astro.url.origin), [
       { name: 'Annunci', path: '/cerca' },
-      { name: listing.title, path: `/annuncio/${listing.id}` },
+      { name: listing.title, path },
     ]),
   ]}
 >
@@ -200,6 +204,7 @@ const canTranslate = Boolean(claudeKey());
           <button class="btn compare-btn" type="button" data-compare={listing.id} aria-pressed="false">
             Confronta
           </button>
+          <ShareButton url={`${siteOrigin(Astro.url.origin)}${path}`} title={listing.title} />
           <a class="compare-link small" href="/confronta" data-compare-link hidden>Vedi il confronto</a>
         </div>
 
@@ -392,7 +397,7 @@ const canTranslate = Boolean(claudeKey());
                   <ul class="comps">
                     {comparables.map(({ l, price }) => (
                       <li>
-                        <a href={`/annuncio/${l.id}`}>{l.title}</a>
+                        <a href={listingPath(l)}>{l.title}</a>
                         <span class="muted">
                           {CONDITION_LABEL[l.condition]}
                           {l.status === 'venduto' && ' · venduto'}
@@ -705,6 +710,8 @@ const canTranslate = Boolean(claudeKey());
   .summary .label { display: inline-flex; align-items: center; gap: 8px; }
   .summary ul { display: grid; gap: 6px; list-style: disc; padding-left: 18px; font-size: 15px; }
   .translate { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin-top: -12px; }
+  /* Comandi piccoli: almeno 24px d'altezza da toccare (WCAG 2.5.8) */
+  .translate .link-button, .crumbs a { display: inline-flex; align-items: center; min-height: 24px; }
   .trust { display: grid; gap: 4px; margin-top: 10px; color: var(--muted); }
   .trust a { color: var(--ink); text-underline-offset: 3px; }
   .stars-inline { color: var(--sun); letter-spacing: 1px; font-weight: 400; }

@@ -3,6 +3,7 @@ import { dealOfTheDay } from '../core/deals.ts';
 import { getComune } from '../core/comuni.ts';
 import { getPhoto } from '../core/store.ts';
 import { formatChf, formatChfRange } from '../core/format.ts';
+import { listingPath } from '../core/seo.ts';
 
 const deal = dealOfTheDay();
 const photo = deal ? getPhoto(deal.listing.id) : undefined;
@@ -12,7 +13,7 @@ const comune = deal ? getComune(deal.listing.comuneId) : undefined;
 {
   deal && (
     <section class="wrap deal-wrap" aria-labelledby="affare">
-      <a class="deal" href={`/annuncio/${deal.listing.id}`}>
+      <a class="deal" href={listingPath(deal.listing)}>
         {photo && <img src={photo.srcSmall} alt="" width="480" height="360" loading="lazy" decoding="async" />}
         <div class="deal-body">
           <span class="label" id="affare">Affare del giorno</span>

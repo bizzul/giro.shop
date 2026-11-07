@@ -2,6 +2,7 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { admin, deleteUsers, login, testEmail } from './helpers.ts';
 import { zurichDay } from '../src/core/pickup.ts';
 import { hydrated } from './islands.ts';
+import { listingIdFromParam } from '../src/core/seo.ts';
 
 /**
  * Vendere e trattare, con due persone vere (due browser separati, ognuno con il suo accesso via email):
@@ -66,7 +67,7 @@ test('Scatta e vendi: foto, bozza, pubblicazione', async () => {
   await seller.locator('#draft-price').fill('320');
   await seller.getByRole('button', { name: 'Pubblica annuncio' }).click();
   await seller.waitForURL(/\/annuncio\//);
-  listingId = new URL(seller.url()).pathname.split('/').pop()!;
+  listingId = listingIdFromParam(new URL(seller.url()).pathname.split('/').pop()!);
   await expect(seller.getByRole('heading', { level: 1 })).toHaveText(title);
   await expect(seller.locator('.price, [data-price]').first()).toContainText('320');
 

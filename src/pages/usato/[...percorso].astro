@@ -1,0 +1,50 @@
+---
+/**
+ * Usato in Ticino per oggetto e comune (/usato/divani, /usato/divani/lugano): pagine fisse per Google,
+ * fatte con la stessa ricerca a frasi di /cerca. Nessuna categoria nell'interfaccia: ci si arriva da Google o dalla sitemap.
+ */
+import Layout from '../../layouts/Layout.astro';
+import SearchResults from '../../components/SearchResults.astro';
+import { search } from '../../core/search.ts';
+import { breadcrumbJsonLd } from '../../core/seo.ts';
+import { siteOrigin } from '../../lib/notify.ts';
+import { usatoPage } from '../../lib/usato.ts';
+import { LISTINGS_TAG } from '../../lib/cache.ts';
+
+const [oggettoSlug, comuneId, ...extra] = (Astro.params.percorso ?? '').split('/').filter(Boolean);
+const page = !extra.length && oggettoSlug ? usatoPage(oggettoSlug, comuneId) : null;
+if (!page) return new Response('Pagina non trovata', { status: 404 });
+
+Astro.cache.set({ tags: [LISTINGS_TAG] });
+const total = search(page.query, { limit: 1 }).total;
+const where = page.comune ? `a ${page.comune.name} e dintorni` : 'in Ticino';
+const title = `${page.oggetto.label} ${where}, usato tra privati · giro.shop`;
+const heading = `${page.oggetto.label} ${where}`;
+const description = `${total ? `${total} annunci` : 'Annunci'} di ${page.oggetto.label.toLowerCase()} ${where}: compra e vendi l'usato tra privati su giro.shop.`;
+const origin = siteOrigin(Astro.url.origin);
+const crumbs = [
+  { name: 'Annunci', path: '/cerca' },
+  { name: page.oggetto.label, path: `/usato/${page.oggetto.slug}` },
+  ...(page.comune ? [{ name: page.comune.name, path: page.path }] : []),
+];
+---
+
+<Layout title={title} description={description} jsonLd={breadcrumbJsonLd(origin, crumbs)} noindex={total === 0}>
+  <section class="wrap band">
+    <div class="head">
+      <p class="eyebrow">Usato tra privati</p>
+      <h1>{heading}</h1>
+      <p class="muted">
+        Cerchi qualcosa di preciso? <a href={`/cerca?q=${encodeURIComponent(page.query)}`}>Scrivilo a parole tue</a>, con prezzo e zona.
+      </p>
+    </div>
+    <div id="risultati" class="results">
+      <SearchResults q={page.query} mode="cerca" />
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .head { display: grid; gap: 12px; max-width: 760px; margin-bottom: 32px; }
+  .head h1 { font-size: clamp(30px, 4vw, 44px); }
+</style>

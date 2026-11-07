@@ -52,14 +52,9 @@ if (user && supabase) {
         <span class="nav-avatar" aria-hidden="true">{(name ?? '?').trim().charAt(0).toUpperCase()}</span>
         <span class="nav-text nav-name">{name ?? 'Il mio account'}</span>
       </a>
-      {/* Il lato della barra su telefono segue l'account anche su un dispositivo nuovo (chiave come in core/hand.ts) */}
-      <script is:inline define:vars={{ hand: leftHanded ? 'sinistra' : 'destra' }}>
-        if (hand === 'sinistra') document.documentElement.dataset.mano = 'sinistra';
-        else delete document.documentElement.dataset.mano;
-        try {
-          localStorage.setItem('giro:mano', hand);
-        } catch {}
-      </script>
+      {/* Il lato della barra su telefono segue l'account anche su un dispositivo nuovo: lo applica lib/rail.ts
+          (niente script dentro l'isola, che la CSP non lascerebbe partire) */}
+      <span hidden data-mano-account={leftHanded ? 'sinistra' : 'destra'}></span>
     </>
   ) : (
     <a href="/accedi" class="nav-login">

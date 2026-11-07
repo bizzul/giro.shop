@@ -4,6 +4,7 @@ import CategoryIcon from './CategoryIcon.astro';
 import { getComune } from '../core/comuni.ts';
 import { getPhoto } from '../core/store.ts';
 import { formatKm, isNew, priceText, VERDICT_LABEL } from '../core/format.ts';
+import { listingPath } from '../core/seo.ts';
 
 interface Props {
   listing: Listing;
@@ -31,7 +32,7 @@ const badges = [
   .slice(0, 2);
 ---
 
-<a class="lcard" href={`/annuncio/${listing.id}`} data-lat={comune?.lat} data-lon={comune?.lon}>
+<a class="lcard" href={listingPath(listing)} data-lat={comune?.lat} data-lon={comune?.lon}>
   <div class="lph">
     {
       badges.length > 0 && (

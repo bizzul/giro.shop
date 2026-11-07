@@ -36,5 +36,10 @@ export function withSecurityHeaders(response: Response, url: URL): Response {
 }
 
 function apply(target: Headers, headers: Record<string, string>) {
-  for (const [key, value] of Object.entries(headers)) if (!target.has(key)) target.set(key, value);
+  for (const [key, value] of Object.entries(headers)) {
+    const current = target.get(key);
+    if (current == null) target.set(key, value);
+    // La CSP della pagina (script e stili, da Astro) tiene anche il divieto di cornici
+    else if (key === 'Content-Security-Policy' && !/frame-ancestors/.test(current)) target.set(key, `${current}; ${value}`);
+  }
 }

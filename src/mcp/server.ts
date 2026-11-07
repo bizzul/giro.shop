@@ -12,6 +12,7 @@ import { getListing, getPhoto, refreshListings } from '../core/store.ts';
 import { getComune, resolveComune } from '../core/comuni.ts';
 import { getCategory } from '../core/categories.ts';
 import { CONDITION_LABEL, VERDICT_LABEL } from '../core/format.ts';
+import { listingPath } from '../core/seo.ts';
 
 export interface PiazzaServerOptions {
   /** Indirizzo pubblico del sito, per i link agli annunci. */
@@ -74,7 +75,7 @@ function hitToJson(hit: SearchHit, baseUrl: string) {
     price_verdict: hit.verdict ? VERDICT_LABEL[hit.verdict] : null,
     published_at: l.publishedAt,
     seller_verified: l.seller.verified,
-    url: `${baseUrl}/annuncio/${l.id}`,
+    url: `${baseUrl}${listingPath(l)}`,
     photo_url: photoUrl(l.id, baseUrl),
   };
 }
@@ -173,7 +174,7 @@ export function createPiazzaServer(options: PiazzaServerOptions): McpServer {
         shipping: l.shipping ? { available: true, cost_chf: l.shippingChf ?? null } : { available: false },
         highlights: l.highlights ?? [],
         questions: (l.questions ?? []).filter((q) => q.answer).map((q) => ({ question: q.body, answer: q.answer })),
-        url: `${baseUrl}/annuncio/${l.id}`,
+        url: `${baseUrl}${listingPath(l)}`,
         photo: getPhoto(l.id)
           ? {
               url: photoUrl(l.id, baseUrl),

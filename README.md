@@ -77,11 +77,14 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
 - **Domande pubbliche** con risposta di chi vende e voto «utile», così le stesse domande non arrivano dieci volte.
 - **Storico del prezzo** con grafico; chi ha salvato l'annuncio viene avvisato quando il prezzo cala.
 - **Traduzione** in tedesco, francese e inglese (con Claude).
-- Salva (cuore), confronta, scrivi a chi vende, segnala. Profilo di chi vende con valutazioni e tempi di risposta.
+- Salva (cuore), confronta, condividi (menu del telefono, oppure WhatsApp e «Copia link»), scrivi a chi vende, segnala. Profilo di chi vende con valutazioni e tempi di risposta.
 - Etichette **«In vetrina»** (vetrina mirata pagata) e **«Negozio»** (account Pro); sui mobili grandi senza spedizione,
   le ditte di trasporto della zona.
-- Per Google: dati strutturati (Product/Offer e il percorso BreadcrumbList; in home Organization e WebSite con la
+- Per Google: indirizzi con il titolo (`/annuncio/<codice>-scrivania-bianca-laccata`; i vecchi `/annuncio/<codice>`
+  portano lì), dati strutturati (Product/Offer e il percorso BreadcrumbList; in home Organization e WebSite con la
   ricerca), link canonici, sitemap e robots.txt.
+- **Pagine per oggetto e comune** (`/usato/divani`, `/usato/divani/lugano`): la ricerca a frasi con un indirizzo fisso,
+  per farsi trovare su Google senza categorie nell'interfaccia. Nella sitemap solo quelle con annunci; vuote = `noindex`.
 
 <p>
   <img src="docs/screenshots/04-annuncio.webp" alt="Scheda annuncio con stima del prezzo e sintesi" width="62%">
@@ -95,6 +98,8 @@ Supabase in locale ([come](deploy/macmini/LEGGIMI.md)).
   l'anello blu: si controllano prima di pubblicare. Senza chiave di Claude la bozza nasce dal testo con regole
   semplici, e la pagina lo dice.
 - Comune di ritiro con ricerca, spedizione con costo facoltativo, prezzo trattabile.
+- **La bozza non si perde:** preparata senza account, «Accedi per pubblicare» la salva nel browser (IndexedDB, foto
+  comprese) e al ritorno dal link via email si ritrova com'era; si cancella dopo la pubblicazione o con «Ricomincia».
 - **Il comune si compila da solo** (anche in Svuota casa): dalle coordinate GPS della foto, lette nel browser, oppure, se
   la foto non le ha, dalla posizione del telefono, che il browser chiede una volta sola. Vale il comune più vicino entro
   25 km; quello scelto a mano non cambia più.
@@ -243,8 +248,8 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
   contano solo in forma anonima (vedi l'informativa: «Conteggi anonimi»).
 - Coordinate delle foto e posizione del telefono restano nel browser: al server arriva solo il comune. Le foto con la
   posizione si ridisegnano prima dell'invio, così nell'annuncio non resta dove sono state scattate.
-- I font (Archivo, Instrument Sans, Martian Mono) li serve il sito stesso da `public/fonts`, anche alle email: aprire una
-  pagina o un'email non manda nessuna richiesta a Google.
+- I font (Archivo, Instrument Sans, Martian Mono) li serve il sito stesso, anche alle email: aprire una pagina o
+  un'email non manda nessuna richiesta a Google.
 
 ### Sul telefono
 
@@ -276,10 +281,15 @@ fornitore vero). Gli importi li decide sempre il server, da `src/core/pricing.ts
   i vettori stanno in una tabella che solo il server legge e scrive.
 - **Foto:** il browser le riduce a 1568 px (e le ridisegna se hanno la posizione GPS); il server salva accanto una
   miniatura WebP da 480 px per le schede degli elenchi (`src/lib/photo-store.ts`, con sharp) e le dimensioni vere. Senza
-  miniatura le pagine usano la foto intera.
+  miniatura le pagine usano la foto intera. Nello Storage foto e miniature hanno un anno di cache (i nomi non si
+  riusano mai).
+- **Font:** il sito li prende da `src/assets/fonts` attraverso la build, con l'hash nel nome e un anno di cache; le email
+  usano la copia con l'indirizzo fisso in `public/fonts`.
 - **Intestazioni di sicurezza** su tutte le risposte del server (`src/lib/security-headers.ts`): HSTS, niente cornici da
   altri siti (offerte, pagamenti e cancellazioni non si possono far cliccare di nascosto), `nosniff`, Referrer-Policy e
   Permissions-Policy (la posizione solo per «Distanze da te»). I moduli da altri siti si rifiutano nel middleware.
+- **CSP** (`security.csp` di Astro): partono solo gli script del sito, ognuno con il suo hash; niente plugin né `<base>`
+  estranei. Gli unici script inline scritti a mano hanno l'hash calcolato nel Layout; nelle server island niente script.
 - Lavori periodici (promemoria di scadenza, annunci scaduti, ribassi automatici, consigli sul prezzo, promemoria dei
   ritiri, prezzi di prima alla fine delle modifiche in blocco, pagamenti protetti rilasciati dopo il ritiro, riassunto
   delle email, vettori nuovi) agganciati alle richieste, al massimo ogni 15 minuti.
@@ -322,8 +332,8 @@ La CLI di Supabase e pnpm hanno versioni fisse nel progetto.
 
 | Comando | Cosa verifica |
 | --- | --- |
-| `pnpm test` | 150 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, passkey, SEO, intestazioni di sicurezza, coordinate GPS e miniature delle foto, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
-| `pnpm test:e2e` | 34 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi (con la miniatura della foto nelle schede), comune dalla foto o dalla posizione (e foto inviate senza), avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente, passkey (aggiunta, accesso senza email e rimozione, con un autenticatore virtuale) |
+| `pnpm test` | 153 test unitari: ricerca, significato, stime, bozze, avvisi, email, OAuth, passkey, SEO, indirizzi con il titolo e pagine /usato, intestazioni di sicurezza, coordinate GPS e miniature delle foto, MCP, ribassi, ritiri, assistente venditore, rischio truffa, domanda, Svuota casa, prezzi in blocco, import del catalogo, commissioni |
+| `pnpm test:e2e` | 35 test nel browser (Playwright con il Chrome installato), con accessi veri via email: ricerca, significato, distanze, Scatta e vendi (con la miniatura della foto nelle schede), bozza ritrovata dopo l'accesso, comune dalla foto o dalla posizione (e foto inviate senza), avviso per significato, offerta accettata, ritiro e vendita confermata, assistente venditore, avvisi anti-truffa e moderazione, Cercasi, ricerche contate, la striscia in home e «lo cercano in», Svuota casa, vetrina mirata, auto a pagamento, negozio Pro, partner, pagamento protetto, ricerca salvata, email, collegare un assistente, passkey (aggiunta, accesso senza email e rimozione, con un autenticatore virtuale) |
 | `pnpm test:db` | 118 controlli di sicurezza sul database con utenti temporanei (RLS, permessi, trigger, pagamenti, tariffe) |
 | `pnpm test:moderazione` | 37 controlli sull'agente di moderazione con un modello finto che segue un copione |
 | `pnpm test:oauth` | 25 controlli sul login OAuth del connettore con il client MCP ufficiale |

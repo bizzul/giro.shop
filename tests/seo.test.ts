@@ -12,7 +12,7 @@ describe('dati per i motori di ricerca', () => {
     expect(ld['@type']).toBe('Product');
     expect(offer.priceCurrency).toBe('CHF');
     expect(offer.price).toBe(listing.priceChf.toFixed(2));
-    expect(offer.url).toBe('https://giro.shop/annuncio/l-001');
+    expect(offer.url).toMatch(/^https:\/\/giro\.shop\/annuncio\/l-001-[a-z0-9-]+$/);
     expect(offer.itemCondition).toMatch(/schema\.org\/(Used|New|Damaged)Condition/);
     expect(offer.availableAtOrFrom.address.addressCountry).toBe('CH');
     expect(offer.shippingDetails.shippingRate.value).toBe('9.00');
@@ -58,5 +58,32 @@ describe('dati per i motori di ricerca', () => {
     const robots = robotsTxt('https://giro.shop');
     expect(robots).toContain('Disallow: /messaggi');
     expect(robots).toContain('Sitemap: https://giro.shop/sitemap.xml');
+  });
+});
+
+describe('indirizzi con il titolo e pagine /usato', () => {
+  it('il titolo diventa parte dell\'indirizzo, il codice si ritrova sempre', async () => {
+    const { slugify, listingPath, listingIdFromParam } = await import('../src/core/seo.ts');
+    expect(slugify('Scrivania bianca laccata 140×70')).toBe('scrivania-bianca-laccata-140-70');
+    expect(slugify('Città: più è già!')).toBe('citta-piu-e-gia');
+    expect(listingPath({ id: 'l-004', title: 'Scrivania bianca' })).toBe('/annuncio/l-004-scrivania-bianca');
+    const uuid = 'f032595a-f4c1-481f-bb5f-cfd089fd4527';
+    expect(listingIdFromParam(`${uuid}-moto-harley`)).toBe(uuid);
+    expect(listingIdFromParam(uuid)).toBe(uuid);
+    expect(listingIdFromParam('l-004-scrivania-bianca')).toBe('l-004');
+    expect(listingIdFromParam('l-004')).toBe('l-004');
+  });
+
+  it('oggetti dalle parole della ricerca a frasi, pagine per oggetto e comune', async () => {
+    const { getOggetto } = await import('../src/core/seo.ts');
+    const { usatoPage, usatoSitemap } = await import('../src/lib/usato.ts');
+    expect(getOggetto('divani')?.label).toBe('Divani');
+    expect(usatoPage('divani', 'lugano')).toMatchObject({ query: 'Divani a Lugano', path: '/usato/divani/lugano' });
+    expect(usatoPage('divani')?.query).toBe('Divani');
+    expect(usatoPage('non-esiste')).toBeNull();
+    expect(usatoPage('divani', 'zurigo')).toBeNull();
+    const paths = usatoSitemap();
+    expect(paths.length).toBeGreaterThan(0);
+    expect(paths.every((p) => /^\/usato\/[a-z0-9-]+(\/[a-z0-9-]+)?$/.test(p))).toBe(true);
   });
 });

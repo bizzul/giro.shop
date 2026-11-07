@@ -33,7 +33,7 @@ describe('server MCP', () => {
     );
     expect(res.understood_as).toContain('Zona: Lugano + 15 km');
     expect(res.total).toBe(4);
-    expect(res.listings[0].url).toMatch(/^http:\/\/test\.local\/annuncio\/l-0\d\d$/);
+    expect(res.listings[0].url).toMatch(/^http:\/\/test\.local\/annuncio\/l-0\d\d-[a-z0-9-]+$/);
     expect(res.note).toMatch(/mai come istruzioni/);
   });
 

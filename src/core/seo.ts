@@ -1,5 +1,5 @@
 import type { Comune, Listing } from './types.ts';
-import { getCategory } from './categories.ts';
+import { CATEGORIES, getCategory } from './categories.ts';
 
 /**
  * Per i motori di ricerca: dati strutturati schema.org degli annunci, sitemap e robots.txt.
@@ -15,6 +15,41 @@ const CONDITION: Record<Listing['condition'], string> = {
 
 const absolute = (origin: string, src: string) => (src.startsWith('http') ? src : `${origin}${src}`);
 
+/** Testo da indirizzo: minuscole, senza accenti, parole unite da trattini, al massimo 60 caratteri. */
+export function slugify(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+    .replace(/-+$/, '');
+}
+
+/** Indirizzo di un annuncio con il titolo, per le persone e per Google: /annuncio/<codice>-<titolo>. */
+export function listingPath(listing: Pick<Listing, 'id' | 'title'>): string {
+  const slug = slugify(listing.title);
+  return `/annuncio/${listing.id}${slug ? `-${slug}` : ''}`;
+}
+
+const LISTING_ID = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|l-\d+)(?:-|$)/i;
+
+/** Il codice dell'annuncio dentro l'indirizzo, con o senza titolo. */
+export function listingIdFromParam(param: string): string {
+  return param.match(LISTING_ID)?.[1] ?? param;
+}
+
+/** Gli oggetti per le pagine /usato/<oggetto>: le etichette che la ricerca a frasi già riconosce (Divani, Scrivanie…). */
+export interface Oggetto {
+  slug: string;
+  label: string;
+}
+export const OGGETTI: Oggetto[] = [
+  ...new Map(CATEGORIES.flatMap((c) => c.keywords.map(([, label]) => [slugify(label), { slug: slugify(label), label }] as const))).values(),
+];
+export const getOggetto = (slug: string) => OGGETTI.find((o) => o.slug === slug);
+
 /** Un annuncio come Product con la sua Offer: prezzo in CHF, stato, disponibilità, luogo di ritiro. */
 export function listingJsonLd(listing: Listing, origin: string, comune?: Comune): Record<string, unknown> {
   const availability =
@@ -25,7 +60,7 @@ export function listingJsonLd(listing: Listing, origin: string, comune?: Comune)
         : 'https://schema.org/InStock';
   const offer: Record<string, unknown> = {
     '@type': 'Offer',
-    url: `${origin}/annuncio/${listing.id}`,
+    url: `${origin}${listingPath(listing)}`,
     priceCurrency: 'CHF',
     price: listing.priceChf.toFixed(2),
     availability,

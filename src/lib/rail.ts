@@ -17,7 +17,32 @@ const NEAR_BOTTOM = 40;
 /** Pochi pixel in meno sono solo la barra del browser che compare o sparisce, non la tastiera. */
 const KEYBOARD = 80;
 
+/**
+ * Il lato della barra scelto nell'account (core/hand.ts): arriva con il menu dell'account, caricato a parte
+ * (server island), in un <span data-mano-account>. Si applica e si ricorda nel browser per le pagine dopo.
+ */
+function syncHand() {
+  const apply = (el: Element) => {
+    const hand = el.getAttribute('data-mano-account');
+    if (hand === 'sinistra') document.documentElement.dataset.mano = 'sinistra';
+    else delete document.documentElement.dataset.mano;
+    try {
+      localStorage.setItem('giro:mano', hand === 'sinistra' ? 'sinistra' : 'destra');
+    } catch {}
+  };
+  const found = document.querySelector('[data-mano-account]');
+  if (found) return apply(found);
+  const watch = new MutationObserver(() => {
+    const el = document.querySelector('[data-mano-account]');
+    if (!el) return;
+    watch.disconnect();
+    apply(el);
+  });
+  watch.observe(document.body, { childList: true, subtree: true });
+}
+
 export function initRail() {
+  syncHand();
   const root = document.documentElement;
   const phone = matchMedia(PHONE);
   let lastY = scrollY;

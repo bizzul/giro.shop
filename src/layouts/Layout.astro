@@ -1,5 +1,10 @@
 ---
+import { createHash } from 'node:crypto';
+import '../styles/fonts.css';
 import '../styles/global.css';
+import archivoLatin from '../assets/fonts/archivo-latin.woff2?url';
+import instrumentLatin from '../assets/fonts/instrument-sans-latin.woff2?url';
+import martianLatin from '../assets/fonts/martian-mono-latin.woff2?url';
 import UserMenu from '../components/UserMenu.astro';
 import PlacePicker from '../components/PlacePicker.astro';
 import Toasts from '../components/Toasts.astro';
@@ -15,6 +20,8 @@ interface Props {
   jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>;
   /** "product" per le schede annuncio, "website" per il resto. */
   ogType?: 'website' | 'product';
+  /** Pagina da non far trovare ai motori di ricerca (es. /usato senza annunci). */
+  noindex?: boolean;
 }
 
 const {
@@ -23,6 +30,7 @@ const {
   image,
   jsonLd,
   ogType = 'website',
+  noindex = false,
 } = Astro.props;
 const path = Astro.url.pathname;
 // Indirizzo canonico: senza parametri, sull'indirizzo pubblico del sito
@@ -63,6 +71,10 @@ const footerNav = [
   },
 ];
 const year = new Date().getFullYear();
+// Su telefono la barra dei comandi va dal lato del pollice: per chi è mancino a sinistra. Si legge prima del disegno,
+// così non salta da una parte all'altra (chiave come in core/hand.ts). Script inline: il suo hash va nella CSP.
+const HAND_SCRIPT = "try{if(localStorage.getItem('giro:mano')==='sinistra')document.documentElement.dataset.mano='sinistra'}catch{}";
+Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(HAND_SCRIPT).digest('base64')}`);
 ---
 
 <!doctype html>
@@ -73,6 +85,7 @@ const year = new Date().getFullYear();
     <title>{title}</title>
     <meta name="description" content={summary} />
     <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex" />}
     <meta property="og:site_name" content="giro.shop" />
     <meta property="og:locale" content="it_CH" />
     <meta property="og:type" content={ogType} />
@@ -83,20 +96,13 @@ const year = new Date().getFullYear();
     <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
     {jsonLdBlocks.map((data) => <script type="application/ld+json" set:html={jsonLdScript(data)} />)}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <!-- Font serviti da noi (public/fonts), niente richieste a Google: si caricano subito quelli dei caratteri latini -->
-    <link rel="preload" href="/fonts/instrument-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/martian-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <!-- Font serviti da noi (src/styles/fonts.css), niente richieste a Google: si caricano subito quelli dei caratteri latini -->
+    <link rel="preload" href={instrumentLatin} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={archivoLatin} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={martianLatin} as="font" type="font/woff2" crossorigin />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)" />
-    <script is:inline>
-      // Su telefono la barra dei comandi va dal lato del pollice: per chi è mancino a sinistra.
-      // Si legge prima del disegno, così non salta da una parte all'altra (chiave come in core/hand.ts).
-      try {
-        if (localStorage.getItem('giro:mano') === 'sinistra') document.documentElement.dataset.mano = 'sinistra';
-      } catch {}
-    </script>
+    <script is:inline set:html={HAND_SCRIPT} />
   </head>
   <body>
     <a class="skip" href="#contenuto">Vai al contenuto</a>

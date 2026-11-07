@@ -7,6 +7,7 @@ import { getCategory } from '../core/categories.ts';
 import PhotoManager, { type PhotoItem } from './PhotoManager.tsx';
 import ComunePicker from './ComunePicker.tsx';
 import { useAutoComune } from '../lib/auto-comune.ts';
+import { clearSellDraft, loadSellDraft, saveSellDraft } from '../lib/draft-store.ts';
 
 interface Props {
   /** Chi ha fatto l'accesso può pubblicare; gli altri vengono portati all'accesso. */
@@ -36,7 +37,43 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
     auto.photosChanged(next);
   };
 
+  const [resumed, setResumed] = useState(false);
+
   useEffect(() => () => photos.forEach((p) => URL.revokeObjectURL(p.url)), []);
+
+  // Bozza salvata prima di andare ad accedere: si riprende da dove era
+  useEffect(() => {
+    loadSellDraft().then((saved) => {
+      if (!saved) return;
+      setPhotos(saved.photos.map((p, i) => ({ key: `ripresa-${i}`, url: URL.createObjectURL(p.file), file: p.file, ...(p.gps ? { gps: p.gps } : {}) })));
+      setDraft(saved.draft);
+      setTitle(saved.title);
+      setDescription(saved.description);
+      setPrice(saved.price);
+      setComune(saved.comune);
+      setShipping(saved.shipping);
+      setShippingChf(saved.shippingChf);
+      setStatus('done');
+      setResumed(true);
+    });
+  }, []);
+
+  /** Salva la bozza nel browser e va ad accedere: il link via email riporta qui. */
+  async function signInKeepingDraft(event: Event) {
+    if (!draft) return;
+    event.preventDefault();
+    await saveSellDraft({
+      draft,
+      title,
+      description,
+      price,
+      comune: comune || draft.comune?.name || '',
+      shipping,
+      shippingChf,
+      photos: photos.flatMap((p) => (p.file ? [{ file: p.file, ...(p.gps ? { gps: p.gps } : {}) }] : [])),
+    });
+    location.href = '/accedi?next=/vendi';
+  }
 
   // "Lo cercano in 4": chi ha una ricerca salvata per un oggetto così (serve il comune, per chi cerca vicino a casa)
   const pickupName = comune || draft?.comune?.name || '';
@@ -112,11 +149,14 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
       setError(actionError?.message ?? 'Pubblicazione non riuscita. Riprova.');
       return;
     }
+    await clearSellDraft();
     // Auto, moto e affitti: prima si paga la pubblicazione
     location.href = data.payUrl ?? `/annuncio/${data.id}`;
   }
 
   function restart() {
+    void clearSellDraft();
+    setResumed(false);
     photos.forEach((p) => URL.revokeObjectURL(p.url));
     setPhotos([]);
     setNotes('');
@@ -142,6 +182,12 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
             </span>
           </div>
         </div>
+
+        {resumed && (
+          <p class="notice" role="status">
+            {signedIn ? 'Bozza ripresa: controlla e pubblica.' : 'Bozza ripresa da questo browser.'}
+          </p>
+        )}
 
         <PhotoManager
           items={photos}
@@ -301,7 +347,7 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
               {publishing ? 'Pubblico…' : 'Pubblica annuncio'}
             </button>
           ) : (
-            <a class="btn primary" href="/accedi?next=/vendi">
+            <a class="btn primary" href="/accedi?next=/vendi" onClick={signInKeepingDraft}>
               Accedi per pubblicare
             </a>
           )}
@@ -312,7 +358,7 @@ export default function SellForm({ signedIn = false, initialNotes = '' }: Props)
         <p class="muted small">
           {signedIn
             ? "Dopo la pubblicazione l'annuncio resta online 90 giorni. Lo gestisci da I miei annunci."
-            : 'Per pubblicare serve un account: entri con un link via email, senza password.'}{' '}
+            : 'Per pubblicare serve un account: entri con un link via email, senza password, e la bozza resta salvata in questo browser.'}{' '}
           Pubblicando accetti le <a href="/condizioni">condizioni d'uso</a>, comprese le <a href="/condizioni#regole">regole della comunità</a>.
         </p>
       </div>

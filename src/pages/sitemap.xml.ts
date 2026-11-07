@@ -1,8 +1,9 @@
 /** Sitemap per i motori di ricerca: pagine pubbliche, annunci in vendita e profili di chi vende. */
 import type { APIRoute } from 'astro';
-import { sitemapXml, type SitemapEntry } from '../core/seo.ts';
+import { listingPath, sitemapXml, type SitemapEntry } from '../core/seo.ts';
 import { publishedListings } from '../core/store.ts';
 import { siteOrigin } from '../lib/notify.ts';
+import { usatoSitemap } from '../lib/usato.ts';
 
 export const GET: APIRoute = ({ url }) => {
   const listings = publishedListings();
@@ -19,7 +20,8 @@ export const GET: APIRoute = ({ url }) => {
     { path: '/connetti', priority: 0.3 },
     { path: '/privacy', priority: 0.2 },
     { path: '/condizioni', priority: 0.2 },
-    ...listings.map((l) => ({ path: `/annuncio/${l.id}`, lastmod: l.publishedAt, priority: 0.7 })),
+    ...listings.map((l) => ({ path: listingPath(l), lastmod: l.publishedAt, priority: 0.7 })),
+    ...usatoSitemap().map((path) => ({ path, lastmod: latest, priority: path.split('/').length > 3 ? 0.5 : 0.6 })),
     ...[...sellers].map(([id, lastmod]) => ({ path: `/venditore/${id}`, lastmod, priority: 0.4 })),
   ];
   return new Response(sitemapXml(siteOrigin(url.origin), entries), {

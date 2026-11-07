@@ -6,6 +6,7 @@ import { getListing, getPhoto } from '../core/store.ts';
 import { getComune } from '../core/comuni.ts';
 import { priceVerdict } from '../core/price.ts';
 import { CONDITION_LABEL, VERDICT_LABEL, formatAge, formatChf } from '../core/format.ts';
+import { listingPath } from '../core/seo.ts';
 
 const ids = (Astro.url.searchParams.get('ids') ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 4);
 const listings = ids.map((id) => getListing(id)).filter((l): l is NonNullable<typeof l> => Boolean(l));
@@ -55,10 +56,10 @@ const rows: Array<{ label: string; values: string[] }> = [
                   const photo = getPhoto(l.id);
                   return (
                     <th scope="col">
-                      <a class="ph" href={`/annuncio/${l.id}`}>
+                      <a class="ph" href={listingPath(l)}>
                         {photo ? <img src={photo.srcSmall} alt="" width="240" height="180" loading="lazy" /> : <CategoryIcon category={l.category} />}
                       </a>
-                      <a class="t" href={`/annuncio/${l.id}`}>{l.title}</a>
+                      <a class="t" href={listingPath(l)}>{l.title}</a>
                       <span class:list={['p', 'mono', { best: cheapest != null && l.priceChf === cheapest }]}>
                         {formatChf(l.priceChf)}
                         {l.status === 'venduto' && ' · venduto'}

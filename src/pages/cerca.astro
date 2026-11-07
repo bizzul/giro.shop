@@ -14,6 +14,8 @@ const from = params.get('da') ?? undefined;
 <Layout title={q ? `${q} · giro.shop` : 'Cerca · giro.shop'}>
   <section class="wrap band">
     <div class="head">
+      <!-- Il titolo della pagina per screen reader e motori di ricerca: la ricerca qui sotto fa già da intestazione -->
+      <h1 class="sr">{q ? `Risultati per «${q}»` : 'Cerca annunci'}</h1>
       <SearchForm value={q} autofocus={!q} target="risultati" mode="cerca" />
     </div>
     <p id="risultati-stato" class="sr" aria-live="polite"></p>
