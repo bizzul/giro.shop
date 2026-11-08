@@ -466,3 +466,8 @@ h3 { font-size: 18px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01e
 .hero-photo { view-transition-name: foto-annuncio; }
 ::view-transition-group(foto-annuncio) { animation-duration: 0.38s; animation-timing-function: var(--ease-out); }
 ::view-transition-old(foto-annuncio), ::view-transition-new(foto-annuncio) { height: 100%; object-fit: cover; }
+/* Tornando indietro con transizione (.vt-back, da VT_SCRIPT): la pagina deve ricomparire com'era, non rientrare.
+   Resta per tutta la visita: togliendola le card ripartirebbero con l'animazione. */
+.vt-back .lcard { animation: none; }
+.vt-back .lph img { opacity: 1 !important; }
+.vt-back .lph::after { animation: none; opacity: 0 !important; }

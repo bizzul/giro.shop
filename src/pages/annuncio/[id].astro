@@ -116,7 +116,7 @@ const canTranslate = Boolean(claudeKey());
               height={photo.height}
               alt={listing.title}
               fetchpriority="high"
-              decoding="async"
+              style={`--ph:url("${photo.srcSmall}")`}
             />
             {morePhotos.length > 0 && (
               <div class="thumbs">
@@ -690,7 +690,9 @@ const canTranslate = Boolean(claudeKey());
   .photo { aspect-ratio: 4 / 3; border-radius: 6px; background: var(--surface); display: grid; place-items: center; align-content: center; gap: 16px; color: var(--muted); max-width: 100%; }
   .photo svg { width: 30%; height: auto; }
   .gallery { display: grid; gap: 10px; }
-  .hero-photo { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; background: var(--surface); display: block; }
+  /* Sotto la foto grande c'è la miniatura della card (--ph), già in cache se si arriva da una card: nel passaggio
+     tra pagine la foto che vola non atterra su un riquadro vuoto mentre la grande è ancora in arrivo. */
+  .hero-photo { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; background: var(--surface) var(--ph, none) center / cover no-repeat; display: block; }
   .thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
   .thumbs img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; display: block; }
   .credit { font-size: 12px; color: var(--muted); line-height: 1.4; }
