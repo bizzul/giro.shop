@@ -151,6 +151,9 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(VT_SCRIPT).dig
     <script is:inline set:html={HAND_SCRIPT} />
     <script is:inline set:html={THEME_SCRIPT} />
     <script is:inline set:html={VT_SCRIPT} />
+    <!-- Il primo disegno aspetta la fine del contenuto: con una rete lenta (o un browser senza cache indietro/avanti) la
+         transizione partiva su una pagina letta a metà, senza la foto grande dove far atterrare quella della card. -->
+    <link rel="expect" href="#fine-contenuto" blocking="render" />
   </head>
   <body>
     <a class="skip" href="#contenuto">Vai al contenuto</a>
@@ -201,6 +204,7 @@ Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(VT_SCRIPT).dig
       <PasskeyOffer />
       <slot />
     </main>
+    <div id="fine-contenuto" hidden></div>
     <PlacePicker />
     <Toasts />
     <footer class="foot">
